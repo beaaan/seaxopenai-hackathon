@@ -226,7 +226,10 @@
 .r-icon svg { width: 20px; height: 20px; }
 .r-icon.ok { background: rgba(79, 209, 165, 0.16); color: var(--n-green); }
 .r-icon.bad { background: rgba(255, 107, 107, 0.14); color: var(--n-red); }
-.r-bars { display: grid; grid-template-columns: 52px minmax(0, 1fr) 48px; align-items: center; gap: 8px 10px; font-size: 13px; color: var(--n-muted); }
+.r-comparison { margin: 0; display: grid; gap: 8px; padding-top: 12px; border-top: 1px solid var(--n-edge); }
+.r-comparison figcaption { font-size: 15px; font-weight: 500; line-height: 1.4; }
+.r-comparison p.r-interpretation { color: var(--n-ink); font-weight: 500; }
+.r-bars { display: grid; grid-template-columns: 52px minmax(0, 1fr) 6ch; align-items: center; gap: 8px 10px; font-size: 13px; color: var(--n-muted); }
 .r-bars i { height: 14px; border-radius: 999px; background: var(--n-amber); }
 .r-bars em { font-style: normal; font-family: var(--mono); color: var(--n-ink); text-align: right; }
 .r-verdict { display: grid; gap: 10px; justify-items: start; }
@@ -277,14 +280,17 @@
 .w-row i b { display: block; height: 100%; border-radius: 999px; background: var(--n-amber); }
 .w-row small { font-family: var(--mono); font-size: 14px; color: var(--n-muted); text-align: right; }
 
-/* One misreading priced: an equation of terms, two of them chosen by the viewer. */
+/* Hypothetical support cost: buyer assumptions are separate from the simulation result. */
+.c-observed { display: grid; gap: 6px; padding: 18px 22px; border-left: 2px solid var(--n-cyan); font-size: 16px; line-height: 1.5; }
+.c-observed small, .c-note { color: var(--n-muted); font-size: 14px; line-height: 1.5; }
 .c-eq { display: flex; flex-wrap: wrap; align-items: flex-start; gap: clamp(10px, 1.6vw, 24px); }
 .c-term { display: grid; gap: 8px; align-content: start; min-width: 0; flex: 1 1 170px; padding: clamp(14px, 1.6vw, 22px); border-radius: 16px; background: var(--n-panel); border: 1px solid var(--n-edge); }
-.c-term.measured { border-color: var(--n-amber); }
 .c-term strong { font-size: clamp(34px, min(3.6vw, 6.4vh), 60px); line-height: 1; font-weight: 300; font-variant-numeric: tabular-nums; }
-.c-term.measured strong { color: var(--n-amber); }
-.c-term span { font-size: 15px; color: var(--n-ink); }
-.c-term small, .c-term a { font-size: 12px; color: var(--n-dim); }
+.c-term span, .c-term label { font-size: 15px; color: var(--n-ink); }
+.c-rate-input { width: 100%; min-width: 0; min-height: 44px; padding: 8px 10px; border: 1px solid var(--n-dim); border-radius: 8px; background: var(--n-bg-2); color: var(--n-ink); font: inherit; font-size: 24px; }
+.c-rate-input[aria-invalid="true"] { border-color: var(--n-red); }
+.c-term small, .c-term a { font-size: 12px; color: var(--n-muted); }
+.c-term small[role="alert"] { color: var(--n-red); }
 .c-term a { text-decoration: none; border-bottom: 1px dotted currentColor; justify-self: start; }
 .c-op { align-self: center; font-size: clamp(24px, 2.4vw, 36px); font-weight: 300; color: var(--n-dim); }
 .c-pick { display: flex; gap: 6px; flex-wrap: wrap; }
