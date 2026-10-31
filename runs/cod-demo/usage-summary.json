@@ -1,0 +1,223 @@
+{
+  "runId": "cod-demo",
+  "readers": 50,
+  "measuredAt": "2026-10-31T08:29:54.310Z",
+  "prices": {
+    "gpt-6.1-sol": {
+      "input": 2,
+      "cachedInput": 0.1,
+      "output": 10,
+      "source": "https://developers.openai.com/api/docs/pricing"
+    },
+    "gpt-6-luna": {
+      "input": 0.1,
+      "cachedInput": 0.01,
+      "output": 0.5,
+      "source": "https://developers.openai.com/api/docs/pricing"
+    },
+    "text-embedding-3-small": {
+      "input": 0.02,
+      "cachedInput": null,
+      "output": null,
+      "source": "https://developers.openai.com/api/docs/pricing"
+    }
+  },
+  "stages": [
+    {
+      "stage": "coder",
+      "model": "gpt-6-luna",
+      "calls": 274,
+      "inputTokens": 4762525,
+      "cachedInputTokens": 0,
+      "outputTokens": 0,
+      "reasoningTokens": 0,
+      "costUsd": 0.47625250000000013
+    },
+    {
+      "stage": "coder",
+      "model": "gpt-6.1-sol",
+      "calls": 54,
+      "inputTokens": 84005,
+      "cachedInputTokens": 19417,
+      "outputTokens": 39246,
+      "reasoningTokens": 22040,
+      "costUsd": 0.5235777000000001
+    },
+    {
+      "stage": "dims",
+      "model": "gpt-6.1-sol",
+      "calls": 1,
+      "inputTokens": 831,
+      "cachedInputTokens": 0,
+      "outputTokens": 1409,
+      "reasoningTokens": 198,
+      "costUsd": 0.015752
+    },
+    {
+      "stage": "embeddings",
+      "model": "text-embedding-3-small",
+      "calls": 54,
+      "inputTokens": 19006,
+      "cachedInputTokens": null,
+      "outputTokens": null,
+      "reasoningTokens": null,
+      "costUsd": 0.00038012
+    },
+    {
+      "stage": "fidelity",
+      "model": "gpt-6.1-sol",
+      "calls": 5,
+      "inputTokens": 15459,
+      "cachedInputTokens": 0,
+      "outputTokens": 4051,
+      "reasoningTokens": 1771,
+      "costUsd": 0.07142799999999999
+    },
+    {
+      "stage": "grader",
+      "model": "gpt-6-luna",
+      "calls": 100,
+      "inputTokens": 394647,
+      "cachedInputTokens": 0,
+      "outputTokens": 0,
+      "reasoningTokens": 0,
+      "costUsd": 0.03946470000000002
+    },
+    {
+      "stage": "judge",
+      "model": "gpt-6.1-sol",
+      "calls": 1,
+      "inputTokens": 89047,
+      "cachedInputTokens": 0,
+      "outputTokens": 5806,
+      "reasoningTokens": 3624,
+      "costUsd": 0.236154
+    },
+    {
+      "stage": "other",
+      "model": "gpt-6.1-sol",
+      "calls": 51,
+      "inputTokens": 91941,
+      "cachedInputTokens": 0,
+      "outputTokens": 30351,
+      "reasoningTokens": 5414,
+      "costUsd": 0.4873920000000001
+    },
+    {
+      "stage": "probe",
+      "model": "gpt-6.1-sol",
+      "calls": 27,
+      "inputTokens": 284730,
+      "cachedInputTokens": 246912,
+      "outputTokens": 1954,
+      "reasoningTokens": 136,
+      "costUsd": 0.11986719999999997
+    },
+    {
+      "stage": "reader",
+      "model": "gpt-6-luna",
+      "calls": 2,
+      "inputTokens": 1483,
+      "cachedInputTokens": 0,
+      "outputTokens": 0,
+      "reasoningTokens": 0,
+      "costUsd": 0.0001483
+    },
+    {
+      "stage": "reader",
+      "model": "gpt-6.1-sol",
+      "calls": 100,
+      "inputTokens": 156070,
+      "cachedInputTokens": 77885,
+      "outputTokens": 62397,
+      "reasoningTokens": 0,
+      "costUsd": 0.7881285000000003
+    },
+    {
+      "stage": "repair",
+      "model": "gpt-6.1-sol",
+      "calls": 8,
+      "inputTokens": 22011,
+      "cachedInputTokens": 13506,
+      "outputTokens": 7657,
+      "reasoningTokens": 6631,
+      "costUsd": 0.0949306
+    },
+    {
+      "stage": "resolution",
+      "model": "gpt-6-luna",
+      "calls": 15,
+      "inputTokens": 30475,
+      "cachedInputTokens": 0,
+      "outputTokens": 0,
+      "reasoningTokens": 0,
+      "costUsd": 0.0030475000000000003
+    },
+    {
+      "stage": "resolution",
+      "model": "gpt-6.1-sol",
+      "calls": 13,
+      "inputTokens": 19042,
+      "cachedInputTokens": 12847,
+      "outputTokens": 7133,
+      "reasoningTokens": 42,
+      "costUsd": 0.0850047
+    },
+    {
+      "stage": "reviewer",
+      "model": "gpt-6.1-sol",
+      "calls": 4,
+      "inputTokens": 667265,
+      "cachedInputTokens": 584576,
+      "outputTokens": 1897,
+      "reasoningTokens": 633,
+      "costUsd": 0.2428056
+    },
+    {
+      "stage": "score",
+      "model": "gpt-6.1-sol",
+      "calls": 9,
+      "inputTokens": 15217,
+      "cachedInputTokens": 0,
+      "outputTokens": 2205,
+      "reasoningTokens": 1154,
+      "costUsd": 0.052483999999999996
+    }
+  ],
+  "totalCostUsd": 3.2368174199999986,
+  "measuredCostUsd": 3.2368174199999986,
+  "wallSeconds": 800.916,
+  "missingUsage": [
+    {
+      "stage": "embeddings",
+      "model": "text-embedding-3-small",
+      "calls": 54,
+      "fields": [
+        "cachedInputTokens",
+        "outputTokens",
+        "reasoningTokens"
+      ],
+      "costIncomplete": false
+    }
+  ],
+  "unmeasuredStages": [
+    {
+      "stage": "baseline",
+      "reason": "No real API call was logged under this stage; it was cached, skipped, or attributed to a more specific stage."
+    },
+    {
+      "stage": "decisions",
+      "reason": "No real API call was logged under this stage; it was cached, skipped, or attributed to a more specific stage."
+    }
+  ],
+  "notes": [
+    "Prices are standard short-context USD per 1M tokens; source retrieved 2026-10-31.",
+    "inputTokens includes cachedInputTokens. reasoningTokens is the API's output_tokens_details.reasoning_tokens subset of outputTokens; do not add it again when calculating cost. API reference: https://developers.openai.com/api/docs/guides/reasoning#managing-the-context-window",
+    "Embedding usage reports prompt_tokens only. Its absent cached-input, output, and reasoning counts remain null; cost uses the verified input-only price.",
+    "App Server rows aggregate the delta of thread/tokenUsage/updated cumulative totals over one turn; a turn without a usage notification has null counts and unknown cost.",
+    "Cache hits are excluded. SDK-internal transport retries without a response usage object are not separately observable.",
+    "Stages with no real call are listed separately in unmeasuredStages, never assigned guessed token counts or costs. --fresh bypasses reader, grading, coding, benchmark, and embedding caches, but existing dimension/scenario generation caches may still be reused.",
+    "readers counts unique scenario.created IDs, not repeated readings. wallSeconds spans the first through last domain event of the run.",
+    "A null stage token total indicates at least one unreported value; totalCostUsd is null if any call's billable usage is unknown, while measuredCostUsd retains the known subtotal."
+  ]
+}

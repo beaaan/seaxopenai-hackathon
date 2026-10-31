@@ -18,6 +18,12 @@ const ExtractedDimensions = z.strictObject({
   })).min(3).max(4),
 });
 
+export const DEMOGRAPHIC_AGE_BANDS: Readonly<Record<string, readonly [number, number]>> = {
+  young: [18, 25],
+  middle: [30, 45],
+  older: [55, 70],
+};
+
 /** Farthest-first lexical selection keeps distinct circulating claims / surfaces represented. */
 function diverse<T>(items: readonly T[], count: number, text: (item: T) => string): T[] {
   if (items.length <= count) return [...items];
@@ -42,7 +48,9 @@ export async function extractDimensions(ctx: StageContext, version: PolicyVersio
   const extracted = await ctx.gateway.structured({
     role: "dims",
     stage: "dims",
-    instructions: prompt("dims"),
+    instructions: ctx.config.demographics
+      ? `${prompt("dims")}\n\nAge group and digital literacy are also appended deterministically for this run. Do not extract either or aliases; age_group and digital_literacy are reserved ids. Prefer independent policy-specific situational traits.`
+      : prompt("dims"),
     input: policyText(version, { ids: false }),
     schema: ExtractedDimensions,
     schemaName: "policy_dimensions",
@@ -51,7 +59,8 @@ export async function extractDimensions(ctx: StageContext, version: PolicyVersio
   });
   const dimensions: Dimension[] = extracted.dimensions.map((dimension) => ({ ...dimension, origin: "extracted" }));
   for (const dimension of dimensions) {
-    if (["exposure_channel", "prior_belief", "attention"].includes(dimension.id)) {
+    if (["exposure_channel", "prior_belief", "attention"].includes(dimension.id)
+      || (ctx.config.demographics && ["age_group", "digital_literacy"].includes(dimension.id))) {
       throw new Error(`Reserved dimension id: ${dimension.id}`);
     }
   }
@@ -97,6 +106,30 @@ export async function extractDimensions(ctx: StageContext, version: PolicyVersio
     origin: "extracted",
     rationale: "Cùng một nội dung có thể được hiểu khác khi chỉ nhìn lướt so với khi có thời gian đọc.",
   });
+  if (ctx.config.demographics) {
+    dimensions.push({
+      id: "age_group",
+      name: "Nhóm tuổi",
+      description: "Giai đoạn cuộc sống và mức độ quen thuộc với mua sắm qua ứng dụng.",
+      levels: [
+        { id: "young", label: "Người trẻ (18–25 tuổi)", description: "Từ 18 đến 25 tuổi, đang đi học hoặc mới đi làm; chủ yếu mua sắm bằng điện thoại." },
+        { id: "middle", label: "Trung niên (30–45 tuổi)", description: "Từ 30 đến 45 tuổi, đang đi làm và lo các nhu cầu mua sắm thường ngày." },
+        { id: "older", label: "Lớn tuổi (55–70 tuổi)", description: "Từ 55 đến 70 tuổi, ít quen với việc dùng ứng dụng mua sắm." },
+      ],
+      origin: "extracted",
+      rationale: "Chủ động phủ các nhóm tuổi để so sánh cách hiểu, không để người viết hồ sơ tự chọn tuổi.",
+    }, {
+      id: "digital_literacy",
+      name: "Mức thông thạo ứng dụng",
+      description: "Khả năng tự đọc thông tin và sử dụng ứng dụng trong tình huống mua sắm.",
+      levels: [
+        { id: "low", label: "Ít thông thạo", description: "Ít đọc kỹ chữ trong ứng dụng, thường nhờ người nhà hoặc bạn bè giải thích; persona.literacy phải là low." },
+        { id: "high", label: "Thông thạo", description: "Dùng ứng dụng thành thạo, biết tìm và đọc trang trợ giúp; persona.literacy phải là high." },
+      ],
+      origin: "extracted",
+      rationale: "Chủ động so sánh khả năng đọc và dùng ứng dụng, tách biệt với nhóm tuổi và mức độ chú ý.",
+    });
+  }
   const ids = new Set<string>();
   for (const dimension of dimensions) {
     if (ids.has(dimension.id)) throw new Error(`Duplicate dimension id: ${dimension.id}`);

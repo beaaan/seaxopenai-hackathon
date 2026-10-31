@@ -157,6 +157,7 @@ export async function createReviewer(ctx: StageContext): Promise<Reviewer> {
         for (const addition of output.newLevels) {
           if (!dimensions.has(addition.dimId)) throw new Error(`Unknown new-level dimension: ${addition.dimId}`);
           if (addition.dimId === "exposure_channel" || addition.dimId === "prior_belief" || addition.dimId === "attention") throw new Error(`Cannot add levels to built-in exposure dimension: ${addition.dimId}`);
+          if (ctx.config.demographics && (addition.dimId === "age_group" || addition.dimId === "digital_literacy")) throw new Error(`Cannot add levels to built-in demographic dimension: ${addition.dimId}`);
           if (!addition.level.id.trim() || levelIds.has(addition.level.id)) throw new Error(`Duplicate or empty new level id: ${addition.level.id}`);
           levelIds.add(addition.level.id);
         }

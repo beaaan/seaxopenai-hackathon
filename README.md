@@ -44,6 +44,8 @@ npm run web -- --host                # same, reachable from phones on the venue 
 npm run check                        # typecheck + tests + holdout guard + web build
 ```
 
+Add `--demographics` to `pwt run` to design age groups (18–25, 30–45, 55–70) and low/high digital literacy explicitly; it is off by default, and written persona ages/literacy are corrected to their assigned levels.
+
 If **Watch the run** reports a missing Three.js addon such as `OutputPass.js`, stop
 the dev servers, run `npm ci` from this repository, and restart `npm run server`
 and `npm run web` in separate terminals. A missing local dependency can cause
