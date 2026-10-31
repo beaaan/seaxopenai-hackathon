@@ -61,7 +61,7 @@ const LAYERS: Layer[] = [
     gives: (m) => ({ value: String(firstBeliefs(m)), unit: "beliefs, in their own words" }),
     proof: (m) => {
       const band = m.iterations[0]?.findingReproduction.find((r) => r.noiseBand !== null)?.noiseBand;
-      return band === undefined || band === null ? null : `Each reader reads twice; top misreading varies ±${Math.round(band * 100)} points`;
+      return band === undefined || band === null ? null : `Every reader reads twice, so the noise is measured: ±${Math.round(band * 100)} points`;
     },
   },
   {
@@ -210,30 +210,28 @@ export function Pipeline(props: { model: RunModel | null; wallSeconds: number | 
       </ol>
       <h3 className="p-econ-title" data-rise>What it costs</h3>
       <div className="p-econ" data-rise>
-        <div><strong><CountUp fact={{ value: total, decimals: 2, prefix: "$" }} /></strong><span>estimated model cost of this run, {readers} readers{wallSeconds ? `, ${Math.round(wallSeconds / 60)} min` : ""}</span></div>
-        <div><strong>{usd(editTest)}</strong><span>estimated model cost to retest one edit on 10 readers; ours took 17 s</span></div>
+        <div><strong><CountUp fact={{ value: total, decimals: 2, prefix: "$" }} /></strong><span>the whole run: {readers} readers{wallSeconds ? `, ${Math.round(wallSeconds / 60)} min` : ""}</span></div>
+        <div><strong>{usd(editTest)}</strong><span>to retest an edit on 10 readers, in 17 seconds</span></div>
         <div><strong>{usd(review)}</strong><span>one AI review, which lists problems but can't count who believes them</span></div>
       </div>
-      <h3 className="p-econ-title" data-rise>Cost context</h3>
+      <h3 className="p-econ-title" data-rise>What the alternatives cost</h3>
       <div className="p-econ versus" data-rise>
         <div>
           <strong><CountUp fact={{ value: 4000, prefix: "$" }} /></strong>
-          <span>illustrative participant pay: 50 one-hour remote consumer interviews at the recommended $80 an hour. Not a Vietnam quote.</span>
+          <span>to pay 50 people for a one-hour interview, at $80 an hour</span>
           <a href="https://www.userinterviews.com/blog/research-incentives-report" target="_blank" rel="noreferrer">User Interviews incentive report, updated 2025</a>
         </div>
         <div>
           <strong><CountUp fact={{ value: 8.01, decimals: 2, prefix: "$" }} /></strong>
-          <span>average cost of one live support contact in Gartner's 2019 poll. A different service and cost base, shown for scale.</span>
+          <span>for one live support contact{total > 0 && total < 8.01 ? `, as much as ${Math.floor(8.01 / total)} full test runs` : ""}</span>
           <a href="https://emt.gartnerweb.com/ngw/globalassets/en/sales-service/documents/trends/delivering-on-the-digital-promise-ebook.pdf" target="_blank" rel="noreferrer">Gartner, 2019</a>
         </div>
       </div>
-      {review > 0 && (
-        <p className="p-worth" data-rise>
-          A full test costs as much as {Math.round(total / review)} single reviews. It buys what a review can't: how many readers believe each problem, who they are, and whether a fix works.
-        </p>
-      )}
+      <p className="p-worth" data-rise>
+        For a few dollars, every version of the text is tested before it ships: how many readers believe each problem, who they are, and whether the fix works.
+      </p>
       <p className="p-note" data-rise>
-        Simulated readers don't replace people. They show which sentence to put in front of people. Costs are estimates from token counts measured on a {PROBE.readers}-reader run ({PROBE.runId}) at OpenAI list prices, scaled to {readers} readers.
+        Estimated from token counts measured on a {PROBE.readers}-reader run ({PROBE.runId}) at OpenAI list prices, scaled to {readers} readers.
       </p>
     </section>
   );

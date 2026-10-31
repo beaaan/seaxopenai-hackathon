@@ -262,6 +262,17 @@
 .fix.bad .fix-mark { background: rgba(255, 107, 107, 0.14); color: var(--n-red); }
 .fix.bad .fix-num { color: var(--n-red); }
 
+/* Who misreads it: one card per trait, share of readers holding the misreading per level. */
+.w-what { font-size: clamp(16px, 1.4vw, 20px); color: var(--n-muted); }
+.w-traits { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 16px; }
+.w-traits li { display: grid; gap: 10px; align-content: start; padding: 20px 22px; border-radius: 16px; background: var(--n-panel); border: 1px solid var(--n-edge); }
+.w-traits li.lead { border-color: var(--n-amber); }
+.w-traits h3 { display: flex; align-items: center; gap: 10px; font-size: 16px; color: var(--n-muted); }
+.w-traits h3 em { font-style: normal; font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; background: var(--n-amber); color: #05070b; }
+.w-row { display: grid; grid-template-columns: minmax(0, 11em) minmax(60px, 1fr) 3.4em; align-items: center; gap: 12px; font-size: 15px; }
+.w-row i { height: 10px; border-radius: 999px; background: rgba(233, 238, 244, 0.08); overflow: hidden; }
+.w-row i b { display: block; height: 100%; border-radius: 999px; background: var(--n-amber); }
+.w-row small { font-family: var(--mono); font-size: 14px; color: var(--n-muted); text-align: right; }
 /* The ending. */
 .l-cta { min-height: 80svh; padding: 120px var(--n-m); display: grid; align-content: center; gap: 26px; justify-items: start; }
 .l-cta h2 { font-size: clamp(36px, min(4.4vw, 8vh), 72px); line-height: 1.05; }

@@ -10,6 +10,7 @@ import { RunStory } from "./RunStory";
 import { ChapterRail } from "./ChapterRail";
 import { Stakes } from "./Stakes";
 import { Streamlines } from "./Streamlines";
+import { WhoMisreads } from "./WhoMisreads";
 import { tunnelData, type TunnelData } from "./tunnel";
 import "./landing.css";
 
@@ -95,6 +96,7 @@ export function LandingPage(): ReactNode {
       <Found model={model} data={data} rows={rows} />
       <Voices model={model} top={rows[0]} folk={folk} />
       <Rumours folk={folk} model={model} top={rows[0]} />
+      <WhoMisreads model={model} top={rows[0]} demographic={false} />
       <Repair top={rows[0]} />
       <Numbers />
       <Pipeline model={model} wallSeconds={wallSeconds} />
@@ -351,12 +353,12 @@ function Repair(props: { top: Misreading | undefined }): ReactNode {
             <span>Before</span><i style={{ width: pct(before.rate) }} /><em>{pct(before.rate)}</em>
             <span>After</span><i style={{ width: pct(after.rate) }} /><em>{pct(after.rate)}</em>
           </div>
-          <p>{band !== null ? `Within the ±${band}-point noise. ` : ""}{worse ? `Another misreading rose from ${pct(worse.before)} to ${pct(worse.after)}.` : ""}</p>
+          <p>No real change.{worse ? ` And a different misreading rose from ${pct(worse.before)} to ${pct(worse.after)}.` : ""}</p>
         </li>
       </ol>
       <div className="r-verdict" data-rise>
-        <strong>The fix failed. Only {reached} of these {suite.scenarios.length} readers ever saw it.</strong>
-        {surface && <span>The rest meet the rule at checkout or hear it from a friend.</span>}
+        <strong>The tunnel caught a fix that would not have worked.</strong>
+        {surface && <span>Only {reached} of these {suite.scenarios.length} readers ever see the help article. The rest meet the rule at checkout or hear it from a friend.</span>}
       </div>
       <People total={suite.scenarios.length} lit={reached} tone="cyan" />
     </section>

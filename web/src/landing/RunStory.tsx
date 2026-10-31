@@ -149,7 +149,7 @@ export function RunStory(props: { model: RunModel | null; top: Misreading | unde
         {beat === 4 && (
           <>
             <div className="story-col hold" style={{ left: "30%" }}><b>{data.held}</b><span>believe the rule</span></div>
-            <div className="story-col" style={{ left: "68%" }}><b>{total - data.held}</b><span>did not express it</span></div>
+            <div className="story-col" style={{ left: "68%" }}><b>{total - data.held}</b><span>didn't pick it up</span></div>
           </>
         )}
         {data.readers.map((r) => {
