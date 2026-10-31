@@ -17,11 +17,13 @@ import type {
   Interpretation,
   Iteration,
   PolicyVersion,
+  ProbeResult,
   Reading,
   Rewrite,
   RunConfig,
   Scenario,
   Score,
+  SuiteComparison,
   ThreadItemRecord,
 } from "@shared/schema";
 
@@ -59,6 +61,8 @@ export interface RunView {
   /** codebook probabilities, keyed by policy version of the coded readings */
   codings: Record<number, Coding[]>;
   clusters: Record<number, Cluster[]>;
+  codebookVersion: number | null;
+  codebookClusterIds: string[];
   allocations: AllocationDecision[];
   findings: Finding[];
   rewrites: Rewrite[];
@@ -71,6 +75,8 @@ export interface RunView {
   humanQuestions: HumanQuestion[];
   humanAnswers: HumanAnswer[];
   humanMappings: HumanMapping[];
+  probe: ProbeResult | null;
+  comparison: SuiteComparison | null;
   log: LogLine[];
 }
 
@@ -91,6 +97,8 @@ export const EMPTY_VIEW: RunView = {
   grades: {},
   codings: {},
   clusters: {},
+  codebookVersion: null,
+  codebookClusterIds: [],
   allocations: [],
   findings: [],
   rewrites: [],
@@ -103,6 +111,8 @@ export const EMPTY_VIEW: RunView = {
   humanQuestions: [],
   humanAnswers: [],
   humanMappings: [],
+  probe: null,
+  comparison: null,
   log: [],
 };
 
@@ -144,6 +154,8 @@ export function applyEvent(view: RunView, event: RunEvent): RunView {
     }
     case "clusters.updated":
       return { ...base, clusters: { ...base.clusters, [event.payload.policyVersion]: event.payload.clusters } };
+    case "codebook.fixed":
+      return { ...base, codebookVersion: event.payload.codebookVersion, codebookClusterIds: event.payload.clusterIds };
     case "allocation.decided":
       return { ...base, allocations: [...base.allocations, event.payload.decision] };
     case "findings.updated":
@@ -168,6 +180,10 @@ export function applyEvent(view: RunView, event: RunEvent): RunView {
       return { ...base, humanAnswers: [...base.humanAnswers, event.payload.answer] };
     case "human.mapped":
       return { ...base, humanMappings: [...base.humanMappings, event.payload.mapping] };
+    case "probe.completed":
+      return { ...base, probe: event.payload.result };
+    case "suite.compared":
+      return { ...base, comparison: event.payload.comparison };
     case "log":
       return { ...base, log: [...base.log, { seq: event.seq, ...event.payload }] };
     case "run.completed":

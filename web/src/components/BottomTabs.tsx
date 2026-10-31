@@ -3,8 +3,13 @@ import type { ThreadItemRecord } from "@shared/schema";
 import { wordDiff } from "../diff";
 import type { RunView } from "../state";
 import { pct } from "../ui";
+import { CodebookPanel, HumanPanel, ProbePanel, RetestPanel } from "./WorkflowPanels";
 
 const TABS = {
+  codebook: "Codebook",
+  human: "Human check",
+  probe: "Incentive probe",
+  retest: "Re-test edit",
   iterations: "Iterations",
   diff: "Diff",
   score: "Baseline vs Wind Tunnel",
@@ -14,9 +19,11 @@ type Tab = keyof typeof TABS;
 
 function Iterations(props: { view: RunView }): ReactNode {
   const { iterations, stop } = props.view;
+  const provenance = props.view.log.filter((line) => /decisions|backend/i.test(line.message)).slice(0, 3);
   if (iterations.length === 0) return <p className="text-slate-500">No iterations yet.</p>;
   return (
     <div className="space-y-2">
+      {provenance.length > 0 && <div className="flex flex-wrap gap-2">{provenance.map((line) => <span key={line.seq} className={`rounded px-3 py-1 text-sm font-semibold ${/emulat/i.test(line.message) ? "bg-amber-100 text-amber-950" : "bg-sky-100 text-sky-950"}`}>{line.message}</span>)}</div>}
       <table className="w-full text-sm">
         <thead>
           <tr className="text-left text-slate-500">
@@ -24,7 +31,7 @@ function Iterations(props: { view: RunView }): ReactNode {
             <th className="text-right">Readings</th>
             <th className="text-right">Conflict rate</th>
             <th className="text-right">95% CI</th>
-            <th className="text-right">Noise band</th>
+            <th className="text-right">test–retest noise (paired)</th>
             <th className="text-right">Open questions</th>
             <th className="text-right">Open wording</th>
             <th className="pl-4">Decision</th>
@@ -40,7 +47,7 @@ function Iterations(props: { view: RunView }): ReactNode {
               <td className="text-right font-mono">
                 {pct(it.ci95.lo)}–{pct(it.ci95.hi)}
               </td>
-              <td className="text-right font-mono">{it.noiseBand === null ? "—" : `±${pct(it.noiseBand)}`}</td>
+              <td className="text-right font-mono">{it.noiseBand === null ? "not measured" : `±${pct(it.noiseBand)} (paired, n=${it.noiseBandScenarios ?? "unknown"})`}</td>
               <td className="text-right font-mono">{pct(it.openQuestionRate)}</td>
               <td className="text-right font-mono">{it.openWordingFindings}</td>
               <td className="pl-4">
@@ -145,6 +152,8 @@ function ScoreTab(props: { view: RunView }): ReactNode {
               </tbody>
             </table>
             <MatchMatrix view={props.view} />
+            <p className="mt-3 text-sm text-slate-600">Wind Tunnel uses ~{Object.keys(props.view.readings).length} model calls vs 1 for a baseline (reader calls only; reviewer and evaluation add calls).</p>
+            {score.outsideReference.length > 0 && <div className="mt-4 rounded border border-amber-200 bg-amber-50 p-3"><h3 className="font-bold">Unmatched by holdout (not validated, not disproved)</h3><ul className="mt-2 list-disc pl-5">{score.outsideReference.map((item, index) => <li key={index}>{item.systemId} · {item.itemId}</li>)}</ul></div>}
           </>
         )}
       </div>
@@ -203,10 +212,10 @@ function MatchMatrix(props: { view: RunView }): ReactNode {
 }
 
 function Threads(props: { view: RunView }): ReactNode {
-  const { threadItems, humanQuestions, humanAnswers } = props.view;
+  const { threadItems } = props.view;
   const byThread = new Map<string, ThreadItemRecord[]>();
   for (const item of threadItems) byThread.set(item.threadId, [...(byThread.get(item.threadId) ?? []), item]);
-  if (byThread.size === 0 && humanQuestions.length === 0) return <p className="text-slate-500">No thread items yet.</p>;
+  if (byThread.size === 0) return <p className="text-slate-500">No thread items yet.</p>;
   return (
     <div className="space-y-3">
       {[...byThread].map(([threadId, items]) => (
@@ -228,39 +237,35 @@ function Threads(props: { view: RunView }): ReactNode {
           </ul>
         </div>
       ))}
-      {humanQuestions.map((q) => (
-        <div key={q.id} className="rounded border border-orange-200 p-2 text-sm">
-          <div className="font-semibold">❓ {q.questionVi}</div>
-          {humanAnswers
-            .filter((a) => a.questionId === q.id)
-            .map((a) => (
-              <div key={a.id}>
-                🙋 {a.respondent}: {a.answerVi}
-              </div>
-            ))}
-        </div>
-      ))}
     </div>
   );
 }
 
-export function BottomTabs(props: { view: RunView }): ReactNode {
-  const [tab, setTab] = useState<Tab>("iterations");
+export function BottomTabs(props: { view: RunView; onRun: (runId: string) => void; onRefresh: () => void }): ReactNode {
+  const [tab, setTab] = useState<Tab>("codebook");
+  const finalVersion = props.view.stop?.finalVersion ?? props.view.currentVersion;
+  const policy = finalVersion === null ? undefined : props.view.versions[finalVersion];
   return (
     <section className="flex min-h-0 flex-1 flex-col rounded-lg bg-white shadow-sm ring-1 ring-slate-200">
-      <div className="flex gap-1 border-b border-slate-200 px-2 pt-2">
+      <div className="flex flex-wrap gap-1 border-b border-slate-200 px-2 pt-2" role="tablist" aria-label="Run details">
         {(Object.keys(TABS) as Tab[]).map((t) => (
           <button
             key={t}
             type="button"
             onClick={() => setTab(t)}
+            role="tab"
+            aria-selected={t === tab}
             className={`rounded-t px-4 py-1.5 text-sm font-semibold ${t === tab ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}
           >
             {TABS[t]}
           </button>
         ))}
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto p-3">
+      <div className="min-h-[22rem] flex-1 overflow-auto p-4" role="tabpanel">
+        {tab === "codebook" && <CodebookPanel view={props.view} />}
+        {tab === "human" && <HumanPanel key={props.view.runId} view={props.view} onRefresh={props.onRefresh} />}
+        {tab === "probe" && <ProbePanel view={props.view} />}
+        {tab === "retest" && (policy === undefined || props.view.runId === null ? <p>Select a run with a policy version to edit.</p> : <RetestPanel key={`${props.view.runId}:${policy.version}`} runId={props.view.runId} policy={policy} onRun={props.onRun} />)}
         {tab === "iterations" && <Iterations view={props.view} />}
         {tab === "diff" && <Diff view={props.view} />}
         {tab === "score" && <ScoreTab view={props.view} />}

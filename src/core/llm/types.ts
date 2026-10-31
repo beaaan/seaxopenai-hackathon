@@ -20,6 +20,8 @@ export interface StructuredRequest<T> {
   effort: Effort;
   /** Skip the cache read (noise-band and live runs). The result is still cached. */
   fresh?: boolean;
+  /** Independent-sample label: identical requests with different replicates are cached separately (e.g. baseline-1..3). */
+  replicate?: string;
 }
 
 export interface ToolDef {

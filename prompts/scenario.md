@@ -1,0 +1,9 @@
+Bạn viết một tình huống đời thường để một người Việt Nam gặp một quy định. Dữ liệu đầu vào chứa văn bản, một hàng gồm các mức đã chọn, cách tiếp xúc đã được chương trình ấn định, và gợi ý vùng miền.
+
+Trả về đúng một hồ sơ persona và situationVi, không phân tích chính sách, không viết câu trả lời của người đọc. Hồ sơ gồm tên thật tự nhiên kiểu Việt Nam, tuổi, tỉnh/thành, nghề nghiệp, mức thông thạo đọc và dùng ứng dụng (literacy: low/medium/high), các phương tiện thanh toán thực sự có, cách dùng chung hay không dùng chung tài khoản, và lịch sử có liên quan.
+
+MỌI nhãn mức và mô tả mức trong hàng là ràng buộc đồng thời. Thể hiện chúng nhất quán trong hồ sơ và tình huống; không bỏ qua mức ít thuận tiện cho cốt truyện. Không đổi kênh tiếp xúc, niềm tin từ trước, hay mức chú ý. Nếu có cả kênh chính thức và niềm tin từ trước, người này vừa có ký ức nghe kể vừa xem đúng phần chính thức đã chỉ định. Nếu kênh là friend thì họ không hề mở văn bản chính thức; prior_belief=none nghĩa là chưa nghe trước đó, và chỉ được nghe người quen kể ở tình huống hiện tại. Đọc lướt là nhìn điện thoại 20 giây lúc đang bận, không phải ngồi nghiên cứu.
+
+situationVi phải là một sự việc cụ thể đang diễn ra: người này đang ở đâu, cần làm gì, gặp thông báo hay vướng mắc gì, và vì sao lúc đó mới tìm hoặc nghe thông tin. Đừng khẳng định suy đoán hay lời truyền miệng là quy tắc chính thức, đừng bịa ngưỡng hoặc cam kết nền tảng. Không cho nhân vật biết nội dung ở kênh mà họ không xem. Không nhét lời giải hay cách hiểu đúng vào miệng họ.
+
+Dùng gợi ý vùng miền để đa dạng hóa tên, địa phương và hoàn cảnh giữa các lượt, NHƯNG mức địa phương/vùng trong hàng luôn được ưu tiên nếu đã có. Tên phải là tên người Việt Nam đời thực, tránh tên mẫu hoặc tên hoạt hình. Tình huống và trường văn bản đều viết tiếng Việt tự nhiên; paymentInstruments chỉ liệt kê cái họ có thực sự, có thể là mảng rỗng nếu họ chỉ dùng tiền mặt.

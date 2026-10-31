@@ -20,20 +20,28 @@ What we claim, how we measure it, and what we cannot claim.
 | Metric | Definition | Shown with |
 |---|---|---|
 | Recall on holdout edge cases | Share of edge cases matched by at least one finding. A match means the same sentence and the same ambiguity, decided by a blind scorer. | Wind Tunnel vs single-pass baseline (mean of 3 runs, union of 3, plus 1 run on `gpt-6-astra`) |
-| Findings outside the reference | Findings with no holdout match | Human-check survival (k of n people gave that reading) |
+| Unmatched by holdout | Wind Tunnel findings that match no holdout edge case. These are not validated and not disproved. | Human-check survival (k of n people gave that reading) |
 | Conflict rate | Share of readings with ≥ 1 interpretation graded `conflicts` (Decisions; threshold calibrated on hand labels) | Bootstrap 95% CI and the test–retest noise band |
 | Finding reproduction | Per finding: mean codebook probability of its beliefs over its original scenarios, before vs after a rewrite | Before/after |
 | Split score | Normalised mutual information between a dimension's levels and the codebook probabilities, with a permutation z-score | Per batch, in the allocation panel |
-| Grader agreement | Cohen's κ between Decisions grades and P4's hand labels on about 20 interpretations from the seed batch | One number, shown once |
-| Discovery curve | New clusters of size ≥ 2 per batch | Exploration stopping signal |
+| Grader agreement | Cohen's κ between Decisions grades and P4's hand labels on a held-out half of ~20 hand-labelled interpretations; the other half sets the threshold | One number, shown once |
+| Discovery curve | New clusters with ≥ 2 distinct readers per batch; a cluster's identity across re-clustering is decided by member overlap | Exploration stopping signal |
+| Compute | Model calls per system (Wind Tunnel ≈ hundreds, a baseline = 1) | Shown next to recall, so the comparison is honest about cost |
 
-**Blind scoring.** The scorer receives the edge cases and two anonymised, shuffled lists of findings (System A / System B). It answers match or no match for each pair and cites the item id.
+**Blind scoring.** For each edge case and each system, the scorer gets the edge case and that system's items, renumbered 1..k and shuffled, under a neutral label. It never sees system names, provenance or item ids. It answers match or no match, citing an item number. Baselines run three times with distinct replicate ids so they are independent samples, not one cached answer, and they get the same policy and reference evidence as the Wind Tunnel judge.
 
-**Noise band.** Run v0 twice with `fresh: true` and code both runs against the same codebook. A rewrite only counts as an improvement if the conflict rate falls by more than |Δ| between those two runs.
+**Noise band (paired).** Run v0 twice with `fresh: true` on the same scenarios and code both runs against the same codebook. Per scenario, d = conflict(A) − conflict(B). The band is max(|mean d|, 1.96·sd(d)/√n).
+- A rewrite counts as an improvement only if the conflict rate falls by more than the band.
+- With fewer than 5 paired scenarios, the comparison is reported as inconclusive.
+- Cohorts (version × replicate) are never pooled.
 
 **One instrument.** All before/after comparisons go through the same fixed codebook, applied by the Decisions API. Clusters are only regenerated to discover new misreadings, never to measure change.
 
-**Grader calibration.** At G1, P4 hand-labels about 20 interpretations without seeing the grader's output. We pick the probability threshold for `conflicts` on those labels and report the agreement.
+**Grader calibration.** At G1, P4 hand-labels about 20 interpretations without seeing the grader's output. Half of them set the probability threshold for `conflicts`; agreement (κ) is reported on the other half.
+
+**Provenance.** Each run logs which backends produced it. Decisions answers are either real or emulated (without an API key, model-reported probabilities from structured outputs). The UI shows a badge for this. Emulated runs are for development only, and calibration from real runs is never reused for emulated ones.
+
+**Classification validity.** Passing the fidelity check proves a repair preserved the facts, not that it resolved the misreading. A passing repair is re-read on up to 3 of the finding's scenarios and coded against the finding's beliefs. If it is still unresolved after one retry, the finding is marked "Provisional" design gap.
 
 ## Human check
 

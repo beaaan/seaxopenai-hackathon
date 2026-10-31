@@ -56,7 +56,7 @@ function ClusterCard(props: { view: RunView; cluster: Cluster; samples: number }
                 <div className="text-slate-500 italic">{ref.interpretation.glossEn}</div>
                 <div className="mt-1 text-xs text-slate-500">
                   — {persona} · conf {ref.interpretation.confidence.toFixed(2)}
-                  {grade !== undefined && <> · graded {grade.label}</>}
+                  {grade !== undefined && <> · graded {grade.label} · grade confidence {pct(grade.confidence)}</>}
                 </div>
               </li>
             );

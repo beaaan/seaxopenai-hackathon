@@ -14,7 +14,7 @@ import { config, type BackendName } from "../env";
 import { CACHE_DIR } from "../paths";
 import { AppServerBackend } from "./appserver";
 import { cacheKey, LlmCache } from "./cache";
-import { DECISIONS_MODEL, DecisionAnswers, type DecisionAnswer, type DecisionRequest } from "./decisions";
+import { DECISIONS_MODEL, DecisionAnswers, emulateDecisions, type DecisionAnswer, type DecisionRequest } from "./decisions";
 import { llmJsonSchema } from "./json-schema";
 import { EMBEDDING_DIMENSIONS, EMBEDDING_MODEL, ResponsesBackend } from "./responses";
 import type { AgentThread, AgentThreadOptions, LlmBackend, StructuredRequest } from "./types";
@@ -35,9 +35,12 @@ export class Gateway {
   #appServer: AppServerBackend | null = null;
 
   constructor(opts: Partial<GatewayOptions> = {}) {
+    const hasKey = config.openaiApiKey !== null && config.openaiApiKey !== "";
+    // Without an API key everything generative runs on Codex App Server (ChatGPT login).
+    const pick = (name: BackendName): BackendName => (name === "responses" && !hasKey ? "appserver" : name);
     this.#opts = {
-      bulk: opts.bulk ?? config.bulkBackend,
-      agent: opts.agent ?? config.agentBackend,
+      bulk: pick(opts.bulk ?? config.bulkBackend),
+      agent: pick(opts.agent ?? config.agentBackend),
       cacheDir: opts.cacheDir ?? CACHE_DIR,
     };
     this.#cache = new LlmCache(this.#opts.cacheDir);
@@ -45,6 +48,11 @@ export class Gateway {
 
   get backends(): Readonly<Pick<GatewayOptions, "bulk" | "agent">> {
     return { bulk: this.#opts.bulk, agent: this.#opts.agent };
+  }
+
+  /** Embeddings and the real Decisions API need OPENAI_API_KEY; without it clustering uses LLM grouping and decide() is emulated. */
+  get hasApiKey(): boolean {
+    return config.openaiApiKey !== null && config.openaiApiKey !== "";
   }
 
   #responsesBackend(): ResponsesBackend {
@@ -65,6 +73,8 @@ export class Gateway {
     const key = cacheKey({
       v: CACHE_VERSION,
       kind: "structured",
+      backend: this.#opts.bulk,
+      replicate: req.replicate ?? null,
       role: req.role,
       model: req.model,
       effort: req.effort,
@@ -108,14 +118,19 @@ export class Gateway {
   /**
    * Typed answers (predicate / choice / score) about shared evidence via the Decisions API.
    * One answer per question, in question order; cached per request content.
+   * Without OPENAI_API_KEY the answers are emulated with structured calls on the bulk
+   * backend (model-reported probabilities; marked `emulated` in the cache key).
    */
   async decide(req: DecisionRequest): Promise<DecisionAnswer[]> {
-    const key = cacheKey({ v: CACHE_VERSION, kind: "decide", model: DECISIONS_MODEL, role: req.role, evidence: req.evidence, data: req.data, questions: req.questions });
+    const emulated = !this.hasApiKey;
+    const key = cacheKey({ v: CACHE_VERSION, kind: "decide", emulated, model: DECISIONS_MODEL, role: req.role, evidence: req.evidence, data: req.data, questions: req.questions });
     if (!req.fresh) {
       const hit = this.#cache.get(key);
       if (hit !== undefined) return DecisionAnswers.parse(hit);
     }
-    const answers = await this.#responsesBackend().decide(req);
+    const answers = emulated
+      ? await emulateDecisions((r) => this.#backend(this.#opts.bulk).structured(r), req)
+      : await this.#responsesBackend().decide(req);
     this.#cache.set(key, answers);
     return answers;
   }

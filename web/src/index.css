@@ -1,1 +1,28 @@
 @import "tailwindcss";
+
+@layer base {
+  html { color-scheme: light; }
+  body {
+    margin: 0;
+    background: #f1f5f9;
+    color: #0f172a;
+    font-family: Inter, "Segoe UI", Arial, sans-serif;
+    font-size: 17px;
+  }
+  button, a, input, textarea, select { touch-action: manipulation; }
+  button:not(:disabled), select { cursor: pointer; }
+  :focus-visible { outline: 3px solid #4f46e5; outline-offset: 3px; }
+  input, textarea { accent-color: #4338ca; }
+  th, td { padding-right: 0.75rem; }
+}
+
+.run-workspace > section,
+.run-workspace > div {
+  min-height: 24rem;
+  max-height: 38rem;
+}
+
+@media (max-width: 1279px) {
+  .run-workspace > section,
+  .run-workspace > div { max-height: 34rem; }
+}

@@ -352,6 +352,10 @@ export const Finding = z.strictObject({
 });
 export type Finding = z.infer<typeof Finding>;
 
+/** A finding before attempted-repair classification (the judge's output). */
+export const FindingDraft = Finding.omit({ class: true, classRationale: true, repair: true });
+export type FindingDraft = z.infer<typeof FindingDraft>;
+
 // ---------------------------------------------------------------------------
 // Rewrite loop
 
@@ -381,8 +385,12 @@ export const Iteration = z.strictObject({
   ci95: Interval,
   openQuestionRate: z.number().min(0).max(1),
   openWordingFindings: z.number().int().nonnegative(),
-  findingReproduction: z.array(z.strictObject({ findingId: z.string(), rate: z.number().min(0).max(1) })),
+  /** n = scenarios of the finding that have a reading in this cohort. */
+  findingReproduction: z.array(z.strictObject({ findingId: z.string(), rate: z.number().min(0).max(1), n: z.number().int().nonnegative() })),
+  /** Test–retest noise (paired); null before it has been measured. */
   noiseBand: z.number().nullable(),
+  /** Paired scenarios the noise band was computed on; < 5 ⇒ comparisons are inconclusive. */
+  noiseBandScenarios: z.number().int().nonnegative().nullable(),
   decision: z.enum(["continue", "stop"]),
   reason: z.string(),
 });
@@ -450,10 +458,18 @@ export type HumanMapping = z.infer<typeof HumanMapping>;
 
 export const RunConfig = z.strictObject({
   policyId: z.string(),
+  /** full: explore + rewrite loop + eval; explore: exploration only (live demo of a pasted policy); retest: rerun a suite on an edited text. */
+  mode: z.enum(["full", "explore", "retest"]),
   budget: z.number().int().positive(), // total readings for exploration
   seedSize: z.number().int().positive(),
   batchSize: z.number().int().positive(),
   maxIterations: z.number().int().nonnegative(),
+  /** Readings per scenario-subset used by Re-test edit. */
+  smokeSize: z.number().int().positive(),
+  baselineRuns: z.number().int().nonnegative(),
+  seed: z.number().int(), // RNG seed for covering arrays, permutations, bootstrap
+  /** retest only: the run whose scenarios and last iteration form the suite. */
+  suiteRunId: z.string().nullable(),
   models: z.strictObject({
     reader: z.string(),
     judge: z.string(),
@@ -463,6 +479,52 @@ export const RunConfig = z.strictObject({
   fresh: z.boolean(), // bypass the LLM cache
 });
 export type RunConfig = z.infer<typeof RunConfig>;
+
+// ---------------------------------------------------------------------------
+// Policy CI and incentive probe
+
+export const SuiteComparison = z.strictObject({
+  suiteRunId: z.string(),
+  baseVersion: z.number().int().nonnegative(), // version of the suite run compared against
+  before: Iteration,
+  after: Iteration,
+  regressions: z.array(z.string()), // human-readable reasons the edit fails
+  passed: z.boolean(),
+});
+export type SuiteComparison = z.infer<typeof SuiteComparison>;
+
+export const ProbeAssumption = z.strictObject({
+  id: z.string(), // A1, A2, ...
+  text: z.string(),
+});
+export type ProbeAssumption = z.infer<typeof ProbeAssumption>;
+
+export const ProbeStep = z.strictObject({
+  day: z.number().int().nonnegative(),
+  tool: z.string(),
+  argsJson: z.string(),
+  resultJson: z.string(),
+});
+export type ProbeStep = z.infer<typeof ProbeStep>;
+
+/** "What the wording rewards under assumptions A1..An" — never a claim about the platform. */
+export const ProbeResult = z.strictObject({
+  hypothesis: z.string(),
+  derivedFromReadingIds: z.array(z.string()),
+  assumptions: z.array(ProbeAssumption),
+  persona: z.string(),
+  days: z.number().int().positive(),
+  steps: z.array(ProbeStep),
+  outcome: z.strictObject({
+    codOrders: z.number().int().nonnegative(),
+    refusals: z.number().int().nonnegative(),
+    locks: z.number().int().nonnegative(),
+    refusalsWithoutLock: z.number().int().nonnegative(),
+    accountsCreated: z.number().int().nonnegative(),
+  }),
+  summary: z.string(),
+});
+export type ProbeResult = z.infer<typeof ProbeResult>;
 
 /** Normalised Codex App Server / Responses item, shown in the thread inspector. */
 export const ThreadItemRecord = z.strictObject({

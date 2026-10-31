@@ -120,6 +120,7 @@ export class AppServerBackend implements LlmBackend {
   }
 
   #request(method: string, params: unknown): Promise<unknown> {
+    if (!this.#proc) return Promise.reject(new Error(`app-server not started (${method})`));
     const id = this.#nextId++;
     const { promise, resolve, reject } = Promise.withResolvers<unknown>();
     this.#pending.set(id, { method, resolve, reject });

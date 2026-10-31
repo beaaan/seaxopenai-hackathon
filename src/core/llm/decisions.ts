@@ -10,6 +10,7 @@
 import type { Decision, DecisionCreateParams } from "openai/resources/decisions";
 import { z } from "zod";
 import type { Limiter } from "./limit";
+import type { StructuredRequest } from "./types";
 
 export const DECISIONS_MODEL = "gpt-6-luna";
 export const MAX_QUESTIONS_PER_REQUEST = 400;
@@ -118,10 +119,92 @@ export async function decideChunked(create: CreateDecision, limiter: Limiter, re
 
   return chunks.flatMap((chunk, c) => {
     const answers = results[c]?.answers ?? [];
-    return chunk.map((question, i) => {
-      const raw = answers.find((a) => a.name === question.name) ?? answers[i];
-      if (!raw) throw new Error(`decisions ${req.role}: no answer for "${question.name}"`);
-      return toAnswer(raw, question.name);
+    return chunk.map((question) => {
+      const raw = answers.find((a) => a.name === question.name);
+      if (!raw) throw new Error(`decisions ${req.role}: no answer named "${question.name}"`);
+      const answer = toAnswer(raw, question.name);
+      if (answer.type !== "refusal" && answer.type !== question.type) {
+        throw new Error(`decisions ${req.role}: "${question.name}" asked ${question.type}, got ${answer.type}`);
+      }
+      if (answer.type === "choice" && question.type === "choice" && !question.choices.some((o) => o.value === answer.choice)) {
+        throw new Error(`decisions ${req.role}: "${question.name}" chose "${answer.choice}", not an allowed value`);
+      }
+      if (answer.type === "predicate" && (answer.probability < 0 || answer.probability > 1)) {
+        throw new Error(`decisions ${req.role}: "${question.name}" probability ${answer.probability} out of [0,1]`);
+      }
+      return answer;
     });
   });
+}
+
+// ---------------------------------------------------------------------------
+// Fallback without an API key: emulate with structured outputs (model-reported probabilities).
+
+const EMULATION_CHUNK = 60;
+
+const EmulatedAnswers = z.strictObject({
+  answers: z.array(
+    z.strictObject({
+      name: z.string(),
+      probability: z.number().nullable(), // predicate
+      choice: z.string().nullable(), // choice: one of the allowed values
+      levelIndex: z.number().int().nullable(), // score: 0-based level index
+      confidence: z.number().nullable(),
+    }),
+  ),
+});
+
+function describeQuestion(q: DecisionQuestion): string {
+  switch (q.type) {
+    case "predicate":
+      return `- name: ${q.name}\n  type: predicate (give probability 0..1 that it is true)\n  question: ${q.instructions}`;
+    case "choice":
+      return `- name: ${q.name}\n  type: choice (give exactly one value + confidence 0..1)\n  question: ${q.instructions}\n  values:\n${q.choices.map((c) => `    - ${c.value}: ${c.description}`).join("\n")}`;
+    case "score":
+      return `- name: ${q.name}\n  type: score (give 0-based levelIndex + confidence 0..1)\n  question: ${q.instructions}\n  levels:\n${q.levels.map((l, i) => `    ${i}. ${l.label}: ${l.description}`).join("\n")}`;
+  }
+}
+
+export async function emulateDecisions(
+  structured: (req: StructuredRequest<z.infer<typeof EmulatedAnswers>>) => Promise<z.infer<typeof EmulatedAnswers>>,
+  req: DecisionRequest,
+): Promise<DecisionAnswer[]> {
+  const chunks: DecisionQuestion[][] = [];
+  for (let i = 0; i < req.questions.length; i += EMULATION_CHUNK) chunks.push(req.questions.slice(i, i + EMULATION_CHUNK));
+  const results = await Promise.all(
+    chunks.map((chunk) =>
+      structured({
+        role: `decide-emulated-${req.role}`,
+        instructions:
+          "You are a careful classifier. Answer every question about the evidence. Return one answer per question name, using only the field for its type; set the other fields to null.",
+        input: `EVIDENCE:\n${req.evidence}\n\n${req.data === null ? "" : `DATA (JSON):\n${JSON.stringify(req.data)}\n\n`}QUESTIONS:\n${chunk.map(describeQuestion).join("\n")}`,
+        schema: EmulatedAnswers,
+        schemaName: "decisions",
+        model: DECISIONS_MODEL,
+        effort: "low",
+        fresh: req.fresh,
+      }),
+    ),
+  );
+  return chunks.flatMap((chunk, c) =>
+    chunk.map((q): DecisionAnswer => {
+      const a = results[c]?.answers.find((x) => x.name === q.name);
+      if (!a) return { type: "refusal", name: q.name };
+      const confidence = Math.min(1, Math.max(0, a.confidence ?? 0.5));
+      switch (q.type) {
+        case "predicate":
+          return a.probability === null ? { type: "refusal", name: q.name } : { type: "predicate", name: q.name, probability: Math.min(1, Math.max(0, a.probability)) };
+        case "choice": {
+          const value = q.choices.find((c) => c.value === a.choice)?.value;
+          return value === undefined ? { type: "refusal", name: q.name } : { type: "choice", name: q.name, choice: value, confidence, probabilities: [{ value, probability: confidence }] };
+        }
+        case "score": {
+          const level = a.levelIndex === null ? undefined : q.levels[a.levelIndex];
+          return level === undefined || a.levelIndex === null
+            ? { type: "refusal", name: q.name }
+            : { type: "score", name: q.name, score: a.levelIndex, confidence, probabilities: [{ label: level.label, value: a.levelIndex, probability: confidence }] };
+        }
+      }
+    }),
+  );
 }

@@ -1,6 +1,7 @@
 /**
  * Deterministic synthetic run on the real COD policy, for UI work and demos without LLM calls.
  * Every persona is prefixed "[fixture] " so nobody mistakes it for real output.
+ * `writeFixtureRun` also writes `<runId>-rt1`, a synthetic policy-CI comparison.
  *
  *   npx tsx -e "import('./src/core/fixture.ts').then(m => console.log(m.writeFixtureRun({ runId: 'fixture' })))"
  */
@@ -9,12 +10,14 @@ import type { ActionEnum } from "../shared/actions";
 import type {
   AllocationDecision,
   Cluster,
+  Coding,
   Dimension,
   FidelityResult,
   Finding,
   Grade,
   GradeLabel,
   Interpretation,
+  Iteration,
   LevelChoice,
   PolicyVersion,
   Reading,
@@ -23,7 +26,7 @@ import type {
   Surface,
 } from "../shared/schema";
 import { loadPolicyPackage, makeVersion, versionZero } from "./policy";
-import { eventsPath, RunWriter } from "./store";
+import { eventsPath, readEvents, RunWriter } from "./store";
 
 const MODEL = "gpt-6.1-sol";
 const POLICY_ID = "cod";
@@ -442,6 +445,21 @@ function buildClusters(generated: Generated[], gradesById: Map<string, Grade>): 
   return clusters;
 }
 
+const REPAIRED_BELIEFS: Record<string, true> = { "c-h3-failed": true, "c-h4-anyfault": true, "c-h11-auto": true };
+
+/** Synthetic, fixed-instrument measurements; never presented as model output. */
+function fixtureCodings(generated: Generated[], codebook: Cluster[], version: number): Coding[] {
+  return generated.flatMap((item) => codebook.map((cluster) => {
+    const holds = [...item.archetypes.values()].some((key) => archetype(key).clusterId === cluster.id);
+    const before = holds ? 0.92 : 0.06;
+    return {
+      readingId: item.reading.id.replace("-v0", `-v${version}`),
+      clusterId: cluster.id,
+      probability: version > 0 && REPAIRED_BELIEFS[cluster.id] === true ? round(before * 0.15) : before,
+    };
+  }));
+}
+
 const SPLIT_STATS: Record<string, { nmi: number; z: number }> = {
   payment: { nmi: 0.11, z: 1.4 },
   account_sharing: { nmi: 0.27, z: 3.1 },
@@ -629,11 +647,17 @@ export function writeFixtureRun(opts: { runId: string; runsDir?: string }): { ev
       seedSize: SEED_SIZE,
       batchSize: BATCH_SIZE,
       maxIterations: 3,
-      models: { reader: MODEL, judge: MODEL, grader: MODEL, reviewer: MODEL },
+      mode: "full",
+      smokeSize: 10,
+      baselineRuns: 2,
+      seed: 7,
+      suiteRunId: null,
+      models: { reader: MODEL, judge: MODEL, grader: "gpt-6-luna", reviewer: MODEL },
       fresh: false,
     },
   });
   append("log", { level: "info", message: "[fixture] synthetic run: no model was called" });
+  append("log", { level: "info", message: "[fixture] Decisions: SYNTHETIC fixture probabilities, not real or emulated model output." });
   append("policy.version", { policy: v0 });
   append("dims.extracted", { dimensions: DIMENSIONS });
 
@@ -710,6 +734,8 @@ export function writeFixtureRun(opts: { runId: string; runsDir?: string }): { ev
   const clusters1 = buildClusters(generated, gradesById);
   append("clusters.updated", { policyVersion: 0, clusters: clusters1 });
 
+  append("codebook.fixed", { codebookVersion: 0, clusterIds: clusters1.map((cluster) => cluster.id) });
+  append("codings.added", { policyVersion: 0, codebookVersion: 0, codings: fixtureCodings(generated, clusters1, 0) });
   const readings = generated.map((g) => g.reading);
   const findings = buildFindings(v0, clusters1, readings);
   append("findings.updated", { findings });
@@ -740,6 +766,35 @@ export function writeFixtureRun(opts: { runId: string; runsDir?: string }): { ev
   });
   const v1 = makeVersion(POLICY_ID, 1, 0, surfaces);
   append("policy.version", { policy: v1 });
+  const repairedMeanings: Record<string, { meaningVi: string; glossEn: string }> = {
+    "c-h3-failed": { meaningVi: "Giới hạn 24 giờ tính theo số đơn COD đã đặt trong ngày, không phải số đơn giao thất bại.", glossEn: "The daily cap counts COD orders placed, not failed deliveries." },
+    "c-h4-anyfault": { meaningVi: "Nếu đơn thất bại do người bán hoặc vận chuyển, tôi có thể khiếu nại CSKH.", glossEn: "Courier- or seller-caused failed deliveries can be appealed through support." },
+    "c-h11-auto": { meaningVi: "Chờ thôi không đủ; tôi cần nhận thành công đơn trả trước để được xét mở lại COD.", glossEn: "Waiting alone is insufficient; successful prepaid orders are needed for recovery." },
+  };
+  const revisedGrades: Grade[] = [];
+  for (const item of generated) {
+    const readingId = item.reading.id.replace("-v0", "-v1");
+    const interpretations = item.reading.interpretations.map((interpretation) => {
+      const key = item.archetypes.get(interpretation.id);
+      const belief = key === undefined ? undefined : archetype(key);
+      const repair = belief === undefined ? undefined : repairedMeanings[belief.clusterId];
+      const priorGrade = item.grades.find((grade) => grade.interpretationId === interpretation.id);
+      const id = interpretation.id.replace("-v0", "-v1");
+      if (priorGrade !== undefined) revisedGrades.push({ ...priorGrade, readingId, interpretationId: id, ...(repair === undefined ? {} : { label: "consistent", confidence: 0.94, why: "[fixture] Synthetic repaired reading agrees with the stated fact." }) });
+      return { ...interpretation, id, ...(repair ?? {}), quote: repair === undefined || belief?.sentenceId === null || belief === undefined ? interpretation.quote : sentenceText(v1, belief.sentenceId) };
+    });
+    append("reading.completed", { reading: {
+      ...item.reading,
+      id: readingId,
+      policyVersion: 1,
+      interpretations,
+      paraphraseVi: `[fixture] Sau khi sửa: ${interpretations[0]?.meaningVi ?? item.reading.paraphraseVi}`,
+      questions: item.reading.questions.map((question) => ({ ...question, id: question.id.replace("-v0", "-v1") })),
+      actions: interpretations.some((interpretation) => interpretation.glossEn.includes("Waiting alone")) ? [{ action: "switch_prepaid", detailVi: "Thử phương thức trả trước để đáp ứng điều kiện mở lại." }] : item.reading.actions,
+    } });
+  }
+  append("grades.added", { grades: revisedGrades });
+  append("codings.added", { policyVersion: 1, codebookVersion: 0, codings: fixtureCodings(generated, clusters1, 1) });
 
   append("iteration.completed", {
     iteration: {
@@ -750,11 +805,12 @@ export function writeFixtureRun(opts: { runId: string; runsDir?: string }): { ev
       openQuestionRate: 1,
       openWordingFindings: 3,
       findingReproduction: [
-        { findingId: "find-1", rate: 0.46 },
-        { findingId: "find-2", rate: 0.31 },
-        { findingId: "find-3", rate: 0.38 },
+        { findingId: "find-1", rate: 0.46, n: findings.find((finding) => finding.id === "find-1")?.evidence.scenarioIds.length ?? 0 },
+        { findingId: "find-2", rate: 0.31, n: findings.find((finding) => finding.id === "find-2")?.evidence.scenarioIds.length ?? 0 },
+        { findingId: "find-3", rate: 0.38, n: findings.find((finding) => finding.id === "find-3")?.evidence.scenarioIds.length ?? 0 },
       ],
       noiseBand: 0.05,
+      noiseBandScenarios: readings.length,
       decision: "continue",
       reason: "3 wording fixes open; rewrite v1 and retest.",
     },
@@ -768,11 +824,12 @@ export function writeFixtureRun(opts: { runId: string; runsDir?: string }): { ev
       openQuestionRate: 0.81,
       openWordingFindings: 0,
       findingReproduction: [
-        { findingId: "find-1", rate: 0.08 },
-        { findingId: "find-2", rate: 0.04 },
-        { findingId: "find-3", rate: 0.12 },
+        { findingId: "find-1", rate: 0.08, n: findings.find((finding) => finding.id === "find-1")?.evidence.scenarioIds.length ?? 0 },
+        { findingId: "find-2", rate: 0.04, n: findings.find((finding) => finding.id === "find-2")?.evidence.scenarioIds.length ?? 0 },
+        { findingId: "find-3", rate: 0.12, n: findings.find((finding) => finding.id === "find-3")?.evidence.scenarioIds.length ?? 0 },
       ],
       noiseBand: 0.05,
+      noiseBandScenarios: readings.length,
       decision: "stop",
       reason: "Conflict rate fell 0.42 → 0.17 (beyond the 0.05 noise band); no wording fixes remain, the rest need a rule change or missing information.",
     },
@@ -829,7 +886,82 @@ export function writeFixtureRun(opts: { runId: string; runsDir?: string }): { ev
       ],
     },
   });
-  append("run.completed", { summary: "[fixture] 26 readings, 5 findings (3 wording fixes applied in v1); conflict rate 0.42 → 0.17." });
+  const humanQuestions = [
+    { id: "hq1", questionVi: "Theo bạn, giới hạn COD trong 24 giờ dựa trên điều gì?", findingIds: ["find-2"] },
+    { id: "hq2", questionVi: "Nếu đơn không giao được, bạn nghĩ việc đó ảnh hưởng thế nào đến quyền dùng COD của mình?", findingIds: ["find-1"] },
+    { id: "hq3", questionVi: "Nếu COD đang bị tắt, bạn sẽ làm gì để dùng lại?", findingIds: ["find-3"] },
+  ];
+  const humanAnswers = [
+    { id: "ha1", respondent: "[fixture] Minh — synthetic respondent", questionId: "hq1", answerVi: "Tôi nghĩ giao thất bại hôm nay thì phải chờ 24 giờ." },
+    { id: "ha2", respondent: "[fixture] Minh — synthetic respondent", questionId: "hq2", answerVi: "Chắc mọi lần giao thất bại đều bị tính, dù shipper không gọi." },
+    { id: "ha3", respondent: "[fixture] Minh — synthetic respondent", questionId: "hq3", answerVi: "Tôi sẽ chờ vài tuần rồi đặt COD lại." },
+  ];
+  for (const question of humanQuestions) append("human.question", { question });
+  for (const answer of humanAnswers) append("human.answer", { answer });
+  append("human.mapped", { mapping: { answerId: "ha1", findingId: "find-2", why: "[fixture] Synthetic mapping: confuses the daily order cap with failed deliveries." } });
+  append("human.mapped", { mapping: { answerId: "ha2", findingId: "find-1", why: "[fixture] Synthetic mapping: assumes all failed deliveries count regardless of fault." } });
+  append("human.mapped", { mapping: { answerId: "ha3", findingId: "find-3", why: "[fixture] Synthetic mapping: assumes waiting alone restores COD." } });
+  append("probe.completed", { result: {
+    hypothesis: "[fixture] SYNTHETIC: under an account-scoped sandbox rule, switching accounts may allow more COD refusals before any one account locks.",
+    derivedFromReadingIds: readings.filter((reading) => reading.actions.some((action) => action.action === "use_other_account")).map((reading) => reading.id),
+    assumptions: [
+      { id: "A1", text: "SYNTHETIC assumption: a lock starts at 3 countable failures in a trailing 90-day window. These numbers are not Shopee's published rule." },
+      { id: "A2", text: "SYNTHETIC assumption: courier-marked buyer refusals count; prepaid orders do not add failures." },
+      { id: "A3", text: "SYNTHETIC assumption: enforcement is per account, not per person or device." },
+      { id: "A4", text: "SYNTHETIC assumption: two successful prepaid deliveries recover a locked account." },
+    ],
+    persona: "[fixture] Synthetic strategic persona; not an observed person",
+    days: 180,
+    steps: [
+      { day: 0, tool: "create_account", argsJson: JSON.stringify({ account: "A" }), resultJson: JSON.stringify({ created: true, synthetic: true }) },
+      { day: 1, tool: "place_order_cod", argsJson: JSON.stringify({ account: "A" }), resultJson: JSON.stringify({ order: "demo-1", accepted: true }) },
+      { day: 2, tool: "refuse_delivery", argsJson: JSON.stringify({ account: "A", order: "demo-1" }), resultJson: JSON.stringify({ failures: 1, locked: false }) },
+      { day: 3, tool: "create_account", argsJson: JSON.stringify({ account: "B" }), resultJson: JSON.stringify({ created: true, synthetic: true }) },
+      { day: 4, tool: "place_order_cod", argsJson: JSON.stringify({ account: "B" }), resultJson: JSON.stringify({ order: "demo-2", accepted: true }) },
+      { day: 5, tool: "refuse_delivery", argsJson: JSON.stringify({ account: "B", order: "demo-2" }), resultJson: JSON.stringify({ failures: 1, locked: false }) },
+      { day: 180, tool: "advance_days", argsJson: JSON.stringify({ toDay: 180 }), resultJson: JSON.stringify({ accountA: { failures: 0, locked: false }, accountB: { failures: 0, locked: false } }) },
+    ],
+    outcome: { codOrders: 2, refusals: 2, locks: 0, refusalsWithoutLock: 2, accountsCreated: 2 },
+    summary: "[fixture] SYNTHETIC illustration only: 2 refusals without a lock under assumptions A1–A4. Not a platform vulnerability claim or measured Shopee outcome.",
+  } });
+  append("run.completed", { summary: "[fixture] 26 scenarios, 52 readings across v0/v1, 5 findings (3 wording fixes applied in v1); synthetic conflict rate 0.42 → 0.17." });
+  writeFixtureRetest({ runId: `${opts.runId}-rt1`, suiteRunId: opts.runId, ...(opts.runsDir === undefined ? {} : { runsDir: opts.runsDir }) });
 
+  return { events: count };
+}
+
+/** A separate synthetic policy-CI run against the fixture's frozen final version. */
+export function writeFixtureRetest(opts: { runId: string; suiteRunId: string; runsDir?: string }): { events: number } {
+  if (opts.runId === opts.suiteRunId) throw new Error("fixture re-test must have a different run id from its suite");
+  const suite = readEvents(opts.suiteRunId, opts.runsDir);
+  const started = suite.find((event) => event.type === "run.started");
+  const iterations = suite.filter((event) => event.type === "iteration.completed");
+  const before = iterations.at(-1)?.payload.iteration;
+  if (started?.type !== "run.started" || before === undefined) throw new Error("fixture suite requires a run config and final iteration");
+  const finalPolicy = suite.find((event) => event.type === "policy.version" && event.payload.policy.version === before.policyVersion);
+  if (finalPolicy?.type !== "policy.version") throw new Error("fixture suite has no final policy version");
+  const file = eventsPath(opts.runId, opts.runsDir);
+  if (existsSync(file)) rmSync(file);
+  const writer = new RunWriter(opts.runId, opts.runsDir);
+  let count = 0;
+  const append: RunWriter["append"] = (type, payload) => {
+    count += 1;
+    return writer.append(type, payload);
+  };
+  append("run.started", { config: { ...started.payload.config, mode: "retest", suiteRunId: opts.suiteRunId, baselineRuns: 0, fresh: true } });
+  append("log", { level: "info", message: "[fixture] Synthetic re-test; no model calls or Decisions classifications were performed." });
+  for (const event of suite) {
+    if (event.type === "policy.version" || event.type === "dims.extracted" || event.type === "scenario.created" || event.type === "clusters.updated" || event.type === "codebook.fixed" || event.type === "findings.updated") append(event.type, event.payload);
+    else if (event.type === "reading.completed" && event.payload.reading.policyVersion === before.policyVersion) append("reading.completed", event.payload);
+    else if (event.type === "codings.added" && event.payload.policyVersion === before.policyVersion) append("codings.added", event.payload);
+    else if (event.type === "grades.added") {
+      const grades = event.payload.grades.filter((grade) => grade.readingId.endsWith(`-v${before.policyVersion}`));
+      if (grades.length > 0) append("grades.added", { grades });
+    }
+  }
+  const after: Iteration = { ...before, decision: "stop", reason: "[fixture] Synthetic unchanged-edit re-test: conflict rate stayed inside the paired noise band; no resolved finding reappeared." };
+  append("iteration.completed", { iteration: after });
+  append("suite.compared", { comparison: { suiteRunId: opts.suiteRunId, baseVersion: finalPolicy.payload.policy.version, before, after, regressions: [], passed: true } });
+  append("run.completed", { summary: "[fixture] Synthetic policy CI PASS; 17% → 17% conflict rate, paired test–retest noise ±5 pp, no regressions." });
   return { events: count };
 }

@@ -12,6 +12,7 @@ export const EVENT_META: Record<EventType, { icon: string; label: string; tone: 
   "grades.added": { icon: "✔", label: "grades", tone: "text-emerald-700" },
   "codings.added": { icon: "▦", label: "codings", tone: "text-sky-700" },
   "clusters.updated": { icon: "◎", label: "clusters", tone: "text-amber-700" },
+  "codebook.fixed": { icon: "▦", label: "codebook fixed", tone: "text-sky-800" },
   "allocation.decided": { icon: "⚖", label: "allocation", tone: "text-violet-700" },
   "findings.updated": { icon: "🔎", label: "findings", tone: "text-rose-700" },
   "rewrite.proposed": { icon: "✎", label: "rewrite", tone: "text-indigo-700" },
@@ -24,6 +25,8 @@ export const EVENT_META: Record<EventType, { icon: string; label: string; tone: 
   "human.question": { icon: "❓", label: "human question", tone: "text-orange-700" },
   "human.answer": { icon: "🙋", label: "human answer", tone: "text-orange-700" },
   "human.mapped": { icon: "🔗", label: "human mapped", tone: "text-orange-700" },
+  "probe.completed": { icon: "↗", label: "incentive probe", tone: "text-amber-800" },
+  "suite.compared": { icon: "=", label: "suite comparison", tone: "text-indigo-800" },
   log: { icon: "·", label: "log", tone: "text-slate-500" },
   "run.completed": { icon: "🏁", label: "run completed", tone: "text-emerald-800" },
   "run.failed": { icon: "✖", label: "run failed", tone: "text-red-800" },
@@ -49,10 +52,13 @@ export function eventSummary(event: RunEvent): string {
       return `${event.payload.scenarioId}: ${event.payload.error}`;
     case "grades.added": {
       const conflicts = event.payload.grades.filter((g) => g.label === "conflicts").length;
-      return `${event.payload.grades.length} grades · ${conflicts} conflicts`;
+      const confidence = event.payload.grades.length === 0 ? null : event.payload.grades.reduce((sum, grade) => sum + grade.confidence, 0) / event.payload.grades.length;
+      return `${event.payload.grades.length} grades · ${conflicts} conflicts · mean confidence ${confidence === null ? "—" : pct(confidence)}`;
     }
     case "clusters.updated":
       return `v${event.payload.policyVersion} · ${event.payload.clusters.length} clusters`;
+    case "codebook.fixed":
+      return `v${event.payload.codebookVersion} · ${event.payload.clusterIds.length} frozen beliefs`;
     case "allocation.decided":
       return `batch ${event.payload.decision.batch} · focus ${event.payload.decision.focusDimIds.join(", ") || "none"} · n=${event.payload.decision.n}`;
     case "findings.updated":
@@ -77,6 +83,10 @@ export function eventSummary(event: RunEvent): string {
       return `${event.payload.answer.respondent}: ${event.payload.answer.answerVi}`;
     case "human.mapped":
       return `${event.payload.mapping.answerId} → ${event.payload.mapping.findingId ?? "no finding"}`;
+    case "probe.completed":
+      return `${event.payload.result.assumptions.length} assumptions · ${event.payload.result.steps.length} steps · ${event.payload.result.summary}`;
+    case "suite.compared":
+      return `${event.payload.comparison.passed ? "PASS" : "FAIL"} · ${pct(event.payload.comparison.before.conflictRate)} → ${pct(event.payload.comparison.after.conflictRate)} · suite ${event.payload.comparison.suiteRunId}`;
     case "log":
       return `[${event.payload.level}] ${event.payload.message}`;
     case "run.completed":

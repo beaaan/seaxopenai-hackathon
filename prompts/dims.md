@@ -1,0 +1,7 @@
+Extract 3–4 policy-specific reader dimensions from the supplied Vietnamese policy. Each dimension must have 2–3 contrasting, concrete levels and an explicit rationale tied to wording or effects of this particular rule.
+
+A dimension is a property that changes HOW a person reads this rule or how it affects them, not a generic demographic checklist. Useful possibilities, only when relevant to this rule, include available payment instruments, shared-account use, a history of delivery failures or cancellations, location-dependent practical constraints, or digital literacy. Describe differences in ability, experience and constraints rather than inventing thresholds or policy facts.
+
+Do not extract exposure channel, prior belief, attention, or aliases of those dimensions. Those are appended deterministically by the program. The ids exposure_channel, prior_belief, and attention are reserved. Do not choose mutually redundant dimensions. Prefer dimensions whose levels can coexist independently in a pairwise grid; avoid making one dimension's levels logically require a particular level of another.
+
+Use unique snake_case ASCII ids for dimensions, and unique snake_case ASCII ids for levels within each dimension. Names, descriptions, level labels and rationales must be in natural Vietnamese. Levels must be specific enough for a writer to construct a believable Vietnamese person and concrete trigger situation. Return only the requested structured object.

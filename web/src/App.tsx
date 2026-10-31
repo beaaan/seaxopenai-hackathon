@@ -5,6 +5,8 @@ import { AllocationPanel, EventFeed } from "./components/CenterPane";
 import { BottomTabs } from "./components/BottomTabs";
 import { FindingsPane } from "./components/FindingsPane";
 import { PolicyPane } from "./components/PolicyPane";
+import { HumanCheckPage, NewPolicyPage } from "./components/RunPages";
+import { SuiteComparisonPanel } from "./components/WorkflowPanels";
 import { foldEvents } from "./state";
 
 type Mode = "replay" | "live";
@@ -38,10 +40,36 @@ function Toggle<T extends string>(props: { value: T; options: readonly T[]; labe
 }
 
 export function App(): ReactNode {
+  const [hash, setHash] = useState(window.location.hash);
+  const [launchedRun, setLaunchedRun] = useState<string | null>(null);
+  useEffect(() => {
+    const change = (): void => setHash(window.location.hash);
+    window.addEventListener("hashchange", change);
+    return () => window.removeEventListener("hashchange", change);
+  }, []);
+  const openRun = (runId: string): void => {
+    setLaunchedRun(runId);
+    window.location.hash = "/";
+    setHash("#/");
+  };
+  if (hash === "#/new") return <NewPolicyPage onRun={openRun} />;
+  if (hash.startsWith("#/check/")) {
+    let runId: string;
+    try {
+      runId = decodeURIComponent(hash.slice("#/check/".length));
+    } catch {
+      return <main className="p-8"><a href="#/">Back to runs</a><p role="alert">Invalid check URL.</p></main>;
+    }
+    return <HumanCheckPage key={runId} runId={runId} />;
+  }
+  return <RunApp key={launchedRun ?? "runs"} initialRunId={launchedRun} />;
+}
+
+function RunApp(props: { initialRunId: string | null }): ReactNode {
   const [runs, setRuns] = useState<RunSummary[]>([]);
-  const [runId, setRunId] = useState<string | null>(null);
-  const [mode, setMode] = useState<Mode>("replay");
-  const [speed, setSpeed] = useState<Speed>("x1");
+  const [runId, setRunId] = useState<string | null>(props.initialRunId);
+  const [mode, setMode] = useState<Mode>(props.initialRunId === null ? "replay" : "live");
+  const [speed, setSpeed] = useState<Speed>("instant");
   const [playing, setPlaying] = useState(false);
   const [events, setEvents] = useState<RunEvent[]>([]);
   const [revealed, setRevealed] = useState(0);
@@ -55,9 +83,16 @@ export function App(): ReactNode {
   const speedRef = useRef(speed);
   speedRef.current = speed;
 
+  const initialized = useRef(props.initialRunId !== null);
   useEffect(() => {
     const load = (): void => {
-      fetchRuns().then(setRuns, (err: unknown) => setError(String(err)));
+      fetchRuns().then((all) => {
+        setRuns(all);
+        if (!initialized.current && all.length > 0) {
+          initialized.current = true;
+          setRunId(all.find((run) => run.runId === "fixture")?.runId ?? all[0]?.runId ?? null);
+        }
+      }, (err: unknown) => setError(String(err)));
     };
     load();
     const timer = setInterval(load, RUNS_REFRESH_MS);
@@ -78,7 +113,7 @@ export function App(): ReactNode {
           setPlaying(revealedRef.current < all.length);
         }
       },
-      (err: unknown) => setError(String(err)),
+      (err: unknown) => { if (!cancelled) setError(String(err)); },
     );
     return () => {
       cancelled = true;
@@ -130,6 +165,19 @@ export function App(): ReactNode {
     setError(null);
   };
 
+  const openLiveRun = (id: string): void => {
+    selectRun(id);
+    setMode("live");
+  };
+
+  const refresh = (): void => {
+    if (runId === null) return;
+    if (mode !== "live") changeMode("live");
+    else {
+      fetchEvents(runId).then((all) => setEvents(all), (err: unknown) => setError(String(err)));
+    }
+  };
+
   const changeMode = (next: Mode): void => {
     if (next === mode) return;
     const position = mode === "live" ? events.length : revealed;
@@ -161,9 +209,10 @@ export function App(): ReactNode {
   };
 
   return (
-    <div className="flex h-screen flex-col gap-3 p-3">
+    <div className="flex min-h-screen flex-col gap-4 p-3 sm:p-5">
       <header className="flex flex-wrap items-center gap-3 rounded-lg bg-white px-4 py-2 shadow-sm ring-1 ring-slate-200">
         <h1 className="text-xl font-bold">Policy Wind Tunnel</h1>
+        <a href="#/new" className="rounded-lg bg-indigo-50 px-3 py-2 font-semibold text-indigo-800 hover:bg-indigo-100">+ New policy</a>
         <select
           value={runId ?? ""}
           onChange={(e) => selectRun(e.target.value)}
@@ -171,6 +220,7 @@ export function App(): ReactNode {
           aria-label="run"
         >
           <option value="">— select run —</option>
+          {runId !== null && !runs.some((run) => run.runId === runId) && <option value={runId}>{runId} · starting</option>}
           {runs.map((r) => (
             <option key={r.runId} value={r.runId}>
               {r.runId} · {r.policyId ?? "?"} · {r.status} · {r.events} ev
@@ -209,13 +259,15 @@ export function App(): ReactNode {
         <span className={`rounded px-2 py-0.5 text-sm font-semibold ${STATUS_STYLE[view.status] ?? ""}`}>{view.status}</span>
         {view.config !== null && (
           <span className="text-sm text-slate-500">
-            {view.config.policyId} · budget {view.config.budget} · reader {view.config.models.reader}
+            {view.config.policyId} · {view.config.mode} · budget {view.config.budget}
           </span>
         )}
         {error !== null && <span className="text-sm text-red-700">{error}</span>}
       </header>
 
-      <main className="grid min-h-0 flex-[3] grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1fr)] gap-3">
+      {view.log.filter((line) => /decisions|backend/i.test(line.message)).slice(0, 3).map((line) => <p key={line.seq} className="w-fit rounded-lg bg-amber-50 px-3 py-1 text-sm font-semibold text-amber-950">{line.message}</p>)}
+      {view.comparison !== null && <SuiteComparisonPanel comparison={view.comparison} />}
+      <main className="run-workspace grid min-h-[34rem] grid-cols-1 gap-4 xl:h-[38rem] xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1fr)]">
         <PolicyPane
           view={view}
           version={version}
@@ -243,8 +295,8 @@ export function App(): ReactNode {
         />
       </main>
 
-      <div className="flex min-h-0 flex-[2] flex-col">
-        <BottomTabs view={view} />
+      <div className="flex min-h-0 flex-col">
+        <BottomTabs view={view} onRun={openLiveRun} onRefresh={refresh} />
       </div>
     </div>
   );

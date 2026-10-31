@@ -122,9 +122,15 @@ After each batch, for each dimension *d*:
 
 The reviewer is a persistent App Server thread with tools to inspect the split table, clusters and readings. It returns an `AllocationDecision`: next batch size, focus dimensions, optionally new levels, and a rationale.
 
-Code enforces the guardrails: budget 50, 20% of every batch random, schema validation. If the reviewer's output is unusable, code falls back to allocating by softmax(z).
+Code enforces the guardrails:
+- budget 50; `n` is clamped to the remaining budget
+- `ceil(0.2·n)` fully random rows per batch
+- schema validation
+- new levels only on policy-specific dimensions (never on the built-in exposure dimensions)
 
-Exploration stops when the budget is spent, or after two consecutive batches with no new cluster of size ≥ 2 (the discovery curve).
+If the reviewer's output is unusable, code falls back to focusing the top two dimensions with z > 1 (otherwise the top one).
+
+Exploration stops when the budget is spent, or after two consecutive batches in which no cluster reaches ≥ 2 distinct readers for the first time (the discovery curve). Cluster identity across re-clustering is matched by member overlap within the same sentence.
 
 ### 7. Findings and attempted-repair classification
 The judge turns clusters into at most 10 `Finding`s. For each finding:

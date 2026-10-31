@@ -16,11 +16,13 @@ import {
   HumanQuestion,
   Iteration,
   PolicyVersion,
+  ProbeResult,
   Reading,
   Rewrite,
   RunConfig,
   Scenario,
   Score,
+  SuiteComparison,
   ThreadItemRecord,
 } from "./schema";
 
@@ -36,6 +38,8 @@ export const EVENT_PAYLOADS = {
   "codings.added": z.strictObject({ policyVersion: z.number().int(), codebookVersion: z.number().int(), codings: z.array(Coding) }),
   /** Full replacement of the cluster set for one policy version. */
   "clusters.updated": z.strictObject({ policyVersion: z.number().int(), clusters: z.array(Cluster) }),
+  /** The cluster set frozen as the measurement codebook; every later coding uses it. */
+  "codebook.fixed": z.strictObject({ codebookVersion: z.number().int(), clusterIds: z.array(z.string()) }),
   "allocation.decided": z.strictObject({ decision: AllocationDecision }),
   /** Full replacement of the current findings. */
   "findings.updated": z.strictObject({ findings: z.array(Finding) }),
@@ -49,6 +53,8 @@ export const EVENT_PAYLOADS = {
   "human.question": z.strictObject({ question: HumanQuestion }),
   "human.answer": z.strictObject({ answer: HumanAnswer }),
   "human.mapped": z.strictObject({ mapping: HumanMapping }),
+  "probe.completed": z.strictObject({ result: ProbeResult }),
+  "suite.compared": z.strictObject({ comparison: SuiteComparison }),
   log: z.strictObject({ level: z.enum(["info", "warn", "error"]), message: z.string() }),
   "run.completed": z.strictObject({ summary: z.string() }),
   "run.failed": z.strictObject({ error: z.string() }),

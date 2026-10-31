@@ -9,7 +9,13 @@
  *                                live check of the LLM gateway: one structured call, one
  *                                agent turn with a dynamic tool, embeddings (responses only).
  *                                b = responses | appserver | both (default both)
+ *   run <policyId> [--mode full|explore] [--budget N] [--run-id id] [...]
+ *                                explore reader scenarios, then optionally rewrite/evaluate
+ *   test <surfaces.json|policyId> --suite <runId> [--smoke] [--run-id id]
+ *                                compare an edit against a frozen suite; exit 1 on regression
+ *   map-human <runId>            map newly submitted human answers to findings
  */
+import { existsSync, readFileSync } from "node:fs";
 import { parseArgs } from "node:util";
 import { z } from "zod";
 import { PERSONA_TOOL_DESCRIPTIONS, PersonaToolInputs } from "./shared/actions";
@@ -18,9 +24,13 @@ import { writeFixtureRun } from "./core/fixture";
 import { Gateway } from "./core/llm/gateway";
 import { listPolicyIds, loadFolk, loadPolicyPackage, loadReference, versionZero } from "./core/policy";
 import { listRuns, readEvents } from "./core/store";
+import { PolicyPackage, RunConfig, Surface, type SuiteComparison } from "./shared/schema";
+import { runWindTunnel } from "./pipeline/run";
+import { retestEdit } from "./pipeline/retest";
+import { mapHumanForRun } from "./pipeline/human";
 
 function usage(): never {
-  console.error("usage: pwt <runs | validate <runId> | policy <policyId> | fixture [runId] | smoke [--backend b] [--model m]>");
+  console.error("usage: pwt <runs | validate <runId> | policy <policyId> | fixture [runId] | smoke [--backend b] [--model m] | run <policyId> [--mode full|explore] [--budget N] [--seed-size N] [--batch-size N] [--iterations N] [--baselines N] [--seed N] [--fresh] [--run-id id] | test <surfaces.json|policyId> --suite <runId> [--smoke] [--run-id id] | map-human <runId>>");
   process.exit(2);
 }
 
@@ -124,10 +134,42 @@ async function smokeOne(backend: BackendName, model: string): Promise<void> {
   }
 }
 
+function clockId(): string {
+  const now = new Date();
+  return `${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}`;
+}
+
+function validId(value: string): string {
+  if (!/^[a-zA-Z0-9][\w.-]*$/.test(value)) throw new Error(`invalid id: ${value}`);
+  return value;
+}
+
+function printComparison(comparison: SuiteComparison): void {
+  console.table([
+    { metric: "readings", before: comparison.before.readings, after: comparison.after.readings },
+    { metric: "conflict rate", before: comparison.before.conflictRate, after: comparison.after.conflictRate },
+    { metric: "open question rate", before: comparison.before.openQuestionRate, after: comparison.after.openQuestionRate },
+    ...comparison.before.findingReproduction.map((finding) => ({
+      metric: `finding ${finding.findingId}`,
+      before: finding.rate,
+      after: comparison.after.findingReproduction.find((item) => item.findingId === finding.findingId)?.rate ?? "not measured",
+    })),
+  ]);
+  console.log(`noise band: ${comparison.after.noiseBand ?? "not measured"}; paired scenarios: ${comparison.after.noiseBandScenarios ?? "unknown"}`);
+  console.log(comparison.passed ? "PASS" : `FAIL: ${comparison.regressions.join("; ")}`);
+}
+
 async function main(): Promise<void> {
   const { positionals, values } = parseArgs({
     allowPositionals: true,
-    options: { backend: { type: "string", default: "both" }, model: { type: "string", default: "gpt-6-luna" } },
+    options: {
+      backend: { type: "string", default: "both" }, model: { type: "string", default: "gpt-6-luna" },
+      "run-id": { type: "string" }, mode: { type: "string", default: "full" },
+      budget: { type: "string", default: "50" }, "seed-size": { type: "string", default: "16" },
+      "batch-size": { type: "string", default: "10" }, iterations: { type: "string", default: "3" },
+      baselines: { type: "string", default: "3" }, seed: { type: "string", default: "7" },
+      fresh: { type: "boolean", default: false }, suite: { type: "string" }, smoke: { type: "boolean", default: false },
+    },
   });
   const [command, arg] = positionals;
   switch (command) {
@@ -141,6 +183,38 @@ async function main(): Promise<void> {
       const runId = arg ?? "fixture";
       const { events } = writeFixtureRun({ runId });
       console.log(`wrote runs/${runId}/events.jsonl (${events} events)`);
+      return;
+    }
+    case "run": {
+      const policyId = validId(arg ?? usage());
+      const config = RunConfig.parse({
+        policyId, mode: z.enum(["full", "explore"]).parse(values.mode),
+        budget: Number(values.budget), seedSize: Number(values["seed-size"]), batchSize: Number(values["batch-size"]),
+        maxIterations: Number(values.iterations), smokeSize: 10, baselineRuns: Number(values.baselines), seed: Number(values.seed),
+        suiteRunId: null, models: { reader: "gpt-6.1-sol", judge: "gpt-6.1-sol", grader: "gpt-6-luna", reviewer: "gpt-6.1-sol" },
+        fresh: values.fresh,
+      });
+      const runId = validId(values["run-id"] ?? `${policyId}-${clockId()}`);
+      await runWindTunnel({ runId, config });
+      console.log(`completed ${runId}`);
+      return;
+    }
+    case "test": {
+      const input = arg ?? usage();
+      const suiteRunId = validId(values.suite ?? usage());
+      let surfaces: Surface[];
+      if (existsSync(input)) {
+        const data: unknown = JSON.parse(readFileSync(input, "utf8"));
+        surfaces = Array.isArray(data) ? Surface.array().min(1).parse(data) : PolicyPackage.parse(data).surfaces;
+      } else surfaces = loadPolicyPackage(validId(input)).surfaces;
+      const runId = validId(values["run-id"] ?? `${suiteRunId}-rt${clockId()}`);
+      const comparison = await retestEdit({ runId, suiteRunId, surfaces, smoke: values.smoke });
+      printComparison(comparison);
+      if (!comparison.passed) process.exitCode = 1;
+      return;
+    }
+    case "map-human": {
+      await mapHumanForRun(validId(arg ?? usage()));
       return;
     }
     case "smoke": {
