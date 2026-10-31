@@ -59,7 +59,7 @@ Node/Vite to resolve an older Three.js installation from a parent directory.
 | Clustering readings | Embeddings (`text-embedding-3-small`) |
 | Reviewer agent and tool-using hero personas, inspectable on stage | Codex App Server threads with client-side dynamic tools |
 
-**Measured cost.** With `PWT_USAGE_LOG=<file>` set, every real API call logs its tokens and pipeline stage (`src/core/llm/usage.ts`; `scripts/usage-summary.ts` prices them). A fresh 20-reader run (`runs/usage-probe-metered`) made 372 calls and cost $1.54 at OpenAI list prices in 10 minutes ([docs/usage-probe.json](docs/usage-probe.json)). Scaled to 50 readers that is about $2.66 per full test; retesting one edit on 10 readers is about $0.49; one single AI review is about $0.03.
+**Measured cost.** With `PWT_USAGE_LOG=<file>` set, every real API call logs its tokens and pipeline stage (`src/core/llm/usage.ts`; `scripts/usage-summary.ts` prices them). A fresh 20-reader run (`runs/usage-probe-metered`) made 372 calls and cost $1.54 at OpenAI list prices in 10 minutes ([docs/usage-probe.json](docs/usage-probe.json)). Estimated from those counts, `cod-main` (50 readers, three Sol reviews and one Astra review) cost about $2.56 in model calls. Retesting one edit costs about $0.11: ten fresh readings, graded and coded against the frozen groups, plus one fact check. One single AI review costs about $0.03.
 
 ## Docs
 
