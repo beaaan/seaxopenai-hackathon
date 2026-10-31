@@ -18,7 +18,6 @@ export interface RetestPreflight {
   version: PolicyVersion;
   scenarios: Scenario[];
   beforeReadings: Reading[];
-  findingScenarios: Record<string, string[]>;
 }
 
 /** Disk-only validation, shared by the API before spawning and the CLI before model calls. */
@@ -55,7 +54,7 @@ export function preflightRetest(args: { suiteRunId: string; surfaces: Surface[];
   if (beforeReadings.length !== scenarios.length) throw new Error(`suite v${baseVersion} is missing readings for the selected scenarios`);
   const frozenIds = new Set(suite.codebook.map((cluster) => cluster.id));
   if (suite.findings.some((finding) => finding.evidence.clusterIds.some((id) => !frozenIds.has(id)))) throw new Error("suite findings do not match its frozen codebook");
-  return { suite, config, v0, basePolicy, version, scenarios, beforeReadings, findingScenarios };
+  return { suite, config, v0, basePolicy, version, scenarios, beforeReadings };
 }
 
 /**
@@ -82,7 +81,7 @@ function smokeScenarios(ordered: Scenario[], findings: Finding[], findingScenari
 }
 
 export async function retestEdit(args: { runId: string; suiteRunId: string; surfaces: Surface[]; smoke: boolean }): Promise<SuiteComparison> {
-  const { suite, config, v0, basePolicy, version, scenarios, beforeReadings, findingScenarios } = preflightRetest(args);
+  const { suite, config, v0, basePolicy, version, scenarios, beforeReadings } = preflightRetest(args);
   const baseVersion = basePolicy.version;
   const scenarioIds = new Set(scenarios.map((scenario) => scenario.id));
   const frozenIds = new Set(suite.codebook.map((cluster) => cluster.id));
@@ -128,7 +127,9 @@ export async function retestEdit(args: { runId: string; suiteRunId: string; surf
     );
     // Empty/sub-five subsets remain explicitly inconclusive, never borrow parent coverage.
     const noise = noiseBand({ readings: pairs.before, grades: suite.grades }, { readings: pairs.after, grades: suite.grades }, DEFAULT_CONFLICT_THRESHOLD);
-    const subsetFindingScenarios = Object.fromEntries(Object.entries(findingScenarios).map(([findingId, ids]) => [findingId, ids.filter((id) => scenarioIds.has(id))]));
+    // CI measures each finding's prevalence over ALL selected scenarios, not only its original holders: an edit that
+    // spreads a misreading to readers who did not have it must fail.
+    const subsetFindingScenarios = Object.fromEntries(suite.findings.map((finding) => [finding.id, [...scenarioIds]]));
     const findingNoise = reproductionNoise(suite.findings, subsetFindingScenarios, { readings: pairs.before, codings: suite.codings }, { readings: pairs.after, codings: suite.codings });
     const before: Iteration = {
       ...iterationMetrics({ version: baseVersion, readings: beforeReadings, grades: suite.grades, codings: suite.codings, findings: suite.findings, scenarioIdsByFinding: subsetFindingScenarios, noiseBand: noise.band, noiseBandScenarios: noise.pairedScenarios, reproductionNoise: findingNoise, threshold: DEFAULT_CONFLICT_THRESHOLD, seed: config.seed }),

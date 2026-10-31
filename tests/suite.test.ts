@@ -72,6 +72,18 @@ describe("compareSuite with a reference", () => {
   });
 });
 
+describe("compareSuite minimum effect", () => {
+  it("does not treat a wobble inside a saturated (zero) band as a change", () => {
+    const result = compareSuite({
+      before: iteration(0, [{ findingId: "f1", rate: 1, noiseBand: 0 }]),
+      after: iteration(0, [{ findingId: "f1", rate: 0.99, noiseBand: 0 }]),
+      noiseBand: 0, conflictMeasured: false,
+    });
+    expect(result.verdict).toBe("inconclusive");
+    expect(result.reasons).toContain("f1 100% → 99% within noise ±5.0 pp");
+  });
+});
+
 describe("compareSuite without a reference", () => {
   it("passes only when some finding fell beyond its noise band", () => {
     const result = compareSuite({

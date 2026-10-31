@@ -3,6 +3,12 @@ import type { FidelityResult, Iteration, SuiteComparison } from "../shared/schem
 
 export type SuiteResult = Pick<SuiteComparison, "verdict" | "reasons">;
 
+/**
+ * Smallest change CI reports. A measured band can be ~0 when readings saturate (every pair at P≈1); without a floor a
+ * 0.01 wobble would count as a real change.
+ */
+export const MIN_EFFECT = 0.05;
+
 const pct = (rate: number): string => `${(rate * 100).toFixed(0)}%`;
 const pp = (delta: number): string => `${(delta * 100).toFixed(1)} pp`;
 
@@ -47,19 +53,21 @@ export function compareSuite(args: { before: Iteration; after: Iteration; noiseB
       notes.push(`${change} (no noise estimate: < ${MIN_PAIRED_SCENARIOS} re-read pairs)`);
       continue;
     }
+    const band = Math.max(prior.noiseBand, MIN_EFFECT);
     const delta = next.rate - prior.rate;
     // Rates are floating-point means; a change equal to the band is within noise.
-    if (delta > prior.noiseBand + Number.EPSILON) regressions.push(`${change} rose beyond noise ±${pp(prior.noiseBand)}`);
-    else if (-delta > prior.noiseBand + Number.EPSILON) improvements.push(`${change} fell beyond noise ±${pp(prior.noiseBand)}`);
-    else notes.push(`${change} within noise ±${pp(prior.noiseBand)}`);
+    if (delta > band + Number.EPSILON) regressions.push(`${change} rose beyond noise ±${pp(band)}`);
+    else if (-delta > band + Number.EPSILON) improvements.push(`${change} fell beyond noise ±${pp(band)}`);
+    else notes.push(`${change} within noise ±${pp(band)}`);
   }
   // A rule change is decisive: wording CI cannot vouch for an edit that says something else.
   if (ruleChanges.length) return { verdict: "fail", reasons: [...ruleChanges, ...blockers, ...regressions, ...improvements, ...notes] };
   if (blockers.length) return { verdict: "inconclusive", reasons: [...blockers, ...regressions, ...improvements, ...notes] };
   if (conflictMeasured) {
+    const band = Math.max(noiseBand, MIN_EFFECT);
     const increase = after.conflictRate - before.conflictRate;
-    const conflict = `conflict rate ${pct(before.conflictRate)} → ${pct(after.conflictRate)} (noise ±${pp(noiseBand)})`;
-    if (increase > noiseBand + Number.EPSILON) regressions.unshift(`${conflict} rose beyond noise`);
+    const conflict = `conflict rate ${pct(before.conflictRate)} → ${pct(after.conflictRate)} (noise ±${pp(band)})`;
+    if (increase > band + Number.EPSILON) regressions.unshift(`${conflict} rose beyond noise`);
     else notes.unshift(conflict);
   } else {
     notes.unshift("no reference: conflict rate not measured");
