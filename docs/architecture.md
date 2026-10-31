@@ -31,7 +31,7 @@ flowchart LR
   OUT --> CI[pwt test: policy CI]
 ```
 
-Every box appends events to `runs/<runId>/events.jsonl` (`src/shared/events.ts`). The server tails that log over SSE. The UI is a pure fold of it (`web/src/state.ts`), so a replay and a live run render through the same code.
+Every box appends events to `runs/<runId>/events.jsonl` (`src/shared/events.ts`). The server tails that log over SSE. The UI is a pure fold of it (`foldRun` / `applyEvent` in `web/src/model.ts`), so a replay and a live run render through the same code.
 
 ## Runtime layers
 

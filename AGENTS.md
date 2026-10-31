@@ -54,7 +54,7 @@ Rules for schemas:
 
 These rules keep every shared schema usable as an OpenAI strict structured-output schema, and `tests/json-schema.test.ts` enforces them.
 
-**Adding an event type:** add it to `EVENT_PAYLOADS` (that also extends the parser) and handle it in `web/src/state.ts`. Events are append-only; never rewrite a log. `clusters.updated` and `findings.updated` carry full replacements, not deltas.
+**Adding an event type:** add it to `EVENT_PAYLOADS` (that also extends the parser) and handle it in `applyEvent` in `web/src/model.ts`. Events are append-only; never rewrite a log. `clusters.updated` and `findings.updated` carry full replacements, not deltas.
 
 ## Ownership (one git worktree per owner; edit only your directories)
 

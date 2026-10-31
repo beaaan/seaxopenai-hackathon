@@ -150,7 +150,7 @@ function Overview(props: { ctx: RunContext }): ReactNode {
 
       <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Stat label="Readers" value={readers} hint={`${model.scenarios.length} scenarios · ${model.dimensions.length} dimensions`} />
-        <Stat label="Shared beliefs" value={shared.length} hint={`of ${beliefs.length} in the frozen codebook`} />
+        <Stat label="Shared beliefs" value={shared.length} hint={model.codebookIds === null ? `of ${beliefs.length} so far · codebook not frozen yet` : `of ${beliefs.length} in the frozen codebook`} />
         <Stat
           label="Findings"
           value={model.findings.length}

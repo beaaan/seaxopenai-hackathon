@@ -22,6 +22,7 @@ npm run pwt -- run cod               # full run on the COD policy (~15–20 min)
 npm run pwt -- test edit.json --suite <runId> --smoke   # policy CI on an edited text
 npm run server                       # http://localhost:8787
 npm run web                          # http://localhost:5173 → pick run "fixture"
+npm run web -- --host                # same, reachable from phones on the venue Wi-Fi (human check: /#/check/<runId>)
 npm run check                        # typecheck + tests + holdout guard
 ```
 
