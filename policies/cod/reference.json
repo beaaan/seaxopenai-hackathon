@@ -1,0 +1,119 @@
+{
+  "policyId": "cod",
+  "author": "Policy Wind Tunnel team, from help.shopee.vn article 79294 and the official pages quoted in docs/research/policy-sources.md; every fact cites the sentences that state it.",
+  "facts": [
+    {
+      "id": "F1",
+      "text": "The article gives three alternative reasons why COD cannot be selected; any one of them is enough.",
+      "sentenceIds": ["help.1"],
+      "source": null
+    },
+    {
+      "id": "F2",
+      "text": "COD is not offered when the seller does not use Shopee's shipping methods and does not offer COD for that product (examples: e-codes for phone top-up, e-cinema tickets).",
+      "sentenceIds": ["help.2"],
+      "source": null
+    },
+    {
+      "id": "F3",
+      "text": "An account can be temporarily limited from COD for 24 hours when it has exceeded the limit on the number of orders placed with COD in one day.",
+      "sentenceIds": ["help.3"],
+      "source": null
+    },
+    {
+      "id": "F4",
+      "text": "Shopee can temporarily turn off a buyer's COD when the system records that the buyer's purchase history has a number of failed COD deliveries exceeding the current rule.",
+      "sentenceIds": ["help.4"],
+      "source": null
+    },
+    {
+      "id": "F5",
+      "text": "Shopee monitors the buyer's payment activity and sends a reminder notification each time a COD order is not delivered successfully.",
+      "sentenceIds": ["help.5"],
+      "source": null
+    },
+    {
+      "id": "F6",
+      "text": "Under the 24-hour limit, the buyer should try again after 24 hours.",
+      "sentenceIds": ["help.7", "help.8"],
+      "source": null
+    },
+    {
+      "id": "F7",
+      "text": "If COD still cannot be selected after 24 hours, the account may instead be in the case where Shopee has temporarily turned COD off.",
+      "sentenceIds": ["help.9"],
+      "source": null
+    },
+    {
+      "id": "F8",
+      "text": "When Shopee has turned COD off, the system checks the buyer's successful purchases every day; buying and successfully receiving orders paid with other available methods lets the system record them and turn COD back on automatically once the buyer is eligible.",
+      "sentenceIds": ["help.10", "help.11"],
+      "source": null
+    },
+    {
+      "id": "F9",
+      "text": "At checkout, COD is shown as temporarily unavailable and the buyer is asked to choose another payment method.",
+      "sentenceIds": ["checkout.1", "checkout.2"],
+      "source": null
+    },
+    {
+      "id": "F10",
+      "text": "Shopee's shipping policy tells buyers to refuse a parcel whose packaging shows damage (torn, dented, broken, wet) or is no longer intact.",
+      "sentenceIds": [],
+      "source": "https://help.shopee.vn/portal/4/article/77250"
+    },
+    {
+      "id": "F11",
+      "text": "If COD was locked because a shipper updated a delivery as failed or returned without contacting the buyer, the buyer should contact Shopee customer service (CSKH).",
+      "sentenceIds": [],
+      "source": "https://help.shopee.vn/portal/4/article/79084"
+    },
+    {
+      "id": "F12",
+      "text": "Shopee's seller education page says Shopee tracks failed COD orders caused by buyers refusing delivery and may restrict COD for buyers with a history of inappropriate refusals.",
+      "sentenceIds": [],
+      "source": "https://banhang.shopee.vn/edu/article/14303"
+    }
+  ],
+  "notCovered": [
+    { "id": "N1", "text": "How many failed COD deliveries trigger the COD turn-off (the article says only 'exceeding the current rule')." },
+    { "id": "N2", "text": "Over what time window failed COD deliveries are counted." },
+    { "id": "N3", "text": "Whether failures not caused by the buyer (wrong address set by the courier, unreachable courier, a damaged parcel refused, a shipper marking failure falsely) count toward the turn-off." },
+    { "id": "N4", "text": "How many successful orders, or how long, it takes for COD to be turned back on; what 'eligible' means." },
+    { "id": "N5", "text": "How long the COD turn-off lasts if nothing changes; the article states no fixed duration." },
+    { "id": "N6", "text": "How many COD orders per day trigger the 24-hour limit." },
+    { "id": "N7", "text": "Which of the three reasons applies to a given buyer when checkout says COD is unavailable." }
+  ],
+  "correctReadings": [
+    {
+      "id": "C1",
+      "question": "Does Shopee lock COD after 3 failed deliveries in 90 days?",
+      "answer": "The article does not say. It gives no number of failed deliveries and no time window; it says only that the number exceeded the current rule.",
+      "factIds": ["F4"]
+    },
+    {
+      "id": "C2",
+      "question": "Is the 24-hour limit caused by failed deliveries?",
+      "answer": "No. The 24-hour limit is about placing too many COD orders in one day. Failed deliveries lead to the separate, temporary COD turn-off.",
+      "factIds": ["F3", "F4"]
+    },
+    {
+      "id": "C3",
+      "question": "How do I get COD back after Shopee turned it off?",
+      "answer": "Buy and successfully receive orders paid with other methods; the system checks daily and turns COD back on automatically once you are eligible. The article gives no number of orders or waiting period.",
+      "factIds": ["F8"]
+    },
+    {
+      "id": "C4",
+      "question": "COD is still unavailable after 24 hours. What does that mean?",
+      "answer": "The account may be in the case where Shopee has temporarily turned COD off because of failed COD deliveries, not the 24-hour limit.",
+      "factIds": ["F7", "F4"]
+    },
+    {
+      "id": "C5",
+      "question": "Can I pay COD for a phone top-up code?",
+      "answer": "Not when the seller does not use Shopee shipping and does not offer COD for that product; e-codes are the article's own example.",
+      "factIds": ["F2"]
+    }
+  ]
+}

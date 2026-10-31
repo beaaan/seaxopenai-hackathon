@@ -32,15 +32,18 @@ export function useRun(runId: string, followFinished = true): LoadedRun {
           setState({ model: { ...live }, events: all, error: null });
           if (live.status !== "running" && !followFinished) return;
           let last = events.at(-1)?.seq ?? -1;
-          stop = tail(runId, last + 1, (event) => {
+          const close = tail(runId, last + 1, (event) => {
             if (event.seq <= last) return;
             last = event.seq;
             all.push(event);
             applyEvent(live, event);
+            // List rows only need the verdict: release the connection once the run has finished.
+            if (!followFinished && live.status !== "running") close();
             // Many events arrive in bursts; render at most once per frame.
             cancelAnimationFrame(frame);
             frame = requestAnimationFrame(() => alive && setState({ model: { ...live }, events: [...all], error: null }));
           });
+          stop = close;
         },
         (err: unknown) => {
           if (!alive) return;

@@ -1,0 +1,60 @@
+{
+  "policyId": "cod",
+  "author": "Policy Wind Tunnel team, from docs/research/policy-sources.md (committed 10:35, before any run): one edge case per unspecified point (section 1.1) and per official or press conflict listed in sections 1.2, 1.3 and 2, nothing added. Written at 12:50, after the first runs.",
+  "edgeCases": [
+    {
+      "id": "H1",
+      "description": "The number of failed COD deliveries that triggers the COD turn-off is not given ('vượt quá quy định hiện hành'); readers supply a number themselves, typically the circulating '3 orders' (or 'more than 2') rule.",
+      "sentenceIds": ["help.4"],
+      "expectedClass": "unresolvable"
+    },
+    {
+      "id": "H2",
+      "description": "No time window for counting failed COD deliveries is given; readers assume one (typically 90 days, consecutive or most recent).",
+      "sentenceIds": ["help.4"],
+      "expectedClass": "unresolvable"
+    },
+    {
+      "id": "H3",
+      "description": "Whose failures count: the buyer article counts every failed COD delivery, while Shopee's seller page counts only inappropriate refusals by the buyer and defines a failed delivery to include a wrong address and an unreachable buyer. Readers cannot tell whether failures that were not their fault count.",
+      "sentenceIds": ["help.4", "help.5"],
+      "expectedClass": "design_gap"
+    },
+    {
+      "id": "H4",
+      "description": "Shopee's shipping policy tells buyers to refuse damaged parcels, but the COD article counts every failed COD delivery; a buyer who follows that advice cannot tell whether the refusal counts toward losing COD.",
+      "sentenceIds": ["help.4"],
+      "expectedClass": "design_gap"
+    },
+    {
+      "id": "H5",
+      "description": "A buyer whose COD was locked because a shipper marked a delivery as failed or returned without contacting them gets no recourse from this article; the only official path (contact customer service) is on another page.",
+      "sentenceIds": ["help.4", "help.11"],
+      "expectedClass": "unresolvable"
+    },
+    {
+      "id": "H6",
+      "description": "Recovery is not quantified: the article says the system checks daily and reopens COD 'khi bạn đủ điều kiện' but gives no number of successful orders or time, so readers cannot tell what they must do or when COD returns.",
+      "sentenceIds": ["help.11"],
+      "expectedClass": "unresolvable"
+    },
+    {
+      "id": "H7",
+      "description": "Readers expect a fixed lock duration (about 60 days, or 90 days without further failures, as third-party pages say) although the article states none and describes daily re-checking instead.",
+      "sentenceIds": ["help.4", "help.11"],
+      "expectedClass": "unresolvable"
+    },
+    {
+      "id": "H8",
+      "description": "The daily COD order limit behind the 24-hour restriction has no number, so readers cannot tell how many COD orders a day they may place.",
+      "sentenceIds": ["help.3"],
+      "expectedClass": "unresolvable"
+    },
+    {
+      "id": "H9",
+      "description": "Readers confuse the 24-hour limit (too many COD orders placed in one day) with the failed-delivery turn-off, as a national newspaper did; they believe failed deliveries cause a 24-hour lock.",
+      "sentenceIds": ["help.3", "help.4", "help.9"],
+      "expectedClass": "wording_fix"
+    }
+  ]
+}
