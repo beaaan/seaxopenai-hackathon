@@ -10,7 +10,7 @@ A platform rule only works if people understand it the way it was meant. Policy 
 4. **What can wording not fix?** When every fix would change the rule or need information the text lacks, the tool says so and the policy owner decides.
 5. **Does a later edit break anything?** Any edit can be re-tested on the same readers. It fails if it changes what the policy promises or makes a misreading more common.
 
-The web app has three views: a landing page with the result on Shopee's article, the report for each run, and a full-screen replay of a run (`#/live/<runId>`) that shows readers, sentences, graded beliefs and the agent's tool calls as the event log recorded them.
+The web app has four views: a landing page with the result on Shopee's article, the report for each run, a full-screen replay of a run (`#/live/<runId>`) where the reader flow (heard → where they read → what they believe) fills in as readers report back, next to the agent's tool calls as the event log recorded them, and `#/new`, where you pick a ready-made policy or paste your own and watch the readers test it live.
 
 ## What it found
 
@@ -46,11 +46,7 @@ npm run check                        # typecheck + tests + holdout guard + web b
 
 Add `--demographics` to `pwt run` to design age groups (18–25, 30–45, 55–70) and low/high digital literacy explicitly; it is off by default, and written persona ages/literacy are corrected to their assigned levels.
 
-If **Watch the run** reports a missing Three.js addon such as `OutputPass.js`, stop
-the dev servers, run `npm ci` from this repository, and restart `npm run server`
-and `npm run web` in separate terminals. A missing local dependency can cause
-Node/Vite to resolve an older Three.js installation from a parent directory.
-`npm ls three --depth=0` should show the version installed for this project.
+For a talk, open `http://localhost:5173/presenter/` (speaker notes, talk clock and a chapter remote) and click **Open audience window**; the landing and the console follow each other over a same-origin `BroadcastChannel`. `/presenter/#/judges` is the Q&A screen, also linked from the landing.
 
 ## How it uses OpenAI
 

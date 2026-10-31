@@ -39,21 +39,11 @@
 .l-rail button.on i { transform: scale(1.6); }
 @media (max-width: 1100px) { .l-rail { display: none; } }
 
-/* Buttons: one solid cyan, one outlined. */
-.l-button, .l-ghost {
-  display: inline-flex; align-items: center; height: 44px; padding: 0 20px; border-radius: 999px;
-  font-size: 15px; font-weight: 600; text-decoration: none; white-space: nowrap;
-  transition: transform 160ms ease, background-color 160ms, box-shadow 160ms, border-color 160ms;
-}
-.l-button { background: var(--n-cyan); color: #05070b !important; }
-.l-button:hover { background: #b5ecff; }
-.l-ghost { border: 1px solid rgba(143, 227, 255, 0.4); color: var(--n-ink) !important; background: rgba(5, 7, 11, 0.4); }
-.l-ghost:hover { border-color: var(--n-cyan); background: rgba(143, 227, 255, 0.08); }
-.l-button:active, .l-ghost:active { transform: scale(0.98); }
-.l-actions { display: flex; gap: 12px; flex-wrap: wrap; }
-
 /* Top bar over the first chapter. */
 .l-nav { position: absolute; top: 0; left: 0; right: 0; z-index: 3; display: flex; align-items: center; gap: 28px; padding: 22px var(--n-m); font-size: 14px; }
+.l-qa { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 18px; border-radius: 999px; border: 1px solid rgba(143, 227, 255, 0.4); color: var(--n-ink) !important; text-decoration: none; font-weight: 600; transition: border-color 160ms, background-color 160ms; }
+.l-qa:hover { border-color: var(--n-cyan); background: rgba(143, 227, 255, 0.08); }
+.l-qa svg { width: 18px; height: 18px; color: var(--n-cyan); }
 .l-word { display: inline-flex; align-items: center; gap: 10px; font-weight: 600; text-decoration: none; }
 
 /* Story chapters: one idea per screen, so Page Down moves one beat. */
@@ -201,13 +191,16 @@
 .flow-links .tone-misreading { stroke: #d9a066; }
 .flow-links .tone-other { stroke: #8b97a3; }
 .flow-links .tone-none { stroke: var(--n-cyan); }
+.flow-links .tone-pending { stroke: #6b7784; }
 .flow-nodes rect { fill: #c8d1da; }
 .flow-nodes .tone-rumour rect, .flow-nodes .tone-top rect { fill: var(--n-amber); }
 .flow-nodes .tone-misreading rect { fill: #d9a066; }
 .flow-nodes .tone-other rect { fill: #8b97a3; }
 .flow-nodes .tone-none rect, .flow-nodes .tone-calm rect { fill: var(--n-cyan); }
+.flow-nodes .tone-pending rect { fill: #6b7784; }
 .flow-nodes g.on .flow-count, .flow-nodes .tone-top .flow-count { fill: var(--n-amber); }
 .flow-nodes g.on text { font-weight: 600; }
+.flow-nodes text { paint-order: stroke; stroke: rgba(5, 7, 11, 0.85); stroke-width: 4px; stroke-linejoin: round; }
 
 /* The report embeds the tunnel as a dark panel. */
 .tunnel-panel { margin-top: var(--gap); padding: 16px 20px 6px; border-radius: 12px; background: var(--n-bg); color: var(--n-ink); }
@@ -330,11 +323,15 @@
 @media (max-width: 800px) { .e-versus { grid-template-columns: 1fr; } .e-vs { justify-self: center; } }
 @media (max-width: 700px) { .c-op { display: none; } .c-term { flex-basis: 100%; } }
 /* The ending. */
-.l-cta { min-height: 80svh; padding: 120px var(--n-m); display: grid; align-content: center; gap: 26px; justify-items: start; }
-.l-cta h2 { font-size: clamp(36px, min(4.4vw, 8vh), 72px); line-height: 1.05; }
-.l-big-button { height: 56px; padding: 0 28px; font-size: 17px; }
-.l-quiet { color: var(--n-muted) !important; font-size: 15px; text-decoration: none; }
-.l-quiet:hover { color: var(--n-ink) !important; }
+.l-cta { min-height: 100svh; padding: 120px var(--n-m); display: grid; align-content: center; gap: clamp(24px, 5vh, 48px); }
+.l-cta h2 { font-size: clamp(40px, min(5vw, 9vh), 96px); line-height: 1.05; }
+.l-launch { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: clamp(14px, 1.6vw, 24px); }
+.l-launch a { display: grid; align-content: start; gap: 14px; height: 100%; padding: clamp(22px, 2.4vw, 36px); border-radius: 20px; background: var(--n-panel); border: 1px solid var(--n-edge); text-decoration: none; transition: border-color 160ms, transform 160ms, background-color 160ms; }
+.l-launch a:hover { border-color: var(--n-cyan); transform: translateY(-3px); }
+.l-launch a.main { border-color: var(--n-cyan); background: rgba(143, 227, 255, 0.07); }
+.l-launch svg { width: clamp(28px, 2.4vw, 40px); height: clamp(28px, 2.4vw, 40px); color: var(--n-cyan); }
+.l-launch b { font-size: clamp(22px, min(2vw, 3.6vh), 34px); font-weight: 500; }
+.l-launch span { font-size: clamp(15px, min(1.3vw, 2.4vh), 20px); line-height: 1.4; color: var(--n-muted); }
 .l-foot { display: flex; justify-content: space-between; gap: 24px; flex-wrap: wrap; padding: 24px var(--n-m) 32px; font-size: 13px; color: var(--n-dim); border-top: 1px solid rgba(143, 227, 255, 0.08); }
 
 /* Entrances: rise once as the element enters; never hidden without the script. */

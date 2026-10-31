@@ -1,7 +1,7 @@
 import type { Finding, FolkVersion } from "@shared/schema";
-import { cohortSize, misreadings, type RunModel } from "../model";
+import { codebook, cohortSize, misreadings, originalReadings, type RunModel } from "../model";
 
-/** Where a group of readers ends up: one wrong idea, the rest, or none shared. */
+/** Where readers end up, including readers whose original reading has not completed yet. */
 export interface TunnelPool {
   id: string;
   label: string;
@@ -12,7 +12,7 @@ export interface TunnelPool {
   holders: number;
   /** Of the streams drawn here, how many had been told each rumour (folk id), or nothing (null). */
   heard: Map<string | null, number>;
-  role: "misreading" | "other" | "none";
+  role: "misreading" | "other" | "none" | "pending" | "ungrouped";
 }
 
 /** Where a reader met the rule: the help article, only the checkout message, or no official text. */
@@ -47,11 +47,14 @@ const SHOWN = 4;
 
 /**
  * Each reader is one stream, drawn to the most common wrong idea they hold. The four most common destinations get
- * their own pool; other wrong ideas share one; readers with none another.
+ * their own pool; other wrong ideas share one; readers with none another. Unfinished original readings stay pending.
  */
 export function tunnelData(m: RunModel, folk: readonly FolkVersion[]): TunnelData | null {
   if (m.scenarios.length === 0) return null;
   const rows = misreadings(m);
+  const completed = new Set(originalReadings(m).map((r) => r.scenarioId));
+  const pending = m.scenarios.some((s) => !completed.has(s.id));
+  const ungrouped = m.status === "running" && codebook(m).length === 0;
   const primary = new Map(m.scenarios.map((s) => [s.id, rows.findIndex((r) => r.readers.includes(s.id))]));
   const drawn = rows.filter((_, i) => [...primary.values()].includes(i)).slice(0, SHOWN);
   const pool = (p: Omit<TunnelPool, "readers" | "heard">): TunnelPool => ({ ...p, readers: 0, heard: new Map() });
@@ -59,7 +62,8 @@ export function tunnelData(m: RunModel, folk: readonly FolkVersion[]): TunnelDat
   const pools: TunnelPool[] = [
     ...drawn.map((r) => pool({ id: r.id, label: r.title, kind: r.kind, holders: r.readers.length, role: "misreading" })),
     pool({ id: "other", label: otherIdeas === 1 ? "1 other wrong idea" : `${otherIdeas} other wrong ideas`, kind: null, holders: 0, role: "other" }),
-    pool({ id: "none", label: "No wrong idea shared with another reader", kind: null, holders: 0, role: "none" }),
+    pool({ id: "none", label: ungrouped ? "Not grouped yet" : "No wrong idea shared with another reader", kind: null, holders: 0, role: ungrouped ? "ungrouped" : "none" }),
+    ...(pending ? [pool({ id: "pending", label: "Still reading", kind: null, holders: 0, role: "pending" })] : []),
   ];
   const streams: TunnelStream[] = m.scenarios.map((s) => {
     const first = primary.get(s.id) ?? -1;
@@ -68,7 +72,7 @@ export function tunnelData(m: RunModel, folk: readonly FolkVersion[]): TunnelDat
       scenarioId: s.id,
       folkId: s.exposure.folkVersionId,
       saw: sawOf(s.exposure.surfaceIds),
-      pool: shown >= 0 ? shown : first >= 0 ? drawn.length : drawn.length + 1,
+      pool: !completed.has(s.id) ? pools.length - 1 : shown >= 0 ? shown : first >= 0 ? drawn.length : drawn.length + 1,
     };
   });
   for (const stream of streams) {
@@ -76,8 +80,8 @@ export function tunnelData(m: RunModel, folk: readonly FolkVersion[]): TunnelDat
     p.readers++;
     p.heard.set(stream.folkId, (p.heard.get(stream.folkId) ?? 0) + 1);
   }
-  // Keep pool indices dense: drop an empty "other" or "none" pool and renumber.
+  // Keep pool indices dense: drop empty destinations and renumber.
   const kept = pools.filter((p) => p.readers > 0);
   for (const stream of streams) stream.pool = kept.indexOf(pools[stream.pool]!);
-  return { total: cohortSize(m), pools: kept, streams, folk: new Map(folk.map((f) => [f.id, f])) };
+  return { total: pending ? m.scenarios.length : cohortSize(m), pools: kept, streams, folk: new Map(folk.map((f) => [f.id, f])) };
 }

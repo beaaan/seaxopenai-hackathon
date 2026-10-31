@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
-import { Check, ChevronDown, CircleHelp, CircleSlash, EyeOff, FileText, PenLine, RotateCcw, ShieldCheck, ShoppingCart, X } from "lucide-react";
+import { Check, ChevronDown, CircleHelp, CircleSlash, EyeOff, FileText, FlaskConical, MessagesSquare, PenLine, Play, RotateCcw, ShieldCheck, ShoppingCart, X } from "lucide-react";
 import type { FolkVersion, GradeLabel, Iteration, Scenario } from "@shared/schema";
 import { beyondNoise, effectiveBand } from "@shared/noise";
 import { api, type PolicyDetail } from "../api";
@@ -24,6 +24,8 @@ const STORE_TEST = "cod-main-rt2";
 const DEMOGRAPHIC_RUN = "cod-demo";
 const REPORT = `#/run/${FEATURED}`;
 const LIVE = `#/live/${FEATURED}`;
+/** The judges' Q&A screen of the presenter site, built next to this page. */
+const QA = "/presenter/#/judges";
 /** Grab's scheduled-ride terms: the run whose accepted rewrite the chart shows, and the misreading it targeted. */
 const GRAB_RUN = "grab-main-noref";
 const GRAB_FINDING = "f4";
@@ -85,6 +87,7 @@ export function LandingPage(): ReactNode {
       <ChapterRail />
       <header className="l-nav">
         <a href="#/" className="l-word"><TunnelMark />Policy Wind Tunnel</a>
+        <a href={QA} className="l-qa"><MessagesSquare />Q&amp;A</a>
       </header>
       <Opening />
       <Case message={[sentence("checkout.1"), sentence("checkout.2")].filter((s): s is string => s !== null)} />
@@ -111,12 +114,21 @@ export function LandingPage(): ReactNode {
       <Economics model={model} top={rows[0]} wallSeconds={wallSeconds} />
 
       <section className="l-cta" id="demo" aria-labelledby="cta-title" data-chapter="Demo">
-        <h2 id="cta-title" data-rise>Now watch the whole run</h2>
-        <div className="l-actions" data-rise>
-          <a className="l-button l-big-button" href={LIVE}>Watch the full run</a>
-          <a className="l-ghost l-big-button" href={REPORT}>Open the report</a>
-        </div>
-        <a className="l-quiet" href="#/new" data-rise>Test your own policy →</a>
+        <h2 id="cta-title" data-rise>Now see it run</h2>
+        <ol className="l-launch">
+          <li data-rise>
+            <a className="main" href={LIVE}><Play /><b>Watch the full run</b><span>The reader flow fills in as 50 readers report back and the agent decides who reads next.</span></a>
+          </li>
+          <li data-rise>
+            <a href={REPORT}><FileText /><b>Open the report</b><span>Every misreading, who holds it, the sentence behind it, and the fixes we tried.</span></a>
+          </li>
+          <li data-rise>
+            <a href="#/new"><FlaskConical /><b>Test your own policy</b><span>Pick a ready-made policy or paste one, then watch the readers test it live.</span></a>
+          </li>
+          <li data-rise>
+            <a href={QA}><MessagesSquare /><b>Questions and answers</b><span>How it works and what it found, answered with the run's own numbers and sources.</span></a>
+          </li>
+        </ol>
       </section>
       <footer className="l-foot">
         <span>Policy Wind Tunnel · Sea × OpenAI Codex Hackathon Vietnam, 31 October 2026</span>

@@ -4,8 +4,8 @@ import type { FolkVersion } from "@shared/schema";
 import { originalReadings, type Misreading, type RunModel } from "../model";
 import { sawOf, type Saw } from "./tunnel";
 
-/** How long each beat holds, in ms: a glance for the setup, time to read the quotes and the verdict. */
-const BEAT_MS = [2600, 3000, 4800, 3200, 4200] as const;
+/** How long each beat holds, in ms: time to take in the setup, read the quotes and the verdict. */
+const BEAT_MS = [5100, 5500, 7300, 5700, 6700] as const;
 const BEATS = BEAT_MS.length;
 
 const SAW: Array<{ key: Saw; label: string; icon: ReactNode; x: number }> = [

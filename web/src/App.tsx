@@ -7,7 +7,7 @@ import { NewPolicyPage } from "./pages/NewPolicyPage";
 import { HumanCheckPage } from "./pages/HumanCheckPage";
 import { LandingPage } from "./landing/LandingPage";
 
-// three.js and the post-processing passes load only when the theatre opens.
+// The theatre loads only when it opens.
 const TheatrePage = lazy(() => import("./theatre/TheatrePage").then((m) => ({ default: m.TheatrePage })));
 
 function decode(value: string): string | null {

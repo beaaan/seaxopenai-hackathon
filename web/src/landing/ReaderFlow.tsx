@@ -1,8 +1,8 @@
-import { useMemo, type ReactNode } from "react";
+import { useLayoutEffect, useMemo, useRef, type ReactNode } from "react";
 import { sankey, sankeyLinkHorizontal, type SankeyGraph } from "d3-sankey";
 import { shortClaim, type Saw, type TunnelData, type TunnelPool } from "./tunnel";
 
-type Tone = "top" | "misreading" | "other" | "none" | "rumour" | "calm" | "plain";
+type Tone = "top" | "misreading" | "other" | "none" | "pending" | "rumour" | "calm" | "plain";
 
 interface FlowNode {
   key: string;
@@ -15,6 +15,7 @@ interface FlowNode {
 }
 
 interface FlowLink {
+  key: string;
   source: number;
   target: number;
   value: number;
@@ -49,6 +50,7 @@ function wrap(text: string, width: number, max: number): string[] {
 
 function poolTone(p: TunnelPool, i: number): Tone {
   if (p.role === "none") return "none";
+  if (p.role === "pending" || p.role === "ungrouped") return "pending";
   if (p.role === "other") return "other";
   return i === 0 ? "top" : "misreading";
 }
@@ -77,23 +79,44 @@ function build(data: TunnelData): { nodes: FlowNode[]; links: FlowLink[] } {
     const count = sawCount.get(saw);
     if (count) add({ key: `s:${saw}`, column: 1, lines: [SAW_LABEL[saw]], count, pool: null, tone: "plain" });
   }
-  data.pools.forEach((p, i) => add({ key: `p:${i}`, column: 2, lines: wrap(p.label, 34, 2), count: p.readers, pool: i, tone: poolTone(p, i) }));
+  data.pools.forEach((p, i) => add({ key: `p:${p.id}`, column: 2, lines: wrap(p.label, 34, 2), count: p.readers, pool: i, tone: poolTone(p, i) }));
 
   const bands = new Map<string, FlowLink>();
   const flow = (from: string, to: string, pool: number): void => {
-    const key = `${from}>${to}#${pool}`;
+    const key = `${from}>${to}#${data.pools[pool]!.id}`;
     const band = bands.get(key);
     if (band) band.value++;
-    else bands.set(key, { source: index.get(from)!, target: index.get(to)!, value: 1, pool });
+    else bands.set(key, { key, source: index.get(from)!, target: index.get(to)!, value: 1, pool });
   };
   for (const s of data.streams) {
     flow(`h:${s.folkId}`, `s:${s.saw}`, s.pool);
-    flow(`s:${s.saw}`, `p:${s.pool}`, s.pool);
+    flow(`s:${s.saw}`, `p:${data.pools[s.pool]!.id}`, s.pool);
   }
   // In pool order, so bands between the same two nodes stack as their pools sit; d3-sankey orders the rest by position.
   const links = [...bands.values()].sort((a, b) => a.pool - b.pool);
   return { nodes, links };
 }
+/** Keep a band's identity as its destination grows, so geometry changes interpolate instead of jumping. */
+function FlowBand(props: { d: string; width: number; tone: Tone; dim: boolean; onActive: () => void }): ReactNode {
+  const element = useRef<SVGPathElement>(null);
+  const previous = useRef<{ d: string; width: number } | null>(null);
+  useLayoutEffect(() => {
+    const node = element.current;
+    const from = previous.current;
+    previous.current = { d: props.d, width: props.width };
+    if (!node || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const animation = node.animate(
+      [
+        { d: `path("${from?.d ?? props.d}")`, strokeWidth: from?.width ?? 0 },
+        { d: `path("${props.d}")`, strokeWidth: props.width },
+      ],
+      { duration: 500, easing: "cubic-bezier(0.2, 0.7, 0.2, 1)" },
+    );
+    return () => animation.cancel();
+  }, [props.d, props.width]);
+  return <path ref={element} d={props.d} className={`tone-${props.tone}${props.dim ? " dim" : ""}`} strokeWidth={props.width} onMouseEnter={props.onActive} onClick={props.onActive} />;
+}
+
 
 /**
  * Every reader as a band: what they heard first, where they met the rule, and the most common wrong idea they ended
@@ -114,20 +137,21 @@ export function ReaderFlow(props: { data: TunnelData; active: number; onActive: 
 
   return (
     <div className="flow">
-      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={top ? `${top.readers} of ${data.total} readers end up believing: ${top.label}` : "Where readers end up"}>
+      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={top?.role === "pending" ? `${top.readers} of ${data.total} readers are still reading` : top?.role === "ungrouped" ? `${top.readers} of ${data.total} readers have not been grouped yet` : top ? `${top.readers} of ${data.total} readers end up believing: ${top.label}` : "Where readers end up"}>
         <g className="flow-heads">
           <text x={X0 - 14} y={14} textAnchor="end">What they heard</text>
           <text x={(X0 + X1) / 2} y={14} textAnchor="middle">Where they read it</text>
           <text x={X1 + 18} y={14}>What they believe</text>
         </g>
         <g className="flow-links">
-          {graph.links.map((l, i) => (
-            <path
-              key={i}
-              d={path(l) ?? undefined}
-              className={`tone-${poolTone(data.pools[l.pool]!, l.pool)}${active >= 0 && l.pool !== active ? " dim" : ""}`}
-              strokeWidth={Math.max(1, l.width ?? 1)}
-              onMouseEnter={() => onActive(l.pool)}
+          {graph.links.map((l) => (
+            <FlowBand
+              key={l.key}
+              d={path(l) ?? ""}
+              tone={poolTone(data.pools[l.pool]!, l.pool)}
+              dim={active >= 0 && l.pool !== active}
+              width={Math.max(1, l.width ?? 1)}
+              onActive={() => onActive(l.pool)}
             />
           ))}
         </g>
@@ -140,7 +164,12 @@ export function ReaderFlow(props: { data: TunnelData; active: number; onActive: 
             const mid = (y0 + y1) / 2;
             const on = n.pool !== null && n.pool === active;
             return (
-              <g key={n.key} className={`tone-${n.tone}${on ? " on" : ""}`} onMouseEnter={n.pool === null ? undefined : () => onActive(n.pool!)}>
+              <g key={n.key} className={`tone-${n.tone}${on ? " on" : ""}`} role={n.pool === null ? undefined : "button"} tabIndex={n.pool === null ? undefined : 0} aria-label={n.pool === null ? undefined : `${n.count} readers: ${data.pools[n.pool]!.label}`} aria-pressed={n.pool === null ? undefined : on} onMouseEnter={n.pool === null ? undefined : () => onActive(n.pool!)} onClick={n.pool === null ? undefined : () => onActive(n.pool!)} onKeyDown={n.pool === null ? undefined : (e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  onActive(n.pool!);
+                }
+              }}>
                 <rect x={x0} y={y0} width={x1 - x0} height={Math.max(2, y1 - y0)} rx={3} />
                 {n.column === 0 && (
                   <text x={x0 - 14} y={mid - (n.lines.length * 18) / 2} textAnchor="end" dominantBaseline="middle">
