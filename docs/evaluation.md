@@ -36,10 +36,12 @@ What we claim, how we measure it, and what we cannot claim.
 - Cohorts (version × replicate) are never pooled.
 - Each finding gets its own band from the same two runs: d = reproduction(A) − reproduction(B) on that finding's scenarios coded in both. A finding with fewer than 5 such pairs has no noise estimate and is never judged as improved or regressed.
 
-**Policy CI verdict** (`npm run pwt -- test <surfaces.json> --suite <runId>`). The edited text is read on the suite's frozen scenarios and coded on its frozen codebook, then compared on identical scenarios:
-- **fail**: the conflict rate (when a reference exists) or any finding's reproduction rose beyond its band;
+**Policy CI verdict** (`npm run pwt -- test <surfaces.json> --suite <runId>`). The edited text is read on the suite's frozen scenarios and coded on its frozen codebook, then compared on identical scenarios. In CI a finding is measured as **prevalence over every selected scenario**, not only over its original holders, so an edit that spreads a misreading to new readers is caught. Each band is floored at 5 pp, the smallest change we report, because a saturated band (every pair at P≈1) can be zero.
+- **fail**: the edit changes the rule (the blind fidelity check against v0 finds a new commitment or a lost fact), or the conflict rate (when a reference exists) or any finding rose beyond its band;
 - **inconclusive**: fewer than 5 test–retest pairs, a finding measured before but not after, or — without a reference, where conflicts cannot be measured — no finding fell beyond its band;
-- **pass** otherwise. The reasons list every regression, improvement and within-noise change.
+- **pass** otherwise. The reasons list every rule change, regression, improvement and within-noise change.
+
+Smoke runs (`--smoke`, `smokeSize` scenarios) start with the evidence scenarios of the findings anchored to the edited sentences, then cover the other findings round-robin.
 
 A retest refuses to run if the reference or folk inputs changed since the suite (hash check), or if Decisions or embeddings provenance differs.
 
