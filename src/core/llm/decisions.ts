@@ -197,13 +197,12 @@ export async function emulateDecisions(
           return a.probability === null ? { type: "refusal", name: q.name } : { type: "predicate", name: q.name, probability: Math.min(1, Math.max(0, a.probability)) };
         case "choice": {
           const allowed = q.choices.map((c) => c.value);
-          const raw = allowed.map((value) => Math.max(0, a.choiceProbabilities?.find((p) => p.value === value)?.probability ?? 0));
-          const total = raw.reduce((sum, p) => sum + p, 0);
-          if (total > 0) {
-            const probabilities = allowed.map((value, i) => ({ value, probability: (raw[i] ?? 0) / total }));
-            const top = probabilities.reduce((best, p) => (p.probability > best.probability ? p : best));
-            return { type: "choice", name: q.name, choice: top.value, confidence: top.probability, probabilities };
+          const distribution = completeDistribution(allowed, a.choiceProbabilities);
+          if (distribution !== null) {
+            const top = distribution.reduce((best, p) => (p.probability > best.probability ? p : best));
+            return { type: "choice", name: q.name, choice: top.value, confidence: top.probability, probabilities: distribution };
           }
+          // No usable distribution: keep only what was reported (the chosen value), so consumers see P(other values) as unknown.
           const value = allowed.find((v) => v === a.choice);
           return value === undefined ? { type: "refusal", name: q.name } : { type: "choice", name: q.name, choice: value, confidence, probabilities: [{ value, probability: confidence }] };
         }
@@ -216,4 +215,21 @@ export async function emulateDecisions(
       }
     }),
   );
+}
+
+/**
+ * A model-reported distribution is used only when it gives exactly one finite probability in [0, 1] for every allowed
+ * value and nothing else; it is then normalised to sum to 1. A partial answer would otherwise turn a missing value into a
+ * confident 0 (e.g. only `consistent: 0.3` becoming P(conflicts) = 0).
+ */
+function completeDistribution(allowed: readonly string[], reported: ReadonlyArray<{ value: string; probability: number }> | null): Array<{ value: string; probability: number }> | null {
+  if (reported === null || reported.length !== allowed.length) return null;
+  const byValue = new Map<string, number>();
+  for (const p of reported) {
+    if (!allowed.includes(p.value) || byValue.has(p.value) || !Number.isFinite(p.probability) || p.probability < 0 || p.probability > 1) return null;
+    byValue.set(p.value, p.probability);
+  }
+  const total = [...byValue.values()].reduce((sum, p) => sum + p, 0);
+  if (total <= 0) return null;
+  return allowed.map((value) => ({ value, probability: (byValue.get(value) ?? 0) / total }));
 }
