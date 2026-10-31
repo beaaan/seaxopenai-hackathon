@@ -92,7 +92,7 @@ function Editor(props: { model: RunModel; onLaunched: (runId: string) => void })
 }
 
 function TestRow(props: { runId: string }): ReactNode {
-  const { model } = useRun(props.runId);
+  const { model } = useRun(props.runId, false);
   const c = model?.comparison ?? null;
   const edited = model?.versions.at(-1);
   const read = model && edited ? model.readings.filter((r) => r.policyVersion === edited.version).length : 0;

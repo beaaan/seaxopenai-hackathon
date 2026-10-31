@@ -10,8 +10,12 @@ export interface LoadedRun {
   error: string | null;
 }
 
-/** Loads a run, folds it, and keeps following it over SSE while it is running. */
-export function useRun(runId: string): LoadedRun {
+/**
+ * Loads a run, folds it, and keeps following it over SSE. A finished run still gains events (human answers, their
+ * coding, approvals), so it is followed too unless `followFinished` is false (list rows that only need the verdict:
+ * each followed run holds one of the browser's few connections per host).
+ */
+export function useRun(runId: string, followFinished = true): LoadedRun {
   const [state, setState] = useState<LoadedRun>({ model: null, events: [], error: null });
   useEffect(() => {
     let alive = true;
@@ -26,7 +30,7 @@ export function useRun(runId: string): LoadedRun {
           const live = foldRun(runId, events);
           const all = [...events];
           setState({ model: { ...live }, events: all, error: null });
-          if (live.status !== "running") return;
+          if (live.status !== "running" && !followFinished) return;
           let last = events.at(-1)?.seq ?? -1;
           stop = tail(runId, last + 1, (event) => {
             if (event.seq <= last) return;
@@ -53,7 +57,7 @@ export function useRun(runId: string): LoadedRun {
       cancelAnimationFrame(frame);
       stop?.();
     };
-  }, [runId]);
+  }, [runId, followFinished]);
   return state;
 }
 

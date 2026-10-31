@@ -34,7 +34,7 @@ export function HumanCheck(props: { ctx: RunContext }): ReactNode {
         ) : undefined}
       />
       {typeof coding === "object" && <div className="notice bad">{coding.error}</div>}
-      {coding === "sent" && <div className="notice">Coding on the frozen codebook; results appear below as they land.</div>}
+      {coding === "sent" && unmapped > 0 && <div className="notice">Coding on the frozen codebook; results appear below as they land.</div>}
       {model.questions.length === 0 ? <Empty>Questions are written after the findings.</Empty> : (
         <>
           <Kpis items={[
@@ -57,7 +57,7 @@ export function HumanCheck(props: { ctx: RunContext }): ReactNode {
               {model.questions.map((q, i) => {
                 const answers = model.answers.filter((a) => a.questionId === q.id);
                 return (
-                  <Panel key={q.id} title={<span lang="vi">{i + 1}. {q.questionVi}</span>} meta={`${answers.length} answers`}>
+                  <Panel key={q.id} title={<span lang="vi">{i + 1}. {q.questionVi}</span>} meta={`${answers.length} ${answers.length === 1 ? "answer" : "answers"}`}>
                     <p className="small muted">Probes: {q.findingIds.map((id) => titles.get(id) ?? id).join("; ")}</p>
                     {answers.length > 0 && (
                       <ul className="rows" style={{ marginTop: 6 }}>
@@ -65,8 +65,8 @@ export function HumanCheck(props: { ctx: RunContext }): ReactNode {
                           const m = mapped.get(a.id);
                           return (
                             <li key={a.id} className="row" style={{ alignItems: "flex-start", justifyContent: "space-between" }}>
-                              <span lang="vi">“{a.answerVi}” <span className="small muted">{a.respondent}</span></span>
-                              {m && (m.findingId ? <Pill tone="warn" title={titles.get(m.findingId)}>Same as a finding</Pill> : <Pill tone="pos">No listed misreading</Pill>)}
+                              <span lang="vi">“{a.answerVi}” <span className="small muted">{a.respondent}</span>{m?.findingId && <span className="small muted" lang="en" style={{ display: "block" }}>Matches: {titles.get(m.findingId) ?? m.findingId}</span>}</span>
+                              {m && (m.findingId ? <Pill tone="warn">Same as a finding</Pill> : <Pill tone="pos">No listed misreading</Pill>)}
                             </li>
                           );
                         })}
