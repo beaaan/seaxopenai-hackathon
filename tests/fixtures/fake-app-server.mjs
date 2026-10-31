@@ -36,6 +36,14 @@ async function runTurn(threadId, turnId, text, outputSchema) {
     return;
   }
   const finalText = outputSchema ? JSON.stringify({ echo: text }) : `done:${toolText ?? ""}`;
+  if (text.includes("usage")) {
+    for (let i = 0; i < 2; i++) {
+      thread.usageCalls = (thread.usageCalls ?? 0) + 1;
+      const last = { inputTokens: 100, cachedInputTokens: 40, cacheWriteInputTokens: 0, outputTokens: 20, reasoningOutputTokens: 5, totalTokens: 120 };
+      const total = Object.fromEntries(Object.entries(last).map(([key, value]) => [key, value * thread.usageCalls]));
+      send({ method: "thread/tokenUsage/updated", params: { threadId, turnId, tokenUsage: { total, last, modelContextWindow: 272000 } } });
+    }
+  }
   send({ method: "item/completed", params: { threadId, turnId, item: { type: "agentMessage", id: `m${turnId}`, text: finalText } } });
   send({ method: "turn/completed", params: { threadId, turn: { id: turnId, status: "completed", items: [], error: null } } });
 }

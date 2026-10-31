@@ -11,6 +11,7 @@ import type { Decision, DecisionCreateParams } from "openai/resources/decisions"
 import { z } from "zod";
 import type { Limiter } from "./limit";
 import type { StructuredRequest } from "./types";
+import { logUsage, responseUsage, type UsageStage } from "./usage";
 
 export const DECISIONS_MODEL = "gpt-6-luna";
 export const MAX_QUESTIONS_PER_REQUEST = 400;
@@ -54,6 +55,7 @@ export const DecisionAnswers = z.array(DecisionAnswerSchema);
 export interface DecisionRequest {
   /** Pipeline role: "grader", "coder", "anchor", "human-map", ... (cache key + prompt_cache_key). */
   role: string;
+  stage?: UsageStage;
   /**
    * Shared evidence for every question. Put long, stable context (policy text, reference
    * facts) first: the prompt-cache prefix is reused across requests when it is identical.
@@ -113,7 +115,11 @@ export async function decideChunked(create: CreateDecision, limiter: Limiter, re
 
   const results = await Promise.all(
     chunks.map((chunk) =>
-      limiter.run(() => create({ model: DECISIONS_MODEL, input: [content], questions: chunk, prompt_cache_key: `pwt-${req.role}` })),
+      limiter.run(async () => {
+        const result = await create({ model: DECISIONS_MODEL, input: [content], questions: chunk, prompt_cache_key: `pwt-${req.role}` });
+        logUsage({ backend: "decisions", model: result.model, stage: req.stage ?? "decisions", ...responseUsage(result.usage) });
+        return result;
+      }),
     ),
   );
 
@@ -176,6 +182,7 @@ export async function emulateDecisions(
     chunks.map((chunk) =>
       structured({
         role: `decide-emulated-${req.role}`,
+        stage: req.stage ?? "decisions",
         instructions:
           "You are a careful classifier. Answer every question about the evidence. Return one answer per question name, using only the field for its type; set the other fields to null.",
         input: `EVIDENCE:\n${req.evidence}\n\n${req.data === null ? "" : `DATA (JSON):\n${JSON.stringify(req.data)}\n\n`}QUESTIONS:\n${chunk.map(describeQuestion).join("\n")}`,

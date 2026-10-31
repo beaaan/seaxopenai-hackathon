@@ -1,8 +1,11 @@
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { AppServerBackend } from "../src/core/llm/appserver";
 import type { ThreadItemRecord } from "../src/shared/schema";
+import { UsageEvent } from "../src/core/llm/usage";
 
 const FAKE = path.join(import.meta.dirname, "fixtures", "fake-app-server.mjs");
 
@@ -15,6 +18,7 @@ function makeBackend(): AppServerBackend {
 
 afterEach(async () => {
   await backend.close();
+  vi.unstubAllEnvs();
 });
 
 describe("AppServerBackend", () => {
@@ -88,5 +92,33 @@ describe("AppServerBackend", () => {
     await expect(
       b.structured({ role: "t", instructions: "x", input: "please fail", schema: z.strictObject({ echo: z.string() }), schemaName: "e", model: "m", effort: "low" }),
     ).rejects.toThrow(/turn failed/);
+  });
+
+  it("aggregates usage across tool steps and subtracts earlier thread turns", async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "pwt-appserver-usage-"));
+    const file = path.join(dir, "usage.jsonl");
+    vi.stubEnv("PWT_USAGE_LOG", file);
+    const b = makeBackend();
+    try {
+      const thread = await b.agentThread({ role: "reviewer", stage: "reviewer", label: "usage", instructions: "review", tools: [], model: "gpt-6.1-sol", effort: "low", persist: false });
+      await thread.turn("usage one");
+      await thread.turn("usage two");
+      const rows = readFileSync(file, "utf8").trim().split("\n").map((line) => UsageEvent.parse(JSON.parse(line)));
+      expect(rows).toHaveLength(2);
+      for (const row of rows) expect(row).toMatchObject({ backend: "appserver", stage: "reviewer", model: "gpt-6.1-sol", inputTokens: 200, cachedInputTokens: 80, outputTokens: 40, reasoningTokens: 10 });
+      await thread.close();
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+
+  it("records nulls rather than estimates when a turn reports no usage", async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "pwt-appserver-missing-"));
+    const file = path.join(dir, "usage.jsonl");
+    vi.stubEnv("PWT_USAGE_LOG", file);
+    const b = makeBackend();
+    try {
+      await b.structured({ role: "reader", stage: "reader", instructions: "read", input: "no counts", schema: z.strictObject({ echo: z.string() }), schemaName: "echo", model: "gpt-6.1-sol", effort: "low" });
+      const row = UsageEvent.parse(JSON.parse(readFileSync(file, "utf8").trim()));
+      expect(row).toMatchObject({ backend: "appserver", stage: "reader", inputTokens: null, cachedInputTokens: null, outputTokens: null, reasoningTokens: null });
+    } finally { rmSync(dir, { recursive: true, force: true }); }
   });
 });

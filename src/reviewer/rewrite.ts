@@ -48,6 +48,7 @@ export async function proposeRepair(
 ): Promise<RepairProposal> {
   const result = await ctx.gateway.structured({
     role: "repair",
+    stage: "repair",
     instructions: prompt("repair", { policy: policyText(version, { ids: true }), reference: referenceText(ctx.reference) }),
     input: JSON.stringify({ finding: draft, resolutionFeedback: feedback }),
     schema: RepairOutput,
@@ -99,6 +100,7 @@ export async function rewritePolicy(ctx: StageContext, args: RewritePolicyArgs):
   }
   const result = await ctx.gateway.structured({
     role: "rewriter",
+    stage: "repair",
     instructions: prompt("rewriter", { policy: policyText(args.version, { ids: true }), reference: referenceText(ctx.reference) }),
     input: JSON.stringify({ findings, nextVersion: args.nextVersion, maxChangedSentences: budget, feedback: args.feedback, rejected: args.rejected }),
     schema: RewriteOutput,

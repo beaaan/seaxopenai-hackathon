@@ -65,6 +65,7 @@ async function smokeOne(backend: BackendName, model: string): Promise<void> {
     let t = Date.now();
     const reading = await gateway.structured({
       role: "smoke",
+      stage: "other",
       instructions: "Bạn là bà Lan, 52 tuổi, ở Hà Giang, chỉ trả tiền mặt. Trả lời ngắn, đúng giọng của bà.",
       input:
         "Bạn đọc dòng này trên điện thoại: \"Shopee đang tạm thời tắt chức năng Thanh toán khi nhận hàng của bạn do hệ thống ghi nhận lịch sử mua hàng của bạn có số lượng đơn hàng COD giao không thành công vượt quá quy định hiện hành\". Bạn hiểu thế nào?",
@@ -80,6 +81,7 @@ async function smokeOne(backend: BackendName, model: string): Promise<void> {
     const calls: unknown[] = [];
     const thread = await gateway.agentThread({
       role: "hero",
+      stage: "other",
       label: "smoke persona",
       instructions: "Bạn là bà Lan, 52 tuổi, ở Hà Giang, chỉ trả tiền mặt. Chỉ hành động bằng các công cụ được cung cấp.",
       tools: [
@@ -109,6 +111,7 @@ async function smokeOne(backend: BackendName, model: string): Promise<void> {
       t = Date.now();
       const answers = await gateway.decide({
         role: "smoke",
+        stage: "decisions",
         evidence:
           "Văn bản: \"Shopee đang tạm thời tắt chức năng Thanh toán khi nhận hàng của bạn do hệ thống ghi nhận lịch sử mua hàng của bạn có số lượng đơn hàng COD giao không thành công vượt quá quy định hiện hành\".",
         data: { reading: reading.paraphraseVi },

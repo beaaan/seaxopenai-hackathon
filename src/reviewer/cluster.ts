@@ -137,7 +137,7 @@ export async function clusterInterpretations(
     };
     let groups: number[][];
     if (ctx.gateway.hasApiKey) {
-      const vectors = await ctx.gateway.embed(members.map((member) => member.interpretation.glossEn));
+      const vectors = await ctx.gateway.embed(members.map((member) => member.interpretation.glossEn), { fresh: ctx.config.fresh });
       if (vectors.length !== members.length) throw new Error("Embedding result count does not match interpretation count.");
       groups = agglomerate(vectors, 0.25);
     } else {
@@ -146,6 +146,7 @@ export async function clusterInterpretations(
         const chunk = members.slice(offset, offset + GROUPING_CHUNK_SIZE);
         const grouping = await ctx.gateway.structured({
           role: "cluster-group",
+          stage: "coder",
           instructions: groupingPrompt!,
           input: JSON.stringify({
             ...context,
@@ -169,6 +170,7 @@ export async function clusterInterpretations(
     validatePartition(groups, members.length, "Interpretation grouping");
     const labelled = await ctx.gateway.structured({
       role: "cluster-label",
+      stage: "coder",
       instructions: labellingPrompt,
       input: JSON.stringify({
         ...context,

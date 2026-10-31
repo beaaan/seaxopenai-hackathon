@@ -75,6 +75,7 @@ export async function gradeReadings(ctx: StageContext, version: PolicyVersion, r
     }
     const answers = await ctx.gateway.decide({
       role: "grader",
+      stage: "grader",
       evidence,
       data: {
         paraphraseVi: reading.paraphraseVi,

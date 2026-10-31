@@ -82,6 +82,7 @@ export async function draftFindings(ctx: StageContext, args: DraftFindingsArgs):
   });
   const result = await ctx.gateway.structured({
     role: "judge",
+    stage: "judge",
     instructions: prompt("judge", { policy: policyText(args.version, { ids: true }), reference: referenceText(ctx.reference) }),
     input: JSON.stringify({
       clusters,

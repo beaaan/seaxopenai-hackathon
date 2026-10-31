@@ -1,6 +1,7 @@
 import type { z } from "zod";
 import type { ThreadItemRecord } from "../../shared/schema";
 import type { BackendName } from "../env";
+import type { UsageStage } from "./usage";
 
 export type Effort = "minimal" | "low" | "medium" | "high" | "xhigh";
 
@@ -10,6 +11,8 @@ export type ModelId = "gpt-6.1-sol" | "gpt-6-astra" | "gpt-6-luna" | "gpt-6.1-te
 export interface StructuredRequest<T> {
   /** Pipeline role, used for cache keys and logs: "reader", "grader", "judge", ... */
   role: string;
+  /** Cost attribution only; never changes the prompt or cache key. */
+  stage?: UsageStage;
   /** Role prompt. Responses: `instructions`. App Server: `baseInstructions` (replaces the Codex prompt). */
   instructions: string;
   input: string;
@@ -34,6 +37,7 @@ export interface ToolDef {
 
 export interface AgentThreadOptions {
   role: ThreadItemRecord["role"];
+  stage?: UsageStage;
   /** Human-readable label for the thread inspector, e.g. "Reviewer" or "Bà Lan, Hà Giang". */
   label: string;
   instructions: string;

@@ -51,6 +51,7 @@ export async function runProbe(ctx: StageContext, args: { readings: Reading[]; a
   const days = z.number().int().positive().parse(args.days);
   const selected = parseProbeHypothesis(await ctx.gateway.structured({
     role: "probe_hypothesis",
+    stage: "probe",
     instructions: prompt("probe-hypothesis"),
     input: JSON.stringify(readings.map((reading) => ({ id: reading.id, paraphraseVi: reading.paraphraseVi, actions: reading.actions }))),
     schema: HypothesisOutput,
@@ -75,6 +76,7 @@ export async function runProbe(ctx: StageContext, args: { readings: Reading[]; a
   const tools = createPersonaTools(world, steps, clock);
   const thread = await ctx.gateway.agentThread({
     role: "probe",
+    stage: "probe",
     label: selected.personaName,
     instructions: prompt("probe-persona", {
       personaName: selected.personaName,

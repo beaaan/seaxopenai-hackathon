@@ -22,12 +22,15 @@ import type { DynamicToolCallResponse } from "../../../vendor/codex-app-server/v
 import type { DynamicToolSpec } from "../../../vendor/codex-app-server/v2/DynamicToolSpec";
 import type { ItemCompletedNotification } from "../../../vendor/codex-app-server/v2/ItemCompletedNotification";
 import type { ThreadStartParams } from "../../../vendor/codex-app-server/v2/ThreadStartParams";
+import type { ThreadTokenUsageUpdatedNotification } from "../../../vendor/codex-app-server/v2/ThreadTokenUsageUpdatedNotification";
+import type { TokenUsageBreakdown } from "../../../vendor/codex-app-server/v2/TokenUsageBreakdown";
 import type { TurnCompletedNotification } from "../../../vendor/codex-app-server/v2/TurnCompletedNotification";
 import type { TurnStartParams } from "../../../vendor/codex-app-server/v2/TurnStartParams";
 import { config } from "../env";
 import { llmJsonSchema } from "./json-schema";
 import { Limiter } from "./limit";
 import type { AgentThread, AgentThreadOptions, Effort, LlmBackend, OutputSchema, StructuredRequest, ToolDef, TurnResult } from "./types";
+import { logUsage, type UsageStage } from "./usage";
 
 /** `dynamicTools` is experimental and missing from the generated ThreadStartParams. */
 type ThreadStart = ThreadStartParams & { dynamicTools?: DynamicToolSpec[] };
@@ -67,6 +70,9 @@ interface Pending {
 
 interface ThreadState {
   tools: readonly ToolDef[];
+  model: string;
+  stage: UsageStage;
+  tokenUsage: TokenUsageBreakdown | null;
   onNotification: ((method: string, params: unknown) => void) | null;
   /** Settles when the thread's current turn ends; turns on one thread run one at a time. */
   tail: Promise<void>;
@@ -218,10 +224,10 @@ export class AppServerBackend implements LlmBackend {
   // -------------------------------------------------------------------------
   // threads and turns
 
-  async #startThread(params: ThreadStart, tools: readonly ToolDef[]): Promise<string> {
+  async #startThread(params: ThreadStart, tools: readonly ToolDef[], stage: UsageStage): Promise<string> {
     await this.#start();
     const result = (await this.#request("thread/start", { ...params, cwd: this.#opts.cwd ?? null })) as { thread: { id: string } };
-    this.#threads.set(result.thread.id, { tools, onNotification: null, tail: Promise.resolve() });
+    this.#threads.set(result.thread.id, { tools, model: params.model ?? "unknown", stage, tokenUsage: null, onNotification: null, tail: Promise.resolve() });
     return result.thread.id;
   }
 
@@ -257,6 +263,8 @@ export class AppServerBackend implements LlmBackend {
     let finalText = "";
     let errorMessage: string | null = null;
     let turnId: string | null = null;
+    const previousUsage = state.tokenUsage;
+    let usage: TokenUsageBreakdown | null = null;
     const { promise, resolve, reject } = Promise.withResolvers<TurnResult>();
     // Awaited below; this handler only keeps an early rejection (transport failure while
     // turn/start is pending) from surfacing as unhandled.
@@ -265,7 +273,10 @@ export class AppServerBackend implements LlmBackend {
     state.onNotification = (method, params) => {
       const notificationTurn = field(params, "turnId") ?? field(field(params, "turn"), "id");
       if (turnId !== null && typeof notificationTurn === "string" && notificationTurn !== turnId) return;
-      if (method === "item/completed") {
+      if (method === "thread/tokenUsage/updated") {
+        usage = (params as ThreadTokenUsageUpdatedNotification).tokenUsage.total;
+        state.tokenUsage = usage;
+      } else if (method === "item/completed") {
         const { item } = params as ItemCompletedNotification;
         items.push(item);
         onItem?.(item.type, item);
@@ -299,6 +310,16 @@ export class AppServerBackend implements LlmBackend {
     } finally {
       clearTimeout(timer);
       state.onNotification = null;
+      if (turnId !== null) {
+        const measured = usage as TokenUsageBreakdown | null;
+        logUsage({
+          backend: "appserver", model: state.model, stage: state.stage,
+          inputTokens: measured === null ? null : measured.inputTokens - (previousUsage?.inputTokens ?? 0),
+          cachedInputTokens: measured === null ? null : measured.cachedInputTokens - (previousUsage?.cachedInputTokens ?? 0),
+          outputTokens: measured === null ? null : measured.outputTokens - (previousUsage?.outputTokens ?? 0),
+          reasoningTokens: measured === null ? null : measured.reasoningOutputTokens - (previousUsage?.reasoningOutputTokens ?? 0),
+        });
+      }
     }
   }
 
@@ -319,6 +340,7 @@ export class AppServerBackend implements LlmBackend {
           serviceName: "policy_wind_tunnel",
         },
         [],
+        req.stage ?? "other",
       );
       try {
         const result = await this.#runTurn(threadId, req.input, req.effort, { schema: req.schema, name: req.schemaName }, undefined);
@@ -346,6 +368,7 @@ export class AppServerBackend implements LlmBackend {
         })),
       },
       opts.tools,
+      opts.stage ?? "other",
     );
     const onItem = (itemType: string, item: unknown) =>
       opts.onItem?.({ threadId, role: opts.role, label: opts.label, backend: "appserver", itemType, item });

@@ -15,6 +15,7 @@ export async function humanQuestions(ctx: StageContext, version: PolicyVersion, 
   const targets = Array.from({ length: 3 }, (_, index) => findings[index % Math.min(findings.length, 3)]!);
   const result = await ctx.gateway.structured({
     role: "human-questions",
+    stage: "other",
     instructions: prompt("human-questions"),
     input: JSON.stringify({
       policy: policyText(version, { ids: true }),
@@ -83,6 +84,7 @@ export async function mapHumanAnswers(ctx: StageContext, args: { answers: HumanA
   const mappings = await Promise.all(answerData.map(async ({ answer, question }): Promise<HumanMapping> => {
     const decisions = await ctx.gateway.decide({
       role: "human-map",
+      stage: "decisions",
       evidence,
       data: { paraphraseVi: answer.answerVi, interpretations: [], questions: [], actions: [], questionContext: question.questionVi },
       questions,

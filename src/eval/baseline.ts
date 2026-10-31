@@ -11,6 +11,7 @@ const BaselineReview = z.strictObject({
 export async function runBaseline(ctx: StageContext, version: PolicyVersion, opts: { id: string; model: string; effort: Effort }): Promise<BaselineRun> {
   const review = await ctx.gateway.structured({
     role: "baseline",
+    stage: "baseline",
     instructions: prompt("baseline", { title: ctx.policy.title }),
     input: `VĂN BẢN CHÍNH SÁCH:\n${policyText(version, { ids: false })}\n\nDỮ KIỆN THAM CHIẾU:\n${referenceText(ctx.reference)}`,
     schema: BaselineReview,

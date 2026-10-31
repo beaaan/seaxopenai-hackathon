@@ -65,6 +65,7 @@ export async function writeScenarios(ctx: StageContext, args: WriteScenariosArgs
   return Promise.all(prepared.map(async ({ row, selected, exposure, index }) => {
     const written = await ctx.gateway.structured({
       role: "scenario",
+      stage: "other",
       instructions,
       input: JSON.stringify({
         policyTitle: ctx.policy.title,

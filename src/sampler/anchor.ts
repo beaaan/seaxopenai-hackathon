@@ -31,6 +31,7 @@ export async function anchorQuotes(
   version: PolicyVersion,
   quotes: string[],
   surfaceIds: readonly string[],
+  stage: "reader" | "resolution" = "reader",
 ): Promise<Array<string | null>> {
   const visible = new Set(surfaceIds);
   const sentences = version.sentences.filter((sentence) => visible.has(sentence.surfaceId));
@@ -71,6 +72,7 @@ export async function anchorQuotes(
   ];
   const answers = await ctx.gateway.decide({
     role: "anchor",
+    stage,
     evidence: "Map each reader quote to its source sentence in the text the reader saw. Select none for an invented quote, a folk claim not in these sentences, or an unsupported association. Do not infer a source merely because it discusses a related topic.\n\n"
       + sentences.map((sentence) => `[${sentence.id}] ${sentence.text}`).join("\n"),
     data: unresolved.map(({ index, quote }) => ({ name: `quote_${index}`, quote })),

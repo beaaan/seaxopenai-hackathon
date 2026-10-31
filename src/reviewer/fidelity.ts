@@ -40,6 +40,7 @@ export async function checkFidelity(ctx: StageContext, args: FidelityArgs): Prom
   const [result, sentenceAnswers] = await Promise.all([
     ctx.gateway.structured({
       role: "fidelity",
+      stage: "fidelity",
       instructions: evidence,
       input: JSON.stringify({ checkedFacts }),
       schema: FidelityOutput,
@@ -50,6 +51,7 @@ export async function checkFidelity(ctx: StageContext, args: FidelityArgs): Prom
     }),
     changedSentences.length === 0 ? Promise.resolve([]) : ctx.gateway.decide({
       role: "fidelity-preservation",
+      stage: "fidelity",
       evidence,
       data: { originalSentences: changedSentences },
       questions: changedSentences.map((sentence, index) => ({

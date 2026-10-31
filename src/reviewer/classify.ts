@@ -79,8 +79,9 @@ async function checkResolution(
     version: repaired,
     tag: `repair-${draft.id}`,
     fresh: true,
+    stage: "resolution",
   })));
-  const codings = await codeReadings(freshCtx, { readings, codebook });
+  const codings = await codeReadings(freshCtx, { readings, codebook, stage: "resolution" });
   const after = meanScenarioBelief(scenarios, readings, codings, clusterIds);
   const resolved = reproduced && before !== null && after !== null && after < 0.25 && after <= 0.5 * before;
   ctx.log("info", `Repair ${draft.id} targeted belief check v${version.version}: before=${before ?? "unavailable"}, after=${after ?? "unavailable"}; reproduced=${reproduced}, resolved=${resolved}.`);

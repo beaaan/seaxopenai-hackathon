@@ -1,10 +1,11 @@
 import { Suspense, lazy, useEffect, useMemo, useState, type ReactNode } from "react";
-import { Check, CircleSlash, EyeOff, FileText, ShoppingCart, X } from "lucide-react";
-import type { FolkVersion } from "@shared/schema";
+import { Check, ChevronDown, CircleSlash, EyeOff, FileText, PenLine, RotateCcw, ShieldCheck, ShoppingCart, X } from "lucide-react";
+import type { FolkVersion, GradeLabel, Scenario } from "@shared/schema";
 import { beyondNoise, effectiveBand } from "@shared/noise";
 import { api, type PolicyDetail } from "../api";
 import { useRun } from "../hooks";
-import { CLASS_LABEL, CLASS_MEANING, cohortSize, misreadings, type Misreading, type RunModel } from "../model";
+import { CLASS_LABEL, cohortSize, misreadings, originalReadings, scenarioById, type Misreading, type RunModel } from "../model";
+import { Pipeline } from "./Pipeline";
 import { tunnelData, type TunnelData } from "./tunnel";
 import "./landing.css";
 
@@ -51,7 +52,8 @@ function useRise(): void {
 }
 
 export function LandingPage(): ReactNode {
-  const { model } = useRun(FEATURED, false);
+  const { model, events } = useRun(FEATURED, false);
+  const wallSeconds = events.length > 1 ? (Date.parse(events.at(-1)!.ts) - Date.parse(events[0]!.ts)) / 1000 : null;
   const [policy, setPolicy] = useState<PolicyDetail | null>(null);
   useEffect(() => {
     let alive = true;
@@ -66,49 +68,125 @@ export function LandingPage(): ReactNode {
   const folk = policy?.folk.versions ?? [];
   const data = useMemo(() => (model && policy ? tunnelData(model, policy.folk.versions) : null), [model, policy]);
   const rows = useMemo(() => (model ? misreadings(model) : []), [model]);
+  const v0 = model?.versions.find((v) => v.version === 0);
+  const sentence = (id: string): string | null => v0?.sentences.find((s) => s.id === id)?.text ?? null;
   useRise();
 
   return (
     <div className="landing">
-      <section className="l-hero" aria-labelledby="hero-title">
+      <header className="l-nav">
+        <a href="#/" className="l-word"><TunnelMark />Policy Wind Tunnel</a>
+      </header>
+      <Hook message={[sentence("checkout.1"), sentence("checkout.2")].filter((s): s is string => s !== null)} />
+      <Answer text={sentence("help.4")} />
+      <Blanks folk={folk} />
+
+      <section className="l-stage" id="run" aria-labelledby="run-title">
         <Suspense fallback={null}>
           <TheatrePage runId={FEATURED} embedded />
         </Suspense>
-        <header className="l-nav">
-          <a href="#/" className="l-word"><TunnelMark />Policy Wind Tunnel</a>
-          <nav aria-label="On this page">
-            <button type="button" onClick={() => scrollTo("found")}>Findings</button>
-            <button type="button" onClick={() => scrollTo("rumours")}>Rumours</button>
-            <button type="button" onClick={() => scrollTo("numbers")}>Numbers</button>
-          </nav>
-          <a className="l-ghost" href={REPORT}>Report</a>
-        </header>
-        <div className="l-hero-copy">
-          <span className="l-live"><i />Live replay of a real run</span>
-          <h1 id="hero-title">Watch 50 AI readers form beliefs about a policy</h1>
-          <div className="l-actions">
-            <a className="l-button" href={LIVE}>Watch the full run</a>
-            <a className="l-ghost" href={REPORT}>Report</a>
-          </div>
+        <div className="l-stage-copy">
+          <span className="l-live"><i />Replay of a real run</span>
+          <h2 id="run-title">So we gave the real text to 50 AI readers</h2>
         </div>
       </section>
 
       <Found model={model} data={data} rows={rows} />
+      <Voices model={model} top={rows[0]} folk={folk} />
       <Rumours folk={folk} model={model} top={rows[0]} />
+      <Repair model={model} top={rows[0]} />
       <Numbers model={model} top={rows[0]} />
+      <Pipeline model={model} wallSeconds={wallSeconds} />
 
-      <section className="l-cta" aria-labelledby="cta-title">
-        <h2 id="cta-title" data-rise>Test your own policy</h2>
+      <section className="l-cta" id="demo" aria-labelledby="cta-title">
+        <h2 id="cta-title" data-rise>Now watch the whole run</h2>
         <div className="l-actions" data-rise>
-          <a className="l-button" href="#/new">Test a policy</a>
-          <a className="l-ghost" href="#/policies">Policies tested</a>
+          <a className="l-button l-big-button" href={LIVE}>Watch the full run</a>
+          <a className="l-ghost l-big-button" href={REPORT}>Open the report</a>
         </div>
+        <a className="l-quiet" href="#/new" data-rise>Test your own policy →</a>
       </section>
       <footer className="l-foot">
         <span>Policy Wind Tunnel · Sea × OpenAI Codex Hackathon Vietnam, 31 October 2026</span>
         <span>Policy text quoted from help.shopee.vn. Readers are simulated.</span>
       </footer>
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// The story before the run: the hook, the official answer, the blanks people fill.
+
+function Hook(props: { message: string[] }): ReactNode {
+  return (
+    <section className="l-ch l-hook" aria-labelledby="hook-title">
+      <div className="l-hook-copy">
+        <h1 id="hook-title">Cash on delivery is gone from your checkout.</h1>
+        <p className="l-why">Why?</p>
+      </div>
+      <figure className="l-phone" aria-label="A Shopee checkout with cash on delivery unavailable">
+        <figcaption lang="vi">Phương thức thanh toán</figcaption>
+        <ul>
+          <li><i />Ví ShopeePay</li>
+          <li><i />Thẻ tín dụng/Ghi nợ</li>
+          <li className="cod">
+            <i />Thanh toán khi nhận hàng
+            {props.message.length > 0 && <span lang="vi">{props.message.join(" ")}</span>}
+          </li>
+        </ul>
+      </figure>
+      <button type="button" className="l-scroll" aria-label="Next" onClick={() => scrollTo("answer")}><ChevronDown /></button>
+    </section>
+  );
+}
+
+/** The phrase in the help article that stands where a number should be. */
+const VAGUE = "vượt quá quy định hiện hành";
+
+function Answer(props: { text: string | null }): ReactNode {
+  const text = props.text?.replace(/^-\s*/, "") ?? null;
+  const at = text ? text.indexOf(VAGUE) : -1;
+  return (
+    <section className="l-ch l-answer" id="answer" aria-labelledby="answer-title">
+      <h2 id="answer-title" data-rise>Shopee's help page gives a reason</h2>
+      {text && (
+        <blockquote lang="vi" data-rise>
+          {at >= 0 ? <>{text.slice(0, at)}<mark>{VAGUE}</mark>{text.slice(at + VAGUE.length)}</> : text}
+        </blockquote>
+      )}
+      <p className="l-gloss" data-rise>“…too many failed COD deliveries, beyond the current rules.”</p>
+      <ul className="l-asks" aria-label="What the page leaves out">
+        <li data-rise>How many?</li>
+        <li data-rise>Over how long?</li>
+        <li data-rise>Locked for how long?</li>
+      </ul>
+      <p className="l-never" data-rise>The page never says.</p>
+    </section>
+  );
+}
+
+function host(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return url;
+  }
+}
+
+function Blanks(props: { folk: readonly FolkVersion[] }): ReactNode {
+  return (
+    <section className="l-ch l-blanks" aria-labelledby="blanks-title">
+      <h2 id="blanks-title" data-rise>So people fill in the blanks</h2>
+      <ol className="l-bubbles">
+        {props.folk.map((f) => (
+          <li key={f.id} data-rise><span>{shortClaim(f)}</span><small>{host(f.source)}</small></li>
+        ))}
+      </ol>
+      <p className="l-stake" data-rise>
+        <strong>8–12%</strong>
+        <span>of online orders in Vietnam are refused on delivery<small>VECOM, via Người Lao Động 19/07/2025</small></span>
+      </p>
+    </section>
   );
 }
 
@@ -130,15 +208,13 @@ function shortClaim(f: FolkVersion): string {
 }
 
 // ---------------------------------------------------------------------------
-// Where readers went wrong: the tunnel, then every misreading.
+// Where readers went wrong: the headline number and the tunnel.
 
 function Found(props: { model: RunModel | null; data: TunnelData | null; rows: Misreading[] }): ReactNode {
   const { model, data, rows } = props;
   const [active, setActive] = useState(0);
-  const [open, setOpen] = useState<number | null>(null);
   const total = model ? cohortSize(model) : 0;
   const top = rows[0];
-  const v0 = model?.versions.find((v) => v.version === 0);
   return (
     <section className="l-section" id="found" aria-labelledby="found-title">
       {top && total > 0 && (
@@ -155,28 +231,123 @@ function Found(props: { model: RunModel | null; data: TunnelData | null; rows: M
           </Suspense>
         ) : <div className="tunnel tunnel-loading" />}
       </figure>
-      <ol className="board">
-        {rows.map((r, i) => {
-          const cited = v0?.sentences.filter((s) => r.sentenceIds.includes(s.id)) ?? [];
-          const quote = model?.readings.flatMap((x) => x.interpretations).find((x) => r.interpretationIds.includes(x.id));
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Three of them, in their own words: one per way of meeting the text.
+
+interface Voice {
+  scenario: Scenario;
+  said: string;
+  label: GradeLabel | null;
+}
+
+const VERDICT: Record<GradeLabel, string> = {
+  outside: "Not in the text",
+  conflicts: "Contradicts the text",
+  consistent: "Fits the text",
+  unclear: "Unclear",
+};
+
+function voicesOf(model: RunModel, top: Misreading): Voice[] {
+  const holders = new Set(top.readers);
+  const ids = new Set(top.interpretationIds);
+  const byId = scenarioById(model);
+  const picked = new Map<string, Voice>();
+  const gradeOf = new Map(model.grades.map((g) => [g.interpretationId, g.label]));
+  for (const r of originalReadings(model)) {
+    const s = byId.get(r.scenarioId);
+    // A voice for the misreading: one of its interpretations that the grader put outside or against the text.
+    const it = r.interpretations.find((x) => ids.has(x.id) && (gradeOf.get(x.id) === "outside" || gradeOf.get(x.id) === "conflicts"));
+    if (!s || !it || !holders.has(s.id)) continue;
+    const key = sawOf(s.exposure.surfaceIds).key;
+    if (picked.has(key)) continue;
+    const said = it.glossEn.split(/(?<=[.!?])\s/)[0] ?? it.glossEn;
+    picked.set(key, { scenario: s, said: clip(said, 170), label: gradeOf.get(it.id) ?? null });
+  }
+  return SAW_ORDER.flatMap((k) => picked.get(k) ?? []);
+}
+
+function Voices(props: { model: RunModel | null; top: Misreading | undefined; folk: readonly FolkVersion[] }): ReactNode {
+  const { model, top, folk } = props;
+  if (!model || !top) return null;
+  const voices = voicesOf(model, top);
+  if (voices.length === 0) return null;
+  return (
+    <section className="l-section" id="voices" aria-labelledby="voices-title">
+      <h2 id="voices-title" data-rise>Three of them, in their own words</h2>
+      <ol className="l-voices">
+        {voices.map(({ scenario: s, said, label }) => {
+          const saw = sawOf(s.exposure.surfaceIds);
+          const heard = folk.find((f) => f.id === s.exposure.folkVersionId);
           return (
-            <li key={r.id} className={i === open ? "open" : undefined} data-rise>
-              <button type="button" aria-expanded={i === open} onClick={() => setOpen(i === open ? null : i)}>
-                <span className="b-count">{r.readers.length}</span>
-                <span className="b-title">{r.title}</span>
-                {r.kind && <span className={`b-kind k-${r.kind}`}>{CLASS_LABEL[r.kind]}</span>}
-              </button>
-              {i === open && (
-                <div className="b-detail">
-                  <p>{r.kind ? CLASS_MEANING[r.kind] : "A belief two or more readers share."}</p>
-                  {cited.length > 0 ? cited.map((s) => <p key={s.id} lang="vi" className="b-quote">{clip(s.text, 180)}</p>) : <p className="b-quote">Not in the text.</p>}
-                  {quote && <p>A reader: “{clip(quote.glossEn, 160)}”</p>}
-                </div>
-              )}
+            <li key={s.id} data-rise>
+              <div className="v-who">
+                <span className="v-avatar" aria-hidden="true">{s.persona.name.split(" ").at(-1)?.[0] ?? "?"}</span>
+                <b>{s.persona.name}, {s.persona.age}</b>
+                <small>{s.persona.occupation} · {s.persona.province}</small>
+              </div>
+              <div className="v-path">
+                {heard && <span className="v-heard">Heard “{shortClaim(heard)}”</span>}
+                <span className="v-saw">{saw.icon}{saw.label}</span>
+              </div>
+              <p className="v-said">“{said}”</p>
+              {label && <span className={`v-verdict g-${label}`}>{VERDICT[label]}</span>}
             </li>
           );
         })}
       </ol>
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Can wording fix it? The logged repair attempt on the top misreading.
+
+/** Mean belief before/after the targeted re-read, as written into the classification rationale. */
+function repairScores(rationale: string): { before: number; after: number } | null {
+  const m = /before\/after mean maximum belief probability ([\d.]+)\/([\d.]+)/.exec(rationale);
+  return m ? { before: Number(m[1]), after: Number(m[2]) } : null;
+}
+
+function Repair(props: { model: RunModel | null; top: Misreading | undefined }): ReactNode {
+  const { model, top } = props;
+  const finding = model?.findings.find((f) => f.id === top?.id);
+  const repair = finding?.repair;
+  const scores = finding ? repairScores(finding.classRationale) : null;
+  if (!finding || !repair || !scores) return null;
+  const pct = (x: number): string => `${Math.round(x * 100)}%`;
+  return (
+    <section className="l-ch l-repair" id="repair" aria-labelledby="repair-title">
+      <h2 id="repair-title" data-rise>Can better wording fix it?</h2>
+      <ol className="r-steps">
+        <li data-rise>
+          <span className="r-icon"><PenLine /></span>
+          <b>The AI rewrites the sentence</b>
+          <p lang="vi">{clip(repair.rewriteVi, 150)}</p>
+          <p className="r-gloss">It now says outright that the article sets no “3 in 90 days” cutoff.</p>
+        </li>
+        <li data-rise>
+          <span className={repair.fidelity.passed ? "r-icon ok" : "r-icon bad"}>{repair.fidelity.passed ? <ShieldCheck /> : <X />}</span>
+          <b>A fact check confirms no rule changed</b>
+          <p>{repair.fidelity.facts.filter((f) => f.entailed).length} of {repair.fidelity.facts.length} facts kept, {repair.fidelity.newCommitments.length} new promises</p>
+        </li>
+        <li data-rise>
+          <span className="r-icon"><RotateCcw /></span>
+          <b>The same readers read it again</b>
+          <div className="r-bars" role="img" aria-label={`Belief ${pct(scores.before)} before, ${pct(scores.after)} after`}>
+            <span>Before</span><i style={{ width: pct(scores.before) }} /><em>{pct(scores.before)}</em>
+            <span>After</span><i style={{ width: pct(scores.after) }} /><em>{pct(scores.after)}</em>
+          </div>
+        </li>
+      </ol>
+      <div className="r-verdict" data-rise>
+        <strong>Wording can't fix a missing rule.</strong>
+        <span>Shopee has to decide the number and publish it.</span>
+        {finding.class && <span className={`b-kind k-${finding.class}`}>{CLASS_LABEL[finding.class]}</span>}
+      </div>
     </section>
   );
 }
@@ -277,7 +448,7 @@ function Numbers(props: { model: RunModel | null; top: Misreading | undefined })
 
   return (
     <section className="l-section" id="numbers" aria-labelledby="numbers-title">
-      <h2 id="numbers-title" className="l-kicker" data-rise>Test a fix before it ships</h2>
+      <h2 id="numbers-title" className="l-kicker" data-rise>Every edit gets the same test</h2>
       <div className="l-fixes">
         {grabBefore && grabAfter && grabBefore.noiseBand !== null && (
           <Fix who="Grab" what="Rider clauses rewritten" before={grabBefore.rate} after={grabAfter.rate} band={effectiveBand(grabBefore.noiseBand)} n={grabBefore.n} />

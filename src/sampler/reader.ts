@@ -17,6 +17,7 @@ export interface ReadScenarioArgs {
   version: PolicyVersion;
   tag: string | null;
   fresh: boolean;
+  stage?: "reader" | "resolution";
 }
 
 export async function readScenario(ctx: StageContext, args: ReadScenarioArgs): Promise<Reading> {
@@ -34,6 +35,7 @@ export async function readScenario(ctx: StageContext, args: ReadScenarioArgs): P
     && !scenario.levels.some((choice) => choice.dimId === "prior_belief" && choice.levelId !== "none");
   const output = await ctx.gateway.structured({
     role: "reader",
+    stage: args.stage ?? "reader",
     instructions: prompt("reader"),
     input: JSON.stringify({
       persona: scenario.persona,
@@ -56,7 +58,7 @@ export async function readScenario(ctx: StageContext, args: ReadScenarioArgs): P
     effort: "low",
     fresh: args.fresh,
   });
-  const anchors = await anchorQuotes(ctx, version, output.interpretations.map((interpretation) => interpretation.quote), scenario.exposure.surfaceIds);
+  const anchors = await anchorQuotes(ctx, version, output.interpretations.map((interpretation) => interpretation.quote), scenario.exposure.surfaceIds, args.stage);
   const readingId = `r-${scenario.id}-v${version.version}${args.tag === null || args.tag === "" ? "" : `-${args.tag}`}`;
   return Reading.parse({
     id: readingId,

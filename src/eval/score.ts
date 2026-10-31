@@ -83,6 +83,7 @@ export async function scoreAgainstHoldout(ctx: StageContext, args: ScoreArgs): P
   const matches = (await Promise.all(holdout.edgeCases.flatMap((edgeCase) => anonymousSystems.map(async ({ system, items }): Promise<ScoreMatch[]> => {
     const result = await ctx.gateway.structured({
       role: "scorer",
+      stage: "score",
       instructions,
       input: JSON.stringify({
         policy,

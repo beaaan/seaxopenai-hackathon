@@ -117,6 +117,7 @@ export async function createReviewer(ctx: StageContext): Promise<Reviewer> {
   try {
     thread = await ctx.gateway.agentThread({
       role: "reviewer",
+      stage: "reviewer",
       label: "Reviewer",
       persist: true,
       model: ctx.config.models.reviewer,

@@ -41,6 +41,7 @@ function diverse<T>(items: readonly T[], count: number, text: (item: T) => strin
 export async function extractDimensions(ctx: StageContext, version: PolicyVersion): Promise<Dimension[]> {
   const extracted = await ctx.gateway.structured({
     role: "dims",
+    stage: "dims",
     instructions: prompt("dims"),
     input: policyText(version, { ids: false }),
     schema: ExtractedDimensions,

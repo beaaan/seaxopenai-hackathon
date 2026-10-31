@@ -107,10 +107,10 @@ export class Gateway {
   }
 
   /** Embeddings for clustering; cached per text. */
-  async embed(texts: readonly string[]): Promise<number[][]> {
+  async embed(texts: readonly string[], opts: { fresh?: boolean } = {}): Promise<number[][]> {
     const keys = texts.map((text) => cacheKey({ v: CACHE_VERSION, kind: "embed", model: EMBEDDING_MODEL, dims: EMBEDDING_DIMENSIONS, text }));
     const out: Array<number[] | undefined> = keys.map((key) => {
-      const hit = this.#cache.get(key);
+      const hit = opts.fresh ? undefined : this.#cache.get(key);
       return hit === undefined ? undefined : EmbeddingVector.parse(hit);
     });
     const missing = out.flatMap((vector, i) => (vector === undefined ? [i] : []));

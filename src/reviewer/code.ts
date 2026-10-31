@@ -6,7 +6,7 @@ import type { Cluster, Coding, Reading } from "../shared/schema";
 
 export async function codeReadings(
   ctx: StageContext,
-  args: { readings: Reading[]; codebook: Cluster[] },
+  args: { readings: Reading[]; codebook: Cluster[]; stage?: "coder" | "resolution" },
 ): Promise<Coding[]> {
   if (args.readings.length === 0 || args.codebook.length === 0) return [];
   // The original policy and frozen codebook remain identical across policy-version retests.
@@ -23,6 +23,7 @@ export async function codeReadings(
   const results = await Promise.all(args.readings.map(async (reading): Promise<Coding[]> => {
     const answers = await ctx.gateway.decide({
       role: "coder",
+      stage: args.stage ?? "coder",
       evidence,
       data: {
         paraphraseVi: reading.paraphraseVi,

@@ -10,6 +10,7 @@ import { decideChunked, type DecisionAnswer, type DecisionRequest } from "./deci
 import { llmJsonSchema } from "./json-schema";
 import { Limiter } from "./limit";
 import type { AgentThread, AgentThreadOptions, LlmBackend, OutputSchema, StructuredRequest, ToolDef, TurnResult } from "./types";
+import { logUsage, responseUsage } from "./usage";
 
 const MAX_TOOL_STEPS = 24;
 export const EMBEDDING_MODEL = "text-embedding-3-small";
@@ -49,6 +50,7 @@ export class ResponsesBackend implements LlmBackend {
         text: textFormat(req.schemaName, req.schema),
         store: false,
       });
+      logUsage({ backend: "responses", model: res.model, stage: req.stage ?? "other", ...responseUsage(res.usage) });
       if (res.status !== "completed") {
         throw new Error(`responses ${req.role}: status ${res.status} ${JSON.stringify(res.incomplete_details ?? res.error)}`);
       }
@@ -63,6 +65,10 @@ export class ResponsesBackend implements LlmBackend {
       const res = await this.#limiter.run(() =>
         this.#client.embeddings.create({ model: EMBEDDING_MODEL, input: batch, dimensions: EMBEDDING_DIMENSIONS, encoding_format: "float" }),
       );
+      logUsage({
+        backend: "embeddings", model: res.model, stage: "embeddings",
+        inputTokens: res.usage?.prompt_tokens ?? null, cachedInputTokens: null, outputTokens: null, reasoningTokens: null,
+      });
       for (const row of [...res.data].sort((a, b) => a.index - b.index)) out.push(row.embedding);
     }
     return out;
@@ -101,6 +107,7 @@ export class ResponsesBackend implements LlmBackend {
             store: true,
           }),
         );
+        logUsage({ backend: "responses", model: res.model, stage: opts.stage ?? "other", ...responseUsage(res.usage) });
         if (res.status !== "completed") {
           throw new Error(`agent thread ${opts.label}: status ${res.status} ${JSON.stringify(res.incomplete_details ?? res.error)}`);
         }

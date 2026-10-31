@@ -41,17 +41,56 @@
 .l-button:active, .l-ghost:active { transform: scale(0.98); }
 .l-actions { display: flex; gap: 12px; flex-wrap: wrap; }
 
-/* Hero: the real run replays full-bleed behind the title. */
-.l-hero { position: relative; height: 100svh; min-height: 640px; overflow: hidden; background: var(--n-bg); }
-.l-hero .theatre.embedded { position: absolute; inset: 0; }
+/* Top bar over the first chapter. */
 .l-nav { position: absolute; top: 0; left: 0; right: 0; z-index: 3; display: flex; align-items: center; gap: 28px; padding: 22px var(--n-m); font-size: 14px; }
 .l-word { display: inline-flex; align-items: center; gap: 10px; font-weight: 600; text-decoration: none; }
-.l-nav nav { display: flex; gap: 22px; color: var(--n-muted); }
-.l-nav nav button:hover { color: var(--n-ink); }
-.l-nav .l-ghost { margin-left: auto; height: 36px; padding: 0 16px; font-size: 14px; }
-.l-hero-copy { position: absolute; z-index: 3; left: var(--n-m); bottom: 112px; width: min(34vw, 470px); display: grid; gap: 14px; padding: 20px 22px; border-radius: 16px; background: rgba(5, 7, 11, 0.78); border: 1px solid var(--n-edge); backdrop-filter: blur(8px); }
-.l-hero-copy h1 { font-size: clamp(30px, 2.8vw, 40px); line-height: 1.08; }
-.l-hero-copy p { color: var(--n-muted); }
+
+/* Story chapters: one idea per screen, so Page Down moves one beat. */
+.l-ch { position: relative; min-height: 100svh; display: grid; align-content: center; gap: clamp(18px, 3.2vh, 32px); padding: clamp(72px, 10vh, 120px) var(--n-m); }
+.l-ch h2 { font-size: clamp(30px, min(3.4vw, 6vh), 56px); line-height: 1.08; }
+
+/* 1. The hook: the checkout, then the question. */
+.l-hook { grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr); align-items: center; column-gap: clamp(24px, 5vw, 80px); }
+.l-hook h1 { font-size: clamp(40px, min(5.6vw, 10vh), 160px); line-height: 1.02; letter-spacing: -0.03em; max-width: 13ch; }
+.l-why { margin-top: clamp(12px, 2.4vh, 28px); font-size: clamp(56px, min(8vw, 14vh), 220px); line-height: 1; font-weight: 300; color: var(--n-amber); animation: l-fade 900ms 2.4s both; }
+@keyframes l-fade { from { opacity: 0; transform: translateY(12px); } }
+.l-phone { justify-self: center; width: min(clamp(320px, 26vw, 600px), 100%); margin: 0; padding: 1.4em 1.1em 1.1em; border-radius: 1.8em; font-size: clamp(15px, min(1.05vw, 2vh), 24px); background: #0d131c; border: 1px solid rgba(233, 238, 244, 0.12); display: grid; gap: 0.9em; }
+.l-phone figcaption { font-size: 1em; font-weight: 600; color: var(--n-ink); padding: 0 0.4em; }
+.l-phone ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.l-phone li { display: grid; grid-template-columns: 1.5em 1fr; align-items: center; gap: 0.7em; padding: 0.95em 0.8em; border-radius: 0.8em; background: rgba(233, 238, 244, 0.05); font-size: 1em; color: var(--n-ink); }
+.l-phone li i { width: 1.2em; height: 1.2em; border-radius: 50%; border: 2px solid rgba(233, 238, 244, 0.35); }
+.l-phone li.cod { border: 1px solid var(--n-amber); animation: l-cod-off 600ms 1.4s both; }
+.l-phone li.cod i { border-color: var(--n-amber); box-shadow: inset 0 0 0 4px #0d131c; background: var(--n-amber); animation: l-radio-off 600ms 1.4s both; }
+.l-phone li.cod span { grid-column: 2; font-size: 0.86em; line-height: 1.4; color: var(--n-red); animation: l-fade 500ms 1.9s both; }
+@keyframes l-cod-off { to { border-color: transparent; color: rgba(233, 238, 244, 0.35); background: rgba(233, 238, 244, 0.02); } }
+@keyframes l-radio-off { to { border-color: rgba(233, 238, 244, 0.15); background: transparent; } }
+.l-scroll { position: absolute; left: 50%; bottom: 24px; transform: translateX(-50%); display: grid; place-items: center; width: 44px; height: 44px; color: var(--n-muted); animation: l-bob 2s ease-in-out infinite; }
+.l-scroll svg { width: 28px; height: 28px; }
+@keyframes l-bob { 50% { transform: translate(-50%, 6px); } }
+
+/* 2. The official answer, with the phrase where a number should be. */
+.l-answer blockquote { margin: 0; max-width: 40ch; font-size: clamp(20px, min(2.2vw, 4vh), 34px); line-height: 1.45; color: rgba(233, 238, 244, 0.6); border-left: 3px solid rgba(233, 238, 244, 0.2); padding-left: clamp(14px, 2vw, 24px); }
+.l-answer mark { background: rgba(255, 179, 71, 0.18); color: #fff; padding: 0 4px; border-radius: 4px; }
+.l-gloss { font-size: 15px; color: var(--n-dim); }
+.l-asks { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 12px; }
+.l-asks li { padding: 10px 20px; border-radius: 999px; border: 1.5px solid var(--n-amber); color: var(--n-amber); font-size: clamp(18px, min(2vw, 3.4vh), 28px); }
+.l-never { font-size: clamp(28px, min(3.2vw, 6vh), 52px); font-weight: 500; }
+
+/* 3. What fills the gap: the rumours as messages, and the stakes. */
+.l-bubbles { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px clamp(16px, 3vw, 40px); max-width: 1100px; }
+.l-bubbles li { justify-self: start; max-width: 100%; display: grid; gap: 4px; padding: 12px 16px; border-radius: 16px 16px 16px 4px; background: rgba(233, 238, 244, 0.07); font-size: clamp(16px, min(1.5vw, 2.8vh), 21px); line-height: 1.35; }
+.l-bubbles li:nth-child(even) { justify-self: end; border-radius: 16px 16px 4px 16px; }
+.l-bubbles small { font-size: 12.5px; color: var(--n-dim); }
+.l-stake { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 22px; margin-top: clamp(8px, 2vh, 24px); }
+.l-stake strong { font-size: clamp(56px, min(7vw, 12vh), 120px); line-height: 1; font-weight: 300; letter-spacing: -0.03em; }
+.l-stake span { display: grid; gap: 4px; max-width: 26ch; font-size: clamp(18px, min(1.8vw, 3.2vh), 26px); line-height: 1.25; }
+.l-stake small { font-size: 12.5px; color: var(--n-dim); }
+
+/* 4. The run itself, full-bleed. */
+.l-stage { position: relative; height: 100svh; min-height: 600px; overflow: hidden; background: var(--n-bg); }
+.l-stage .theatre.embedded { position: absolute; inset: 0; }
+.l-stage-copy { position: absolute; z-index: 3; left: var(--n-m); bottom: 112px; width: min(34vw, 470px); display: grid; gap: 10px; padding: 18px 20px; border-radius: 16px; background: rgba(5, 7, 11, 0.78); border: 1px solid var(--n-edge); backdrop-filter: blur(8px); }
+.l-stage-copy h2 { font-size: clamp(24px, min(2.4vw, 4.4vh), 38px); line-height: 1.1; }
 
 /* Sections share one frame. */
 .l-section { padding: 140px var(--n-m) 0; display: grid; gap: 28px; }
@@ -104,19 +143,42 @@
 .tunnel-panel-head b { font-size: 15px; font-weight: 500; color: var(--n-ink); }
 .tunnel-panel-head .dot { margin: 0 4px 0 8px; vertical-align: -1px; }
 
-/* Every misreading, as glass rows. */
-.board { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-.board > li { border-radius: 12px; background: var(--n-panel); border: 1px solid var(--n-edge); transition: border-color 200ms; }
-.board > li.open { border-color: rgba(255, 179, 71, 0.45); }
-.board > li > button { width: 100%; display: grid; grid-template-columns: 3.5rem minmax(0, 1fr) auto; align-items: center; gap: 18px; min-height: 60px; padding: 10px 18px; text-align: left; }
-.board > li > button:hover .b-title { color: #fff; }
-.board .b-count { font-family: var(--mono); font-size: 24px; color: var(--n-amber); text-align: right; font-variant-numeric: tabular-nums; }
-.board .b-title { font-size: 18px; line-height: 1.3; }
-.b-kind { font-size: 12.5px; padding: 3px 10px; border-radius: 999px; white-space: nowrap; background: rgba(154, 166, 178, 0.14); color: var(--n-muted); }
+/* Rule-decision and other kind tags. */
+.b-kind { width: max-content; font-size: 13px; padding: 4px 12px; border-radius: 999px; white-space: nowrap; background: rgba(154, 166, 178, 0.14); color: var(--n-muted); }
 .b-kind.k-design_gap { background: rgba(255, 179, 71, 0.14); color: var(--n-amber); }
 .b-kind.k-wording_fix { background: rgba(79, 209, 165, 0.14); color: var(--n-green); }
-.b-detail { display: grid; gap: 8px; padding: 0 18px 18px calc(3.5rem + 36px); color: var(--n-muted); font-size: 15px; }
-.b-detail .b-quote { color: #fff2d8; padding-left: 12px; border-left: 2px solid var(--n-amber); }
+
+/* Three readers: who they are, what they met, what they now believe, the verdict. */
+.l-voices { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
+.l-voices li { display: grid; grid-template-columns: minmax(180px, 230px) minmax(170px, 230px) minmax(0, 1fr) auto; align-items: center; gap: clamp(14px, 2vw, 28px); padding: clamp(16px, 2vh, 22px) clamp(16px, 2vw, 24px); border-radius: 16px; background: var(--n-panel); border: 1px solid var(--n-edge); }
+.v-who { display: grid; grid-template-columns: 40px 1fr; column-gap: 12px; align-items: center; }
+.v-avatar { grid-row: span 2; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: rgba(143, 227, 255, 0.12); color: var(--n-cyan); font-weight: 600; }
+.v-who b { font-size: 15px; font-weight: 600; }
+.v-who small { font-size: 12.5px; color: var(--n-dim); }
+.v-path { display: grid; gap: 6px; font-size: 13.5px; }
+.v-heard { color: var(--n-amber); }
+.v-saw { display: inline-flex; align-items: center; gap: 6px; color: var(--n-muted); }
+.v-saw svg { width: 16px; height: 16px; flex: none; }
+.v-said { font-size: clamp(17px, min(1.5vw, 2.8vh), 22px); line-height: 1.35; color: #fff2d8; }
+.v-verdict { justify-self: end; padding: 5px 12px; border: 2px solid var(--n-red); border-radius: 6px; transform: rotate(-3deg); font-size: 12.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--n-red); white-space: nowrap; }
+.v-verdict.g-consistent { border-color: var(--n-green); color: var(--n-green); }
+.v-verdict.g-unclear { border-color: var(--n-dim); color: var(--n-muted); }
+
+/* Can wording fix it: three steps, then the verdict. */
+.r-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; counter-reset: step; }
+.r-steps li { position: relative; display: grid; align-content: start; gap: 10px; padding: 22px; border-radius: 16px; background: var(--n-panel); border: 1px solid var(--n-edge); }
+.r-steps b { font-size: clamp(16px, min(1.4vw, 2.6vh), 20px); font-weight: 600; }
+.r-steps p { font-size: 14.5px; line-height: 1.5; color: var(--n-muted); }
+.r-icon { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: rgba(143, 227, 255, 0.12); color: var(--n-cyan); }
+.r-icon svg { width: 20px; height: 20px; }
+.r-icon.ok { background: rgba(79, 209, 165, 0.16); color: var(--n-green); }
+.r-icon.bad { background: rgba(255, 107, 107, 0.14); color: var(--n-red); }
+.r-bars { display: grid; grid-template-columns: 52px minmax(0, 1fr) 48px; align-items: center; gap: 8px 10px; font-size: 13px; color: var(--n-muted); }
+.r-bars i { height: 14px; border-radius: 999px; background: var(--n-amber); }
+.r-bars em { font-style: normal; font-family: var(--mono); color: var(--n-ink); text-align: right; }
+.r-verdict { display: grid; gap: 10px; justify-items: start; }
+.r-verdict strong { font-size: clamp(30px, min(3.4vw, 6vh), 56px); line-height: 1.08; font-weight: 500; }
+.r-verdict span:not(.b-kind) { font-size: clamp(18px, min(1.8vw, 3.2vh), 26px); color: var(--n-muted); }
 
 /* The rumour, stamped, and who still believes it by what they saw. */
 .l-rumour { gap: 34px; }
@@ -164,23 +226,61 @@
 .dots.green b { color: var(--n-green); }
 
 /* The ending. */
-.l-cta { padding: 160px var(--n-m) 120px; display: grid; gap: 18px; justify-items: start; }
-.l-cta h2 { font-size: clamp(28px, 2.8vw, 42px); }
-.l-cta p { color: var(--n-muted); }
+.l-cta { min-height: 80svh; padding: 120px var(--n-m); display: grid; align-content: center; gap: 26px; justify-items: start; }
+.l-cta h2 { font-size: clamp(36px, min(4.4vw, 8vh), 72px); line-height: 1.05; }
+.l-big-button { height: 56px; padding: 0 28px; font-size: 17px; }
+.l-quiet { color: var(--n-muted) !important; font-size: 15px; text-decoration: none; }
+.l-quiet:hover { color: var(--n-ink) !important; }
 .l-foot { display: flex; justify-content: space-between; gap: 24px; flex-wrap: wrap; padding: 24px var(--n-m) 32px; font-size: 13px; color: var(--n-dim); border-top: 1px solid rgba(143, 227, 255, 0.08); }
 
 /* Entrances: rise once as the element enters; never hidden without the script. */
 .rise-wait { opacity: 0; transform: translateY(24px); }
 .rise-in { opacity: 1; transform: none; transition: opacity 700ms cubic-bezier(0.2, 0.7, 0.2, 1), transform 700ms cubic-bezier(0.2, 0.7, 0.2, 1); }
 
+/* The AI layers: what we ask, what it gives, what it costs. */
+.r-steps p.r-gloss { color: var(--n-ink); font-size: 14px; }
+.p-layers { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; position: relative; }
+.p-layers::before { content: ""; position: absolute; left: 39px; top: 24px; bottom: 24px; width: 2px; background: rgba(143, 227, 255, 0.14); }
+.p-layers li { position: relative; display: grid; grid-template-columns: 48px minmax(0, 1.5fr) minmax(170px, 0.8fr) minmax(150px, 0.6fr); align-items: center; gap: clamp(12px, 2vw, 28px); padding: 14px 18px; border-radius: 14px; background: var(--n-panel); border: 1px solid var(--n-edge); }
+.p-icon { z-index: 1; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; background: #0f1824; border: 1px solid rgba(143, 227, 255, 0.3); color: var(--n-cyan); }
+.p-icon svg { width: 20px; height: 20px; }
+.p-what { display: grid; gap: 4px; }
+.p-what b { font-size: clamp(16px, min(1.3vw, 2.4vh), 19px); font-weight: 600; }
+.p-what q { font-size: 14px; color: var(--n-muted); quotes: "“" "”"; }
+.p-gives { display: grid; gap: 2px; }
+.p-gives strong { font-size: clamp(24px, min(2.2vw, 4vh), 34px); line-height: 1; font-weight: 400; font-variant-numeric: tabular-nums; }
+.p-gives span { font-size: 13.5px; color: var(--n-muted); }
+.p-gives small { font-size: 12.5px; color: var(--n-green); }
+.p-cost { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 4px 10px; }
+.p-bar { height: 8px; border-radius: 999px; background: rgba(143, 227, 255, 0.08); overflow: hidden; }
+.p-bar i { display: block; height: 100%; border-radius: 999px; background: var(--n-cyan); }
+.p-cost b { font-family: var(--mono); font-size: 16px; font-weight: 400; }
+.p-cost small { grid-column: 1 / -1; font-family: var(--mono); font-size: 11.5px; color: var(--n-dim); }
+.p-econ { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 12px; }
+.p-econ div { display: grid; gap: 6px; align-content: start; padding: 22px; border-radius: 16px; border: 1px solid var(--n-edge); }
+.p-econ strong { font-size: clamp(40px, min(4vw, 7vh), 64px); line-height: 1; font-weight: 300; color: var(--n-cyan); }
+.p-econ span { font-size: 15px; color: var(--n-muted); }
+.p-note { font-size: 13px; color: var(--n-dim); }
+.p-econ-title { margin-top: 28px; font-size: clamp(24px, min(2.4vw, 4.4vh), 36px); }
+.p-worth { max-width: 62ch; font-size: clamp(17px, min(1.5vw, 2.8vh), 21px); line-height: 1.45; color: var(--n-ink); }
+
 @media (max-width: 1000px) {
   .l-fixes { grid-template-columns: 1fr; }
-  .board > li > button { grid-template-columns: 3rem minmax(0, 1fr) auto; }
+  .l-voices li { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .v-said { grid-column: 1 / -1; }
+  .r-steps { grid-template-columns: 1fr; }
+  .p-layers li { grid-template-columns: 48px minmax(0, 1fr) minmax(140px, auto); }
+  .p-cost { grid-column: 2 / -1; }
+  .p-econ { grid-template-columns: 1fr; }
 }
 @media (max-width: 700px) {
-  .l-nav nav { display: none; }
-  .l-hero-copy { left: 12px; right: 12px; width: auto; bottom: 150px; padding: 18px; }
-  .l-hero-copy h1 { font-size: 30px; }
+  .l-hook { grid-template-columns: 1fr; row-gap: 28px; align-content: center; }
+  .l-hook h1 { font-size: 40px; }
+  .l-why { font-size: 56px; margin-top: 8px; }
+  .l-bubbles { grid-template-columns: 1fr; }
+  .l-bubbles li:nth-child(even) { justify-self: end; }
+  .l-stage-copy { left: 12px; right: 12px; width: auto; top: 12px; bottom: auto; padding: 14px 16px; }
+  .l-stage-copy h2 { font-size: 22px; }
   .l-section { padding-top: 90px; }
   .l-big { grid-template-columns: 1fr; }
   .people { gap: 6px; }
@@ -199,9 +299,11 @@
   .tunnel-pools button { grid-template-columns: 1.8em 1fr; gap: 6px; padding: 2px 4px; }
   .tunnel-pools button b { font-size: 17px; }
   .tunnel-pools button span { font-size: 13px; -webkit-line-clamp: 3; }
-  .board > li > button { grid-template-columns: 2.4rem minmax(0, 1fr); gap: 12px; }
-  .board .b-kind { grid-column: 2; justify-self: start; }
-  .b-detail { padding-left: calc(2.4rem + 30px); }
+  .l-voices li { grid-template-columns: 1fr; }
+  .p-layers::before { left: 37px; }
+  .p-layers li { grid-template-columns: 44px minmax(0, 1fr); }
+  .p-gives, .p-cost { grid-column: 2; }
+  .v-verdict { justify-self: start; }
 }
 @media (prefers-reduced-motion: reduce) {
   .landing *, .landing *::before, .landing *::after { transition: none !important; animation: none !important; }
