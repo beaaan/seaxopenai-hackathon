@@ -476,6 +476,8 @@ export const RunConfig = z.strictObject({
   mode: z.enum(["full", "explore", "retest"]),
   budget: z.number().int().positive(), // total readings for exploration
   seedSize: z.number().int().positive(),
+  /** Opt-in designed demographic factors; absent in older run logs. */
+  demographics: z.boolean().default(false),
   batchSize: z.number().int().positive(),
   maxIterations: z.number().int().nonnegative(),
   /** Readings per scenario-subset used by Re-test edit. */

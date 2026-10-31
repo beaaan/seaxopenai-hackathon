@@ -20,6 +20,8 @@ import "./landing.css";
 const FEATURED = "cod-main";
 const SCOPE_TEST = "cod-main-rt1";
 const STORE_TEST = "cod-main-rt2";
+/** A second run of the same policy with age and digital literacy as designed traits; the "who" chapter reads it. */
+const DEMOGRAPHIC_RUN = "cod-demo";
 const REPORT = `#/run/${FEATURED}`;
 const LIVE = `#/live/${FEATURED}`;
 /** Grab's scheduled-ride terms: the run whose accepted rewrite the chart shows, and the misreading it targeted. */
@@ -71,6 +73,8 @@ export function LandingPage(): ReactNode {
   const folk = policy?.folk.versions ?? [];
   const data = useMemo(() => (model && policy ? tunnelData(model, policy.folk.versions) : null), [model, policy]);
   const rows = useMemo(() => (model ? misreadings(model) : []), [model]);
+  const demo = useRun(DEMOGRAPHIC_RUN, false).model;
+  const demoRows = useMemo(() => (demo ? misreadings(demo) : []), [demo]);
   const v0 = model?.versions.find((v) => v.version === 0);
   const sentence = (id: string): string | null => v0?.sentences.find((s) => s.id === id)?.text ?? null;
   useRise();
@@ -95,7 +99,11 @@ export function LandingPage(): ReactNode {
       <Found model={model} data={data} rows={rows} />
       <Voices model={model} top={rows[0]} folk={folk} />
       <Rumours folk={folk} model={model} top={rows[0]} />
-      <WhoMisreads model={model} top={rows[0]} demographic={false} />
+      {demoRows[0] ? (
+        <WhoMisreads model={demo} top={demoRows[0]} demographic />
+      ) : (
+        <WhoMisreads model={model} top={rows[0]} demographic={false} />
+      )}
       <MisreadCost model={model} top={rows[0]} runCost={model ? runCost(model) : 0} />
       <Repair top={rows[0]} />
       <Numbers />

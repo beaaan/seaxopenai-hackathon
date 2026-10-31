@@ -170,6 +170,7 @@
 /* Reader flow (also drawn inside the report): a Sankey of heard → read → believe; bands coloured by destination. */
 .l-tunnel { margin: 0; padding: 18px 20px; border-radius: 16px; background: var(--n-bg-2); border: 1px solid var(--n-edge); }
 .l-tunnel, .tunnel-panel { min-width: 0; }
+.w-take { font-size: clamp(20px, min(2.2vw, 4vh), 32px); line-height: 1.25; color: var(--n-amber); max-width: 34ch; }
 .flow { overflow-x: auto; overscroll-behavior-x: contain; }
 .flow svg { display: block; width: 100%; min-width: 720px; height: auto; font-family: var(--font); }
 .flow text { font-size: 15px; fill: var(--n-ink); paint-order: stroke; stroke: var(--n-bg-2); stroke-width: 4px; stroke-linejoin: round; }

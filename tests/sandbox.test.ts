@@ -224,7 +224,7 @@ function probeContext(policyId: string): StageContext {
     reference: null,
     folk: { policyId, versions: [] },
     config: {
-      policyId, mode: "full", budget: 1, seedSize: 1, batchSize: 1, maxIterations: 0, smokeSize: 1, baselineRuns: 0, seed: 1, suiteRunId: null,
+      policyId, mode: "full", budget: 1, seedSize: 1, demographics: false, batchSize: 1, maxIterations: 0, smokeSize: 1, baselineRuns: 0, seed: 1, suiteRunId: null,
       inputs: { policySha256: "test", referenceSha256: null, folkSha256: null },
       models: { reader: "gpt-6.1-sol", judge: "gpt-6.1-sol", grader: "gpt-6-luna", reviewer: "gpt-6.1-sol" }, fresh: false,
     },

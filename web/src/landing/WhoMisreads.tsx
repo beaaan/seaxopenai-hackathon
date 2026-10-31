@@ -56,6 +56,9 @@ interface Trait {
 
 const MIN_N = 3;
 
+/** Traits whose levels have a natural order, shown in that order rather than by share. */
+const ORDINAL: Record<string, string[]> = { age_group: ["young", "middle", "older"], digital_literacy: ["low", "high"] };
+
 function traits(m: RunModel, holders: ReadonlySet<string>): Trait[] {
   const groups = new Map<string, Map<string, Row>>();
   const add = (trait: string, level: string, scenarioId: string): void => {
@@ -78,23 +81,33 @@ function traits(m: RunModel, holders: ReadonlySet<string>): Trait[] {
     }
   }
   return [...groups].map(([key, rows]) => {
-    const list = [...rows.values()].sort((a, b) => b.held / b.n - a.held / a.n);
+    const order = ORDINAL[key];
+    const list = [...rows.values()].sort((a, b) => (order ? order.indexOf(a.key) - order.indexOf(b.key) : b.held / b.n - a.held / a.n));
     const shares = list.filter((r) => r.n >= MIN_N).map((r) => r.held / r.n);
     return { key, label: TRAIT_EN[key] ?? key, rows: list, spread: shares.length > 1 ? Math.max(...shares) - Math.min(...shares) : 0 };
   }).sort((a, b) => b.spread - a.spread);
 }
 
+const DEMOGRAPHIC = new Set(["age_group", "digital_literacy"]);
+
 /** For the top misreading: who holds it, trait by trait, the biggest split first. */
 export function WhoMisreads(props: { model: RunModel | null; top: Misreading | undefined; demographic: boolean }): ReactNode {
   const { model, top } = props;
   if (!model || !top) return null;
-  const list = traits(model, new Set(top.readers)).filter((t) => t.spread > 0).slice(0, 6);
+  const all = traits(model, new Set(top.readers)).filter((t) => t.spread > 0);
+  const list = all.slice(0, 6);
   if (list.length === 0) return null;
+  // When demographics were varied, say which matters more, only if the data says it plainly: the two biggest splits
+  // are both situational and each is at least twice the biggest demographic one.
+  const demo = all.filter((t) => DEMOGRAPHIC.has(t.key));
+  const demoSpread = Math.max(0, ...demo.map((t) => t.spread));
+  const situational = demo.length > 0 && list.slice(0, 2).every((t) => !DEMOGRAPHIC.has(t.key) && t.spread >= 2 * demoSpread);
   return (
     <section className="l-section l-who" id="who" aria-labelledby="who-title" data-chapter="Who">
-      <span className="l-kick" data-rise>{props.demographic ? "A second run, with age and digital literacy varied" : "Same 50 readers, split by trait"}</span>
+      <span className="l-kick" data-rise>{props.demographic ? `A second run: ${model.scenarios.length} new readers, age and digital literacy varied` : "Same 50 readers, split by trait"}</span>
       <h2 id="who-title" data-rise>Who misreads it</h2>
-      <p className="w-what" data-rise>Readers who believe: {top.title}</p>
+      {situational && <p className="w-take" data-rise>What they heard and where they read it matter far more than age or digital literacy.</p>}
+      <p className="w-what" data-rise>Readers who believe: {top.title} ({top.readers.length} of {model.scenarios.length})</p>
       <ol className="w-traits">
         {list.map((t, i) => (
           <li key={t.key} className={i === 0 ? "lead" : undefined} data-rise>

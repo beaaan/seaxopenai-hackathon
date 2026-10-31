@@ -45,7 +45,7 @@ function context(gateway: Gateway): StageContext {
   return {
     runId: "test", gateway, policy: { id: "test", title: "test", lang: "vi", sourceUrls: [], retrievedAt: "2026-01-01", surfaces: [{ id: "main", label: "main", text: "test" }], notes: null },
     reference: null, folk: { policyId: "test", versions: [] },
-    config: { policyId: "test", mode: "explore", budget: 50, seedSize: 16, batchSize: 10, maxIterations: 3, smokeSize: 10, baselineRuns: 0, seed: 7, suiteRunId: null, fresh: false, inputs: { policySha256: "test", referenceSha256: null, folkSha256: null }, models: { reader: "test", judge: "test", grader: "test", reviewer: "test" } },
+    config: { policyId: "test", mode: "explore", budget: 50, seedSize: 16, demographics: false, batchSize: 10, maxIterations: 3, smokeSize: 10, baselineRuns: 0, seed: 7, suiteRunId: null, fresh: false, inputs: { policySha256: "test", referenceSha256: null, folkSha256: null }, models: { reader: "test", judge: "test", grader: "test", reviewer: "test" } },
     emitThreadItem: () => {}, log: () => {},
   };
 }

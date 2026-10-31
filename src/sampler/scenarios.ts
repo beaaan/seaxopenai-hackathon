@@ -2,6 +2,7 @@ import { z } from "zod";
 import { prompt } from "../core/prompts";
 import { policyText, type StageContext } from "../pipeline/context";
 import { Persona, Scenario, type Dimension, type Exposure, type LevelChoice, type PolicyVersion } from "../shared/schema";
+import { DEMOGRAPHIC_AGE_BANDS } from "./dims";
 
 const WrittenScenario = z.strictObject({
   persona: Persona,
@@ -48,6 +49,11 @@ export async function writeScenarios(ctx: StageContext, args: WriteScenariosArgs
     if (prior !== "none" && !folkIds.has(prior)) throw new Error(`Unknown folk version: ${prior}`);
     const attention = levels.get("attention") ?? "careful";
     if (attention !== "skim" && attention !== "careful") throw new Error(`Unknown attention level: ${attention}`);
+    const ageGroup = ctx.config.demographics ? levels.get("age_group") : undefined;
+    const ageBand = ageGroup === undefined ? undefined : DEMOGRAPHIC_AGE_BANDS[ageGroup];
+    if (ageGroup !== undefined && !ageBand) throw new Error(`Unknown age group: ${ageGroup}`);
+    const literacy = ctx.config.demographics ? levels.get("digital_literacy") : undefined;
+    if (literacy !== undefined && literacy !== "low" && literacy !== "high") throw new Error(`Unknown digital literacy: ${literacy}`);
     let folkVersionId = prior === "none" ? null : prior;
     let exposedSurfaceIds: string[];
     if (channel === "friend") {
@@ -59,10 +65,10 @@ export async function writeScenarios(ctx: StageContext, args: WriteScenariosArgs
       exposedSurfaceIds = [channel];
     }
     const exposure: Exposure = { surfaceIds: exposedSurfaceIds, folkVersionId, attention };
-    return { row, selected, exposure, index: args.firstIndex + offset };
+    return { row, selected, exposure, ageBand, literacy, index: args.firstIndex + offset };
   });
 
-  return Promise.all(prepared.map(async ({ row, selected, exposure, index }) => {
+  return Promise.all(prepared.map(async ({ row, selected, exposure, ageBand, literacy, index }) => {
     const written = await ctx.gateway.structured({
       role: "scenario",
       stage: "other",
@@ -81,13 +87,21 @@ export async function writeScenarios(ctx: StageContext, args: WriteScenariosArgs
       model: ctx.config.models.reader,
       effort: "medium",
     });
+    // These designed factors are authoritative, even if the writer ignores a selected level.
+    // Keep a valid age; clamp only a contradiction rather than replacing every age with a midpoint.
+    const persona = { ...written.persona };
+    if (ageBand) persona.age = Math.max(ageBand[0], Math.min(ageBand[1], persona.age));
+    if (literacy === "low" || literacy === "high") persona.literacy = literacy;
+    if (persona.age !== written.persona.age || persona.literacy !== written.persona.literacy) {
+      ctx.log("warn", `Corrected demographic persona fields for s${String(index).padStart(3, "0")}: age ${written.persona.age} → ${persona.age}; literacy ${written.persona.literacy} → ${persona.literacy}.`);
+    }
     return Scenario.parse({
       id: `s${String(index).padStart(3, "0")}`,
       policyId: args.version.policyId,
       batch: args.batch,
       origin: args.origin,
       levels: row,
-      persona: written.persona,
+      persona,
       exposure,
       situationVi: written.situationVi,
       allocationReason: args.allocationReason,

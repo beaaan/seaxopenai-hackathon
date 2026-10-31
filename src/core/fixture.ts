@@ -657,6 +657,7 @@ export function writeFixtureRun(opts: { runId: string; runsDir?: string }): { ev
         folkSha256: existsSync(folkPath) ? createHash("sha256").update(readFileSync(folkPath)).digest("hex") : null,
       },
       budget: 50,
+      demographics: false,
       seedSize: SEED_SIZE,
       batchSize: BATCH_SIZE,
       maxIterations: 3,

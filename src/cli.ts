@@ -30,7 +30,7 @@ import { retestEdit } from "./pipeline/retest";
 import { mapHumanForRun } from "./pipeline/human";
 
 function usage(): never {
-  console.error("usage: pwt <runs | validate <runId> | policy <policyId> | fixture [runId] | smoke [--backend b] [--model m] | run <policyId> [--mode full|explore] [--budget N] [--seed-size N] [--batch-size N] [--iterations N] [--baselines N] [--seed N] [--fresh] [--run-id id] | test <surfaces.json|policyId> --suite <runId> [--smoke] [--run-id id] | map-human <runId>>");
+  console.error("usage: pwt <runs | validate <runId> | policy <policyId> | fixture [runId] | smoke [--backend b] [--model m] | run <policyId> [--mode full|explore] [--budget N] [--seed-size N] [--batch-size N] [--iterations N] [--baselines N] [--seed N] [--fresh] [--demographics] [--run-id id] | test <surfaces.json|policyId> --suite <runId> [--smoke] [--run-id id] | map-human <runId>>");
   process.exit(2);
 }
 
@@ -177,6 +177,7 @@ async function main(): Promise<void> {
       "batch-size": { type: "string", default: "10" }, iterations: { type: "string", default: "3" },
       baselines: { type: "string", default: "3" }, seed: { type: "string", default: "7" },
       fresh: { type: "boolean", default: false }, suite: { type: "string" }, smoke: { type: "boolean", default: false },
+      demographics: { type: "boolean", default: false },
     },
   });
   const [command, arg] = positionals;
@@ -201,6 +202,7 @@ async function main(): Promise<void> {
         maxIterations: Number(values.iterations), smokeSize: 10, baselineRuns: Number(values.baselines), seed: Number(values.seed),
         suiteRunId: null, models: { reader: "gpt-6.1-sol", judge: "gpt-6.1-sol", grader: "gpt-6-luna", reviewer: "gpt-6.1-sol" },
         fresh: values.fresh,
+        demographics: values.demographics,
       });
       const runId = validId(values["run-id"] ?? `${policyId}-${timestampId()}`);
       await runWindTunnel({ runId, config });
