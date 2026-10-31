@@ -125,37 +125,38 @@
 .l-kick { font-size: 13px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--n-cyan); }
 
 /* 4. The run as five beats, one dot per reader. */
-.l-run { align-content: start; padding-top: clamp(56px, 8vh, 96px); }
-.story { display: grid; gap: clamp(10px, 2vh, 20px); }
-.story-cap { display: grid; gap: 10px; min-height: clamp(120px, 18vh, 170px); align-content: start; }
-.story-cap h2 { font-size: clamp(30px, min(3.6vw, 6.4vh), 60px); line-height: 1.06; animation: l-fade 600ms both; }
-.story-cap p { font-size: clamp(16px, min(1.6vw, 2.8vh), 22px); color: var(--n-muted); animation: l-fade 600ms 250ms both; }
+.l-run { align-content: start; padding-top: clamp(48px, 7vh, 96px); }
+.l-run > .l-kick { font-size: clamp(15px, min(1.3vw, 2.4vh), 24px); }
+.story { display: grid; gap: clamp(10px, 2vh, 22px); }
+.story-cap { display: grid; gap: 10px; min-height: clamp(120px, 16vh, 200px); align-content: start; }
+.story-cap h2 { font-size: clamp(34px, min(4.4vw, 7.4vh), 88px); line-height: 1.04; animation: l-fade 600ms both; }
+.story-cap p { max-width: 60ch; font-size: clamp(18px, min(1.8vw, 3.1vh), 30px); line-height: 1.35; color: var(--n-ink); opacity: 0.82; animation: l-fade 600ms 250ms both; }
 .story-steps { list-style: none; margin: 0 0 6px; padding: 0; display: flex; gap: 6px; width: min(420px, 100%); }
 .story-steps li { flex: 1; height: 4px; border-radius: 99px; background: rgba(233, 238, 244, 0.12); overflow: hidden; }
 .story-steps li.done i { display: block; height: 100%; width: 100%; background: var(--n-cyan); }
 .story-steps li.now i { display: block; height: 100%; background: var(--n-cyan); animation: l-step linear both; }
 @keyframes l-step { from { width: 0; } to { width: 100%; } }
-.story-field { position: relative; height: clamp(340px, 52vh, 620px); border-radius: 20px; background: radial-gradient(ellipse at 50% 60%, rgba(143, 227, 255, 0.06), transparent 70%); }
-.story-dot { position: absolute; width: clamp(14px, 1.3vw, 22px); height: clamp(14px, 1.3vw, 22px); margin: calc(clamp(14px, 1.3vw, 22px) / -2) 0 0 calc(clamp(14px, 1.3vw, 22px) / -2); border-radius: 50%; transition: left 1100ms cubic-bezier(0.6, 0, 0.2, 1), top 1100ms cubic-bezier(0.6, 0, 0.2, 1), background-color 600ms, opacity 600ms, transform 400ms; }
+.story-field { --dot: clamp(18px, min(1.8vw, 3.2vh), 34px); position: relative; height: clamp(300px, 49vh, 780px); border-radius: 20px; background: radial-gradient(ellipse at 50% 60%, rgba(143, 227, 255, 0.06), transparent 70%); }
+.story-dot { position: absolute; width: var(--dot); height: var(--dot); margin: calc(var(--dot) / -2) 0 0 calc(var(--dot) / -2); border-radius: 50%; transition: left 650ms cubic-bezier(0.5, 0, 0.2, 1), top 650ms cubic-bezier(0.5, 0, 0.2, 1), background-color 400ms, opacity 400ms, transform 300ms; }
 .story-dot.told { background: var(--n-amber); }
 .story-dot.clean { background: var(--n-cyan); }
 .story-dot.dim { opacity: 0.22; }
 .story-dot.holds { background: var(--n-red); transform: scale(1.15); }
 .story-dot.steered { animation: l-steer 900ms ease-in-out infinite; }
 @keyframes l-steer { 50% { transform: scale(1.6); box-shadow: 0 0 0 6px rgba(143, 227, 255, 0.25); } }
-.story-col { position: absolute; top: 0; transform: translateX(-50%); display: grid; justify-items: center; gap: 4px; text-align: center; color: var(--n-muted); font-size: clamp(13px, 1.1vw, 16px); animation: l-fade 500ms both; }
-.story-col svg { width: 22px; height: 22px; color: var(--n-ink); }
-.story-col b { font-size: clamp(22px, 2vw, 32px); font-weight: 400; color: var(--n-ink); font-variant-numeric: tabular-nums; }
-.story-col.hold b { font-size: clamp(36px, 3.4vw, 56px); color: var(--n-red); }
-.story-bubble { position: absolute; z-index: 2; width: min(300px, 27vw); transform: translate(-50%, 0); padding: 12px 16px; border-radius: 16px; background: #f4f7fa; color: #0b0f15; font-size: clamp(13px, 1.1vw, 16px); line-height: 1.35; quotes: "“" "”"; animation: l-pop 500ms cubic-bezier(0.2, 0.9, 0.3, 1.2) both; }
+.story-col { position: absolute; top: 0; transform: translateX(-50%); display: grid; justify-items: center; gap: 6px; text-align: center; color: var(--n-muted); font-size: clamp(14px, min(1.3vw, 2.3vh), 22px); animation: l-fade 500ms both; }
+.story-col svg { width: 1.4em; height: 1.4em; color: var(--n-ink); }
+.story-col b { font-size: clamp(26px, min(2.6vw, 4.6vh), 48px); font-weight: 400; color: var(--n-ink); font-variant-numeric: tabular-nums; }
+.story-col.hold b { font-size: clamp(40px, min(4.2vw, 7.4vh), 84px); color: var(--n-red); }
+.story-bubble { position: absolute; z-index: 2; width: min(340px, 28vw); transform: translate(-50%, 0); padding: 12px 16px; border-radius: 16px; background: #f4f7fa; color: #0b0f15; font-size: clamp(14px, min(1.2vw, 2.1vh), 20px); line-height: 1.35; quotes: "“" "”"; animation: l-pop 500ms cubic-bezier(0.2, 0.9, 0.3, 1.2) both; }
 .story-bubble::before { content: ""; position: absolute; left: 50%; top: -6px; width: 12px; height: 12px; margin-left: -6px; background: #f4f7fa; transform: rotate(45deg); border-radius: 2px; }
 .story-dot.speaking { transform: scale(1.5); box-shadow: 0 0 0 5px rgba(244, 247, 250, 0.35); }
-.story-bubble:nth-of-type(2) { animation-delay: 700ms; }
-.story-bubble:nth-of-type(3) { animation-delay: 1400ms; }
-.story-agent { position: absolute; left: 50%; bottom: 4%; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; padding: 12px 18px; border-radius: 999px; background: #0f1824; border: 1px solid rgba(143, 227, 255, 0.4); font-size: 16px; animation: l-fade 500ms both; }
+.story-bubble:nth-of-type(2) { animation-delay: 300ms; }
+.story-bubble:nth-of-type(3) { animation-delay: 600ms; }
+.story-agent { position: absolute; left: 50%; bottom: 4%; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; padding: 12px 20px; border-radius: 999px; background: #0f1824; border: 1px solid rgba(143, 227, 255, 0.4); font-size: clamp(16px, min(1.3vw, 2.3vh), 22px); animation: l-fade 500ms both; }
 .story-agent svg { width: 22px; height: 22px; color: var(--n-cyan); }
 .story-agent span { padding: 4px 12px; border-radius: 999px; background: var(--n-cyan); color: #05070b; font-weight: 600; }
-.story-legend { display: flex; gap: 20px; font-size: 14px; color: var(--n-muted); }
+.story-legend { display: flex; gap: 20px; font-size: clamp(14px, 1.1vw, 18px); color: var(--n-muted); }
 .story-legend span { display: inline-flex; align-items: center; gap: 8px; }
 .story-legend .story-dot { position: static; margin: 0; width: 12px; height: 12px; }
 

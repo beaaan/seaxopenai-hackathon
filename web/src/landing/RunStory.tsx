@@ -2,22 +2,17 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Bot, EyeOff, FileText, ShoppingCart } from "lucide-react";
 import type { FolkVersion } from "@shared/schema";
 import { originalReadings, type Misreading, type RunModel } from "../model";
+import { sawOf, type Saw } from "./tunnel";
 
-/** How long each beat holds, in ms; five beats loop in about half a minute. */
-const BEAT_MS = 5600;
-const BEATS = 5;
+/** How long each beat holds, in ms: a glance for the setup, time to read the quotes and the verdict. */
+const BEAT_MS = [2600, 3000, 4800, 3200, 4200] as const;
+const BEATS = BEAT_MS.length;
 
-type Saw = "help" | "checkout" | "none";
 const SAW: Array<{ key: Saw; label: string; icon: ReactNode; x: number }> = [
   { key: "help", label: "Read the help article", icon: <FileText />, x: 20 },
   { key: "checkout", label: "Saw the checkout message", icon: <ShoppingCart />, x: 50 },
   { key: "none", label: "Saw nothing official", icon: <EyeOff />, x: 80 },
 ];
-
-function sawKey(surfaceIds: readonly string[]): Saw {
-  if (surfaceIds.length === 0) return "none";
-  return surfaceIds.includes("help") ? "help" : "checkout";
-}
 
 interface Reader {
   id: string;
@@ -38,7 +33,7 @@ function position(r: Reader, beat: number, k: number): { x: number; y: number } 
   if (beat === 4) {
     const cx = r.holds ? 30 : 68;
     const cols = r.holds ? 4 : 6;
-    return { x: cx + ((k % cols) - (cols - 1) / 2) * 5, y: 34 + Math.floor(k / cols) * 9 };
+    return { x: cx + ((k % cols) - (cols - 1) / 2) * 5, y: 42 + Math.floor(k / cols) * 9 };
   }
   const col = SAW.find((s) => s.key === r.saw)!;
   return { x: col.x + ((r.slot % 4) - 1.5) * 4.6, y: 36 + Math.floor(r.slot / 4) * 9 };
@@ -64,7 +59,7 @@ export function RunStory(props: { model: RunModel | null; top: Misreading | unde
     const seed = model.config?.seedSize ?? 0;
     const counts: Record<Saw, number> = { help: 0, checkout: 0, none: 0 };
     const readers: Reader[] = model.scenarios.map((s, i) => {
-      const saw = sawKey(s.exposure.surfaceIds);
+      const saw = sawOf(s.exposure.surfaceIds);
       return {
         id: s.id, order: i, told: s.exposure.folkVersionId !== null, saw, holds: holders.has(s.id), slot: counts[saw]++,
         steered: first !== null && i >= seed && i < seed + first.n,
@@ -86,11 +81,14 @@ export function RunStory(props: { model: RunModel | null; top: Misreading | unde
     }
     const told = readers.filter((r) => r.told).length;
     const held = readers.filter((r) => r.holds).length;
-    const rumourId = model.scenarios.find((s) => holders.has(s.id) && s.exposure.folkVersionId)?.exposure.folkVersionId;
-    return { readers, bubbles, first, counts, told, held, rumour: folk.find((f) => f.id === rumourId) ?? null };
+    const rumourId = model.scenarios.find((s) => holders.has(s.id) && s.exposure.folkVersionId)?.exposure.folkVersionId ?? null;
+    const heardIt = model.scenarios.filter((s) => holders.has(s.id) && s.exposure.folkVersionId === rumourId).length;
+    const discovery = model.allocations.at(-1)?.discovery.map((d) => d.newClusters) ?? [];
+    return { readers, bubbles, first, counts, told, held, heardIt, discovery, rumour: folk.find((f) => f.id === rumourId) ?? null };
   }, [model, top, folk]);
 
   // Beats advance only while the stage is on screen; coming back starts the story over.
+  const [visible, setVisible] = useState(false);
   useEffect(() => {
     const el = host.current;
     if (!el) return;
@@ -98,33 +96,38 @@ export function RunStory(props: { model: RunModel | null; top: Misreading | unde
       setBeat(BEATS - 1);
       return;
     }
-    let timer = 0;
     const io = new IntersectionObserver(([entry]) => {
-      window.clearInterval(timer);
-      if (!entry?.isIntersecting) return;
-      setBeat(0);
-      timer = window.setInterval(() => setBeat((b) => (b + 1) % BEATS), BEAT_MS);
+      const on = entry?.isIntersecting ?? false;
+      setVisible(on);
+      if (on) setBeat(0);
     }, { threshold: 0.4 });
     io.observe(el);
-    return () => {
-      io.disconnect();
-      window.clearInterval(timer);
-    };
+    return () => io.disconnect();
   }, [data !== null]);
+  useEffect(() => {
+    if (!visible) return;
+    const timer = window.setTimeout(() => setBeat((b) => (b + 1) % BEATS), BEAT_MS[beat]);
+    return () => window.clearTimeout(timer);
+  }, [visible, beat]);
 
   if (!data) return null;
   const total = data.readers.length;
   const captions: Array<{ title: string; sub: string }> = [
-    { title: `${total} AI shoppers, each a different persona`, sub: `${data.told} of them heard a rumour from a friend first.` },
-    { title: "Each one reads what a real shopper would see", sub: "Shopee's help article, a checkout message reported online, or nothing at all." },
-    { title: "Then we ask: what do you believe now?", sub: "Every answer is in the reader's own words." },
+    { title: `${total} AI shoppers, each a different persona`, sub: `Each has a name, an age, a job and a payment history. ${data.told} heard a rumour from a friend first.` },
+    {
+      title: "Each one reads what a real shopper would see",
+      sub: `${data.counts.help} read Shopee's help article, ${data.counts.checkout} only see the checkout message, ${data.counts.none} see nothing official.`,
+    },
+    { title: "Then we ask: what do you believe now?", sub: "They answer in their own words. Another AI checks every belief against the policy text." },
     {
       title: "A Codex agent decides who reads next",
-      sub: data.first ? `It looks where beliefs split and sends ${data.first.n} more readers there.` : "It looks where beliefs split and sends more readers there.",
+      sub: `It finds where beliefs split and sends ${data.first ? `${data.first.n} more readers` : "more readers"} there.${data.discovery.length > 1 ? ` New beliefs per round: ${data.discovery.join(" → ")}.` : ""}`,
     },
     {
       title: `${data.held} of ${total} now believe a rule that isn't in the text`,
-      sub: data.rumour ? `The rumour: “${data.rumour.claimEn.split(";")[0]!.replace(/\.$/, "")}”.` : "An AI checked every belief against the policy text.",
+      sub: data.rumour
+        ? `They believe “${data.rumour.claimEn.split(";")[0]!.replace(/\.$/, "")}”.${data.heardIt === data.held ? ` All ${data.held} had heard it from a friend.` : ""}`
+        : "Another AI checked every belief against the policy text.",
     },
   ];
   const c = captions[beat]!;
@@ -135,7 +138,7 @@ export function RunStory(props: { model: RunModel | null; top: Misreading | unde
     <div className={`story beat-${beat}`} ref={host}>
       <div className="story-cap">
         <ol className="story-steps" aria-hidden="true">
-          {captions.map((_, i) => <li key={i} className={i === beat ? "now" : i < beat ? "done" : undefined}><i style={{ animationDuration: `${BEAT_MS}ms` }} /></li>)}
+          {captions.map((_, i) => <li key={i} className={i === beat ? "now" : i < beat ? "done" : undefined}><i style={{ animationDuration: `${BEAT_MS[i]}ms` }} /></li>)}
         </ol>
         <h2 key={`t${beat}`} aria-live="polite">{c.title}</h2>
         <p key={`s${beat}`}>{c.sub}</p>
