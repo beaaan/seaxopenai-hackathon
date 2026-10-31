@@ -205,7 +205,9 @@ kbd { display: inline-flex; align-items: center; justify-content: center; min-wi
   .note-points { gap: 6px; margin-top: 15px; }
   .action-badge { margin-top: 16px; padding-top: 10px; padding-bottom: 10px; }
   .next-note > p { font-size: 17px; }
-  .chapter-strip > button { padding: 8px 12px; }
+  .chapter-strip { grid-template-columns: repeat(15, minmax(0, 1fr)); gap: 5px; }
+  .chapter-strip > button { padding: 7px 8px; }
+  .chapter-strip .chapter-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 11px; }
   .qa-browser { max-height: calc(100dvh - 155px); }
   .preview-card { padding: 24px 32px; }
   .preview-card .question-card h1 { font-size: 30px; margin: 17px 0 15px; }
