@@ -1,4 +1,4 @@
-import { Suspense, lazy, type ReactNode } from "react";
+import { Suspense, lazy, useEffect, type ReactNode } from "react";
 import { useHash } from "./hooks";
 import { Shell } from "./shell";
 import { RunsPage } from "./pages/RunsPage";
@@ -20,6 +20,8 @@ function decode(value: string): string | null {
 
 export function App(): ReactNode {
   const hash = useHash();
+  // Hash routes have no matching document anchors, so reset the previous page's scroll.
+  useEffect(() => { window.scrollTo(0, 0); }, [hash]);
   if (hash.startsWith("#/check/")) {
     const runId = decode(hash.slice("#/check/".length));
     return runId === null ? <NotFound /> : <HumanCheckPage key={runId} runId={runId} />;

@@ -52,7 +52,15 @@ function usePresenterChannel(judges: boolean) {
     };
   }, [judges]);
 
-  const send = useCallback((message: PresenterMessage) => channel.current?.postMessage(message), []);
+  const send = useCallback((message: PresenterMessage) => {
+    if (message.type === "goto") {
+      // Hidden audience tabs scroll but do not report, so advance the remote immediately.
+      setPosition((previous) => previous && previous.chapters.includes(message.chapter)
+        ? { ...previous, chapter: message.chapter, index: previous.chapters.indexOf(message.chapter) }
+        : previous);
+    }
+    channel.current?.postMessage(message);
+  }, []);
   return { position, connected, questionId, setQuestionId, send };
 }
 

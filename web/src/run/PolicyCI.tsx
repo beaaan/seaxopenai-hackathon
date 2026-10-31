@@ -50,8 +50,10 @@ function Editor(props: { model: RunModel; onLaunched: (runId: string) => void })
   const [error, setError] = useState<string | null>(null);
   if (!base) return <Panel title="Edit"><Empty>Waiting for the policy text.</Empty></Panel>;
   const changed = surfaces.some((s, i) => s.text !== base.surfaces[i]?.text);
+  const valid = surfaces.length > 0 && surfaces.every((s) => s.text.trim().length > 0);
   const smokeSize = Math.min(model.config?.smokeSize ?? 10, model.scenarios.length);
   const run = (smoke: boolean): void => {
+    if (!changed || !valid || busy) return;
     setBusy(true);
     setError(null);
     api.retest(model.runId, surfaces, smoke).then(
@@ -82,9 +84,10 @@ function Editor(props: { model: RunModel; onLaunched: (runId: string) => void })
         ))}
       </div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", marginTop: 16 }}>
-        <button className="btn primary" disabled={!changed || busy} onClick={() => run(true)}>{busy ? <Loader2 className="spin" /> : <Play />} Test on {smokeSize} readers</button>
-        <button className="btn" disabled={!changed || busy} onClick={() => run(false)}>Full suite, {model.scenarios.length} readers</button>
+        <button className="btn primary" disabled={!changed || !valid || busy} onClick={() => run(true)}>{busy ? <Loader2 className="spin" /> : <Play />} Test on {smokeSize} readers</button>
+        <button className="btn" disabled={!changed || !valid || busy} onClick={() => run(false)}>Full suite, {model.scenarios.length} readers</button>
         {!changed && <span className="small muted">Change the text to run a test.</span>}
+        {!valid && <span className="small bad" role="alert">Enter text for every policy surface before testing.</span>}
         {error && <span className="small bad">{error}</span>}
       </div>
     </Panel>

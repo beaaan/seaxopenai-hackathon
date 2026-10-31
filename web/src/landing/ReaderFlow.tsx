@@ -97,7 +97,7 @@ function build(data: TunnelData): { nodes: FlowNode[]; links: FlowLink[] } {
   return { nodes, links };
 }
 /** Keep a band's identity as its destination grows, so geometry changes interpolate instead of jumping. */
-function FlowBand(props: { d: string; width: number; tone: Tone; dim: boolean; onActive: () => void }): ReactNode {
+function FlowBand(props: { d: string; width: number; tone: Tone; dim: boolean; onActive: () => void; onHover?: () => void }): ReactNode {
   const element = useRef<SVGPathElement>(null);
   const previous = useRef<{ d: string; width: number } | null>(null);
   useLayoutEffect(() => {
@@ -114,16 +114,17 @@ function FlowBand(props: { d: string; width: number; tone: Tone; dim: boolean; o
     );
     return () => animation.cancel();
   }, [props.d, props.width]);
-  return <path ref={element} d={props.d} className={`tone-${props.tone}${props.dim ? " dim" : ""}`} strokeWidth={props.width} onMouseEnter={props.onActive} onClick={props.onActive} />;
+  return <path ref={element} d={props.d} className={`tone-${props.tone}${props.dim ? " dim" : ""}`} strokeWidth={props.width} onMouseEnter={props.onHover} onClick={props.onActive} />;
 }
 
 
 /**
  * Every reader as a band: what they heard first, where they met the rule, and the most common wrong idea they ended
  * up holding. Band width is readers; colour is the destination, so one belief can be followed back to its sources.
+ * With onClear, selection is click-only and selecting the same destination again clears the highlight.
  */
-export function ReaderFlow(props: { data: TunnelData; active: number; onActive: (pool: number) => void }): ReactNode {
-  const { data, active, onActive } = props;
+export function ReaderFlow(props: { data: TunnelData; active: number; onActive: (pool: number) => void; onClear?: () => void }): ReactNode {
+  const { data, active, onActive, onClear } = props;
   const graph = useMemo((): SankeyGraph<FlowNode, FlowLink> => {
     const { nodes, links } = build(data);
     return sankey<FlowNode, FlowLink>()
@@ -151,7 +152,8 @@ export function ReaderFlow(props: { data: TunnelData; active: number; onActive: 
               tone={poolTone(data.pools[l.pool]!, l.pool)}
               dim={active >= 0 && l.pool !== active}
               width={Math.max(1, l.width ?? 1)}
-              onActive={() => onActive(l.pool)}
+              onActive={() => active === l.pool && onClear ? onClear() : onActive(l.pool)}
+              onHover={onClear ? undefined : () => onActive(l.pool)}
             />
           ))}
         </g>
@@ -164,10 +166,11 @@ export function ReaderFlow(props: { data: TunnelData; active: number; onActive: 
             const mid = (y0 + y1) / 2;
             const on = n.pool !== null && n.pool === active;
             return (
-              <g key={n.key} className={`tone-${n.tone}${on ? " on" : ""}`} role={n.pool === null ? undefined : "button"} tabIndex={n.pool === null ? undefined : 0} aria-label={n.pool === null ? undefined : `${n.count} readers: ${data.pools[n.pool]!.label}`} aria-pressed={n.pool === null ? undefined : on} onMouseEnter={n.pool === null ? undefined : () => onActive(n.pool!)} onClick={n.pool === null ? undefined : () => onActive(n.pool!)} onKeyDown={n.pool === null ? undefined : (e) => {
+              <g key={n.key} className={`tone-${n.tone}${on ? " on" : ""}`} role={n.pool === null ? undefined : "button"} tabIndex={n.pool === null ? undefined : 0} aria-label={n.pool === null ? undefined : `${n.count} readers: ${data.pools[n.pool]!.label}`} aria-pressed={n.pool === null ? undefined : on} onMouseEnter={n.pool === null || onClear ? undefined : () => onActive(n.pool!)} onClick={n.pool === null ? undefined : () => on && onClear ? onClear() : onActive(n.pool!)} onKeyDown={n.pool === null ? undefined : (e) => {
                 if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault();
-                  onActive(n.pool!);
+                  if (on && onClear) onClear();
+                  else onActive(n.pool!);
                 }
               }}>
                 <rect x={x0} y={y0} width={x1 - x0} height={Math.max(2, y1 - y0)} rx={3} />

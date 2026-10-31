@@ -130,10 +130,13 @@
   .lab-preset { padding: 15px 18px; }
   .lab-form { margin-top: 18px; }
   .lab-field textarea { height: 180px; }
-  .lab-content.is-live { padding-top: 17px; padding-bottom: 14px; }
-  .is-live .lab-heading { margin-bottom: 14px; }
+  /* Keep live controls visible; long reader lists and expanded rationale scroll inside their panels. */
+  .lab-content.is-live { height: calc(100svh - 56px); display: flex; flex-direction: column; padding-top: 17px; padding-bottom: 14px; }
+  .is-live .lab-heading { flex: none; margin-bottom: 14px; }
   .is-live .lab-heading h1 { font-size: 36px; }
-  .lab-live { gap: 10px; }
+  .lab-live { flex: 1; min-height: 0; gap: 10px; grid-template-rows: auto auto auto minmax(0, 1fr) auto; }
+  .lab-live-grid { min-height: 0; }
+  .lab-readers, .lab-shared { min-height: 0; overflow: auto; }
   .lab-reader { padding: 5px 2px 4px; gap: 2px; }
   .lab-reader > i { width: 16px; height: 16px; margin-bottom: 2px; }
   .lab-reader-grid { gap: 4px; }

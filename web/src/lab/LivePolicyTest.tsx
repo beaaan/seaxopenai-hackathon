@@ -42,7 +42,8 @@ export function LivePolicyTest({ runId, title }: { runId: string; title: string 
     events.some((event) => event.type === "grades.added"),
     events.some((event) => event.type === "clusters.updated"),
     events.some((event) => event.type === "allocation.decided" || (event.type === "thread.item" && event.payload.record.role === "reviewer")),
-    shared.length > 0,
+    // Shared clusters may be correct beliefs. Only findings establish misreadings.
+    (model?.findings.length ?? 0) > 0,
   ];
   const lastActivity = events.findLast((event) => ["scenario.created", "reading.completed", "grades.added", "clusters.updated", "allocation.decided", "thread.item", "findings.updated"].includes(event.type));
   let activeStage = -1;
