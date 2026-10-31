@@ -314,7 +314,7 @@ function voicesOf(model: RunModel, top: Misreading): Voice[] {
   const holders = new Set(top.readers);
   const ids = new Set(top.interpretationIds);
   const byId = scenarioById(model);
-  const picked = new Map<string, Voice>();
+  const candidates = new Map<string, Voice[]>();
   const gradeOf = new Map(model.grades.map((g) => [g.interpretationId, g.label]));
   for (const r of originalReadings(model)) {
     const s = byId.get(r.scenarioId);
@@ -322,11 +322,29 @@ function voicesOf(model: RunModel, top: Misreading): Voice[] {
     const it = r.interpretations.find((x) => ids.has(x.id) && (gradeOf.get(x.id) === "outside" || gradeOf.get(x.id) === "conflicts"));
     if (!s || !it || !holders.has(s.id)) continue;
     const key = sawOf(s.exposure.surfaceIds).key;
-    if (picked.has(key)) continue;
     const said = it.glossEn.split(/(?<=[.!?])\s/)[0] ?? it.glossEn;
-    picked.set(key, { scenario: s, said: clip(said, 170), label: gradeOf.get(it.id) ?? null });
+    const list = candidates.get(key) ?? [];
+    list.push({ scenario: s, said: clip(said, 170), label: gradeOf.get(it.id) ?? null });
+    candidates.set(key, list);
   }
-  return SAW_ORDER.flatMap((k) => picked.get(k) ?? []);
+  // One reader per channel, chosen so the three differ in province, family name and name wherever the run allows.
+  const provinces = new Set<string>();
+  const surnames = new Set<string>();
+  const names = new Set<string>();
+  const novelty = (v: Voice): number => {
+    const p = v.scenario.persona;
+    return (provinces.has(p.province) ? 0 : 4) + (surnames.has(p.name.split(" ")[0] ?? "") ? 0 : 2) + (names.has(p.name) ? 0 : 1);
+  };
+  return SAW_ORDER.flatMap((k) => {
+    const list = candidates.get(k);
+    if (!list || list.length === 0) return [];
+    const best = list.reduce((a, b) => (novelty(b) > novelty(a) ? b : a));
+    const p = best.scenario.persona;
+    provinces.add(p.province);
+    surnames.add(p.name.split(" ")[0] ?? "");
+    names.add(p.name);
+    return [best];
+  });
 }
 
 function Voices(props: { model: RunModel | null; top: Misreading | undefined; folk: readonly FolkVersion[] }): ReactNode {
