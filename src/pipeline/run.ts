@@ -20,7 +20,7 @@ import { draftFindings } from "../reviewer/findings";
 import { classifyByRepair } from "../reviewer/classify";
 import { rewritePolicy, type RewriteCandidate } from "../reviewer/rewrite";
 import { checkFidelity } from "../reviewer/fidelity";
-import { conflictRate, iterationMetrics, noiseBand } from "../reviewer/metrics";
+import { conflictRate, iterationMetrics, noiseBand, reproductionNoise } from "../reviewer/metrics";
 import { stopDecision } from "../reviewer/stop";
 import { runBaseline } from "../eval/baseline";
 import { scoreAgainstHoldout } from "../eval/score";
@@ -260,7 +260,8 @@ export async function runWindTunnel(args: { runId: string; config: RunConfig }):
       const pairedB = retestReadings.filter((r) => aIds.has(r.scenarioId));
       const noise = noiseBand({ readings: pairedA, grades: recorder.state.grades }, { readings: pairedB, grades: recorder.state.grades }, DEFAULT_CONFLICT_THRESHOLD);
       const findingScenarios = scenarioIdsByFinding(recorder.state.findings, recorder.state.readings);
-      const initial = iterationMetrics({ version: 0, readings: originalReadings, grades: recorder.state.grades, codings: recorder.state.codings, findings: recorder.state.findings, scenarioIdsByFinding: findingScenarios, noiseBand: noise.band, noiseBandScenarios: noise.pairedScenarios, threshold: DEFAULT_CONFLICT_THRESHOLD, seed: config.seed });
+      const findingNoise = reproductionNoise(recorder.state.findings, findingScenarios, { readings: pairedA, codings: recorder.state.codings }, { readings: pairedB, codings: recorder.state.codings });
+      const initial = iterationMetrics({ version: 0, readings: originalReadings, grades: recorder.state.grades, codings: recorder.state.codings, findings: recorder.state.findings, scenarioIdsByFinding: findingScenarios, noiseBand: noise.band, noiseBandScenarios: noise.pairedScenarios, reproductionNoise: findingNoise, threshold: DEFAULT_CONFLICT_THRESHOLD, seed: config.seed });
       let decision = stopDecision({ history: [], current: initial, iterationIndex: 0, maxIterations: config.maxIterations, fidelityFailures: 0 });
       recorder.emit("iteration.completed", { iteration: { ...initial, ...decision } });
       let currentVersion = v0;
@@ -294,8 +295,13 @@ export async function runWindTunnel(args: { runId: string; config: RunConfig }):
           { readings: retestReadings.filter((reading) => pairedIds.has(reading.scenarioId)), grades: recorder.state.grades },
           DEFAULT_CONFLICT_THRESHOLD,
         );
-        const previousMetrics = iterationMetrics({ version: previous.policyVersion, readings: pairs.before, grades: recorder.state.grades, codings: recorder.state.codings, findings: recorder.state.findings, scenarioIdsByFinding: findingScenarios, noiseBand: comparisonNoise.band, noiseBandScenarios: comparisonNoise.pairedScenarios, threshold: DEFAULT_CONFLICT_THRESHOLD, seed: config.seed });
-        const metrics = iterationMetrics({ version: i, readings: pairs.after, grades: recorder.state.grades, codings: recorder.state.codings, findings: recorder.state.findings, scenarioIdsByFinding: findingScenarios, noiseBand: comparisonNoise.band, noiseBandScenarios: comparisonNoise.pairedScenarios, threshold: DEFAULT_CONFLICT_THRESHOLD, seed: config.seed });
+        const comparisonFindingNoise = reproductionNoise(
+          recorder.state.findings, findingScenarios,
+          { readings: originalReadings.filter((reading) => pairedIds.has(reading.scenarioId)), codings: recorder.state.codings },
+          { readings: retestReadings.filter((reading) => pairedIds.has(reading.scenarioId)), codings: recorder.state.codings },
+        );
+        const previousMetrics = iterationMetrics({ version: previous.policyVersion, readings: pairs.before, grades: recorder.state.grades, codings: recorder.state.codings, findings: recorder.state.findings, scenarioIdsByFinding: findingScenarios, noiseBand: comparisonNoise.band, noiseBandScenarios: comparisonNoise.pairedScenarios, reproductionNoise: comparisonFindingNoise, threshold: DEFAULT_CONFLICT_THRESHOLD, seed: config.seed });
+        const metrics = iterationMetrics({ version: i, readings: pairs.after, grades: recorder.state.grades, codings: recorder.state.codings, findings: recorder.state.findings, scenarioIdsByFinding: findingScenarios, noiseBand: comparisonNoise.band, noiseBandScenarios: comparisonNoise.pairedScenarios, reproductionNoise: comparisonFindingNoise, threshold: DEFAULT_CONFLICT_THRESHOLD, seed: config.seed });
         ctx.log("info", `Version comparison v${previous.policyVersion} → v${i}: ${pairs.after.length} paired scenarios; conflict ${previousMetrics.conflictRate.toFixed(3)} → ${metrics.conflictRate.toFixed(3)}; ${comparisonNoise.pairedScenarios} noise pairs.`);
         const comparisonHistory = [...recorder.state.iterations.slice(0, -1), { ...previousMetrics, decision: previous.decision, reason: previous.reason }];
         decision = stopDecision({ history: comparisonHistory, current: metrics, iterationIndex: i, maxIterations: config.maxIterations, fidelityFailures: 0 });
@@ -308,10 +314,13 @@ export async function runWindTunnel(args: { runId: string; config: RunConfig }):
         stopReason = decision.reason;
       }
       recorder.emit("stop.decided", { finalVersion: finalVersion.version, reason: stopReason });
+      // Baselines: `baselineRuns` gpt-6.1-sol replicates plus one gpt-6-astra comparator; none when baselineRuns = 0.
       for (let i = 1; i <= config.baselineRuns; i++) {
         recorder.emit("baseline.completed", { run: await runBaseline(ctx, v0, { id: `baseline-${i}`, model: "gpt-6.1-sol", effort: "high" }) });
       }
-      recorder.emit("baseline.completed", { run: await runBaseline(ctx, v0, { id: "baseline-astra", model: "gpt-6-astra", effort: "high" }) });
+      if (config.baselineRuns > 0) {
+        recorder.emit("baseline.completed", { run: await runBaseline(ctx, v0, { id: "baseline-astra", model: "gpt-6-astra", effort: "high" }) });
+      }
       const sentenceText = new Map(v0.sentences.map((sentence) => [sentence.id, sentence.text]));
       const score = await scoreAgainstHoldout(ctx, { version: v0, seed: config.seed, systems: [
         { id: "wind-tunnel", label: "Wind tunnel", items: recorder.state.findings.map((finding) => {

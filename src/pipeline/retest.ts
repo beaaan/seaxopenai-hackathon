@@ -5,7 +5,7 @@ import { readEvents } from "../core/store";
 import { Surface, type Iteration, type PolicyVersion, type Reading, type RunConfig, type Scenario, type SuiteComparison } from "../shared/schema";
 import { DEFAULT_CONFLICT_THRESHOLD, gradeReadings } from "../reviewer/grade";
 import { codeReadings } from "../reviewer/code";
-import { iterationMetrics, noiseBand } from "../reviewer/metrics";
+import { iterationMetrics, noiseBand, reproductionNoise } from "../reviewer/metrics";
 import { compareSuite } from "./suite";
 import { RunRecorder, cohort, createStageContext, inputFingerprints, logProvenance, pairedCohorts, readBatch, rebuildRunState, scenarioIdsByFinding, type RunState } from "./run";
 
@@ -105,15 +105,16 @@ export async function retestEdit(args: { runId: string; suiteRunId: string; surf
     // Empty/sub-five subsets remain explicitly inconclusive, never borrow parent coverage.
     const noise = noiseBand({ readings: pairs.before, grades: suite.grades }, { readings: pairs.after, grades: suite.grades }, DEFAULT_CONFLICT_THRESHOLD);
     const subsetFindingScenarios = Object.fromEntries(Object.entries(findingScenarios).map(([findingId, ids]) => [findingId, ids.filter((id) => scenarioIds.has(id))]));
+    const findingNoise = reproductionNoise(suite.findings, subsetFindingScenarios, { readings: pairs.before, codings: suite.codings }, { readings: pairs.after, codings: suite.codings });
     const before: Iteration = {
-      ...iterationMetrics({ version: baseVersion, readings: beforeReadings, grades: suite.grades, codings: suite.codings, findings: suite.findings, scenarioIdsByFinding: subsetFindingScenarios, noiseBand: noise.band, noiseBandScenarios: noise.pairedScenarios, threshold: DEFAULT_CONFLICT_THRESHOLD, seed: config.seed }),
+      ...iterationMetrics({ version: baseVersion, readings: beforeReadings, grades: suite.grades, codings: suite.codings, findings: suite.findings, scenarioIdsByFinding: subsetFindingScenarios, noiseBand: noise.band, noiseBandScenarios: noise.pairedScenarios, reproductionNoise: findingNoise, threshold: DEFAULT_CONFLICT_THRESHOLD, seed: config.seed }),
       decision: "stop", reason: "Suite baseline recomputed on the selected scenarios.",
     };
     const after: Iteration = {
-      ...iterationMetrics({ version: version.version, readings, grades, codings, findings: suite.findings, scenarioIdsByFinding: subsetFindingScenarios, noiseBand: noise.band, noiseBandScenarios: noise.pairedScenarios, threshold: DEFAULT_CONFLICT_THRESHOLD, seed: config.seed }),
+      ...iterationMetrics({ version: version.version, readings, grades, codings, findings: suite.findings, scenarioIdsByFinding: subsetFindingScenarios, noiseBand: noise.band, noiseBandScenarios: noise.pairedScenarios, reproductionNoise: findingNoise, threshold: DEFAULT_CONFLICT_THRESHOLD, seed: config.seed }),
       decision: "stop", reason: "Edited text tested against the frozen suite.",
     };
-    const result = compareSuite({ before, after, noiseBand: noise.band });
+    const result = compareSuite({ before, after, noiseBand: noise.band, conflictMeasured: ctx.reference !== null });
     after.reason = result.verdict === "pass" ? "Frozen suite passed." : result.reasons.join("; ");
     comparison = { suiteRunId: args.suiteRunId, baseVersion, before, after, ...result };
     recorder.emit("iteration.completed", { iteration: after });

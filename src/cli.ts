@@ -144,18 +144,24 @@ function validId(value: string): string {
 }
 
 function printComparison(comparison: SuiteComparison): void {
+  const r = (value: number): string => value.toFixed(3);
   console.table([
-    { metric: "readings", before: comparison.before.readings, after: comparison.after.readings },
-    { metric: "conflict rate", before: comparison.before.conflictRate, after: comparison.after.conflictRate },
-    { metric: "open question rate", before: comparison.before.openQuestionRate, after: comparison.after.openQuestionRate },
-    ...comparison.before.findingReproduction.map((finding) => ({
-      metric: `finding ${finding.findingId}`,
-      before: finding.rate,
-      after: comparison.after.findingReproduction.find((item) => item.findingId === finding.findingId)?.rate ?? "not measured",
-    })),
+    { metric: "readings", before: String(comparison.before.readings), after: String(comparison.after.readings), noise: "" },
+    { metric: "conflict rate", before: r(comparison.before.conflictRate), after: r(comparison.after.conflictRate), noise: comparison.after.noiseBand === null ? "n/a" : `±${r(comparison.after.noiseBand)}` },
+    { metric: "open question rate", before: r(comparison.before.openQuestionRate), after: r(comparison.after.openQuestionRate), noise: "" },
+    ...comparison.before.findingReproduction.map((finding) => {
+      const after = comparison.after.findingReproduction.find((item) => item.findingId === finding.findingId);
+      return {
+        metric: `finding ${finding.findingId}`,
+        before: finding.n === 0 ? "not covered" : `${r(finding.rate)} (n=${finding.n})`,
+        after: after === undefined || after.n === 0 ? "not measured" : `${r(after.rate)} (n=${after.n})`,
+        noise: finding.noiseBand === null ? "n/a" : `±${r(finding.noiseBand)}`,
+      };
+    }),
   ]);
-  console.log(`noise band: ${comparison.after.noiseBand ?? "not measured"}; paired scenarios: ${comparison.after.noiseBandScenarios ?? "unknown"}`);
-  console.log(`${comparison.verdict.toUpperCase()}${comparison.reasons.length ? `: ${comparison.reasons.join("; ")}` : ""}`);
+  console.log(`test–retest pairs: ${comparison.after.noiseBandScenarios ?? "unknown"}`);
+  console.log(comparison.verdict.toUpperCase());
+  for (const reason of comparison.reasons) console.log(`  - ${reason}`);
 }
 
 async function main(): Promise<void> {

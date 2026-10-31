@@ -1,7 +1,7 @@
 /**
  * Run storage: `runs/<runId>/events.jsonl`, append-only, one validated event per line.
  */
-import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, statSync, unlinkSync, watch } from "node:fs";
+import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, readSync, statSync, unlinkSync, watch } from "node:fs";
 import path from "node:path";
 import { EVENT_PAYLOADS, parseEvent, type EventPayload, type EventType, type RunEvent, type RunSummary } from "../shared/events";
 import { RUNS_DIR } from "./paths";
@@ -123,18 +123,29 @@ export function listRuns(runsDir = RUNS_DIR): RunSummary[] {
 export function tailEvents(runId: string, fromSeq: number, onEvent: (event: RunEvent) => void, runsDir = RUNS_DIR): () => void {
   const file = eventsPath(runId, runsDir);
   let offset = 0;
-  let buffer = "";
+  // Raw bytes after the last complete line: a write may end inside a multi-byte UTF-8 character.
+  let pending = Buffer.alloc(0);
   let next = fromSeq;
   const pump = () => {
     if (!existsSync(file)) return;
     const size = statSync(file).size;
     if (size <= offset) return;
-    const chunk = readFileSync(file).subarray(offset, size).toString("utf8");
+    const fresh = Buffer.alloc(size - offset);
+    const fd = openSync(file, "r");
+    try {
+      readSync(fd, fresh, 0, fresh.length, offset);
+    } finally {
+      closeSync(fd);
+    }
     offset = size;
-    buffer += chunk;
-    const lines = buffer.split("\n");
-    buffer = lines.pop() ?? "";
-    for (const line of lines) {
+    const bytes = pending.length === 0 ? fresh : Buffer.concat([pending, fresh]);
+    const end = bytes.lastIndexOf(0x0a);
+    if (end < 0) {
+      pending = bytes;
+      return;
+    }
+    pending = bytes.subarray(end + 1);
+    for (const line of bytes.subarray(0, end).toString("utf8").split("\n")) {
       if (line.trim() === "") continue;
       const event = parseEvent(JSON.parse(line));
       if (event.seq >= next) {

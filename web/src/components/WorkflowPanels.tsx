@@ -1,39 +1,110 @@
 import { useState, type FormEvent, type ReactNode } from "react";
 import type { PolicyVersion, SuiteComparison } from "@shared/schema";
 import { approveVersion, mapHumanAnswers, retestRun } from "../api";
-import { findCluster, type RunView } from "../state";
+import type { RunView } from "../state";
 import { pct } from "../ui";
+
+interface CodebookCohort {
+  version: number;
+  tag: string;
+  readingIdsByScenario: Map<string, string>;
+}
 
 export function CodebookPanel(props: { view: RunView }): ReactNode {
   const { view } = props;
-  const versions = Object.keys(view.versions).map(Number).sort((a, b) => a - b);
-  if (view.codebookVersion === null) return <p className="text-slate-600">The belief codebook has not been frozen yet.</p>;
-  const readingIds = new Map(versions.map((version) => [version, new Set(Object.values(view.readings).filter((r) => r.policyVersion === version).map((r) => r.id))]));
-  const means = new Map<string, { mean: number; n: number }>();
-  for (const version of versions) {
-    const ids = readingIds.get(version);
-    for (const clusterId of view.codebookClusterIds) {
-      const values = new Map<string, number>();
-      for (const coding of view.codings[version] ?? []) {
-        if (coding.clusterId === clusterId && ids?.has(coding.readingId)) values.set(coding.readingId, coding.probability);
+  const codebookVersion = view.codebookVersion;
+  if (codebookVersion === null) return <p className="text-slate-600">The belief codebook has not been frozen yet.</p>;
+
+  const grouped = new Map<string, CodebookCohort>();
+  for (const reading of Object.values(view.readings)) {
+    const prefix = `r-${reading.scenarioId}-v${reading.policyVersion}`;
+    const suffix = reading.id.slice(prefix.length);
+    const tag = reading.id.startsWith(prefix) && (suffix === "" || suffix.startsWith("-")) ? suffix.replace(/^-/, "") : `unparsed:${reading.id}`;
+    const key = `${reading.policyVersion}:${tag}`;
+    let cohort = grouped.get(key);
+    if (cohort === undefined) {
+      cohort = { version: reading.policyVersion, tag, readingIdsByScenario: new Map() };
+      grouped.set(key, cohort);
+    }
+    cohort.readingIdsByScenario.set(reading.scenarioId, reading.id);
+  }
+  const cohorts = [...grouped.values()].sort((a, b) => a.version - b.version || a.tag.localeCompare(b.tag));
+  const probabilities = new Map<string, Map<string, number>>();
+  for (const codings of Object.values(view.codings)) {
+    for (const coding of codings) {
+      let beliefs = probabilities.get(coding.readingId);
+      if (beliefs === undefined) {
+        beliefs = new Map();
+        probabilities.set(coding.readingId, beliefs);
       }
-      if (values.size > 0) means.set(`${version}:${clusterId}`, { mean: [...values.values()].reduce((sum, n) => sum + n, 0) / values.size, n: values.size });
+      beliefs.set(coding.clusterId, coding.probability);
     }
   }
+
   return (
     <div className="space-y-3" data-testid="codebook-panel">
-      <p className="text-slate-600">Fixed v{view.codebookVersion} belief statements · mean P(reading holds belief). The same instrument measures every version; green cells mark drops, not a judgement that every belief is wrong.</p>
+      <p className="text-slate-600">Fixed v{view.codebookVersion} belief statements · mean P(reading holds belief). Cohorts are separate by policy version and replicate tag. Version deltas use only shared coded scenarios with the same tag; green marks a drop beyond the recorded noise with at least 5 pairs, not a judgement that every belief is wrong.</p>
       <div className="overflow-x-auto">
         <table className="w-full text-left">
-          <thead><tr className="border-b-2 border-slate-200"><th className="p-3">Belief / Niềm tin</th>{versions.map((version) => <th key={version} className="min-w-36 p-3 text-right">v{version}<div className="text-sm font-normal text-slate-600">{readingIds.get(version)?.size ?? 0} readings</div></th>)}</tr></thead>
+          <thead>
+            <tr className="border-b-2 border-slate-200">
+              <th className="p-3">Belief / Niềm tin</th>
+              {cohorts.map((cohort) => <th key={`${cohort.version}:${cohort.tag}`} className="min-w-56 p-3 text-right">v{cohort.version} · {cohort.tag || "primary (no tag)"}<div className="text-sm font-normal text-slate-600">{cohort.readingIdsByScenario.size} persona readings</div></th>)}
+            </tr>
+          </thead>
           <tbody>{view.codebookClusterIds.map((id) => {
-            const cluster = findCluster(view, id);
-            return <tr key={id} className="border-b border-slate-200 align-top"><th className="p-3 font-medium"><div>{cluster?.labelVi ?? id}</div><div className="mt-1 text-sm font-normal text-slate-600">{cluster?.labelEn}</div></th>{versions.map((version, index) => {
-              const value = means.get(`${version}:${id}`);
-              const previous = means.get(`${versions[index - 1]}:${id}`);
-              const drop = value !== undefined && previous !== undefined ? previous.mean - value.mean : 0;
-              return <td key={version} className={`p-3 text-right ${drop > 0 ? "bg-emerald-50 text-emerald-900" : ""}`}><div className="text-2xl font-bold tabular-nums">{value === undefined ? "—" : pct(value.mean)}</div>{drop > 0 && <div className="font-semibold">↓ {(drop * 100).toFixed(1)} pp</div>}{value !== undefined && <div className="text-xs text-slate-600">n = {value.n}</div>}</td>;
-            })}</tr>;
+            const cluster = view.clusters[codebookVersion]?.find((belief) => belief.id === id);
+            const measurements = cohorts.map((cohort) => {
+              const byScenario = new Map<string, number>();
+              let sum = 0;
+              for (const [scenarioId, readingId] of cohort.readingIdsByScenario) {
+                const probability = probabilities.get(readingId)?.get(id);
+                if (probability === undefined) continue;
+                byScenario.set(scenarioId, probability);
+                sum += probability;
+              }
+              return { cohort, byScenario, mean: byScenario.size === 0 ? null : sum / byScenario.size };
+            });
+            return (
+              <tr key={id} className="border-b border-slate-200 align-top">
+                <th className="p-3 font-medium"><div>{cluster?.labelVi ?? id}</div><div className="mt-1 text-sm font-normal text-slate-600">{cluster?.labelEn}</div></th>
+                {measurements.map((current, index) => {
+                  const previous = measurements.findLast((candidate, candidateIndex) => candidateIndex < index && candidate.cohort.tag === current.cohort.tag && candidate.cohort.version < current.cohort.version);
+                  let pairs = 0;
+                  let beforeSum = 0;
+                  let afterSum = 0;
+                  if (previous !== undefined) {
+                    for (const [scenarioId, after] of current.byScenario) {
+                      const before = previous.byScenario.get(scenarioId);
+                      if (before === undefined) continue;
+                      pairs += 1;
+                      beforeSum += before;
+                      afterSum += after;
+                    }
+                  }
+                  const iteration = view.iterations.findLast((item) => item.policyVersion === current.cohort.version) ?? view.iterations.findLast((item) => item.policyVersion === previous?.cohort.version);
+                  const noise = iteration?.noiseBand ?? null;
+                  const noisePairs = iteration?.noiseBandScenarios ?? null;
+                  const drop = pairs === 0 ? 0 : (beforeSum - afterSum) / pairs;
+                  const sufficient = pairs >= 5 && noise !== null && noisePairs !== null && noisePairs >= 5;
+                  return (
+                    <td key={`${current.cohort.version}:${current.cohort.tag}`} className="p-3 text-right">
+                      <div className="text-2xl font-bold tabular-nums">{current.mean === null ? "—" : pct(current.mean)}</div>
+                      <div className="text-xs text-slate-600">cohort n = {current.byScenario.size}</div>
+                      {previous !== undefined && pairs === 0 && <p className="mt-2 text-sm text-slate-600">No shared coded scenarios · paired n = 0</p>}
+                      {pairs > 0 && (
+                        <div className={`mt-2 rounded p-2 text-sm ${sufficient && drop > noise ? "bg-emerald-50 text-emerald-900" : "bg-slate-50 text-slate-700"}`}>
+                          <div>Paired v{previous?.cohort.version} → v{current.cohort.version}: {pct(beforeSum / pairs)} → {pct(afterSum / pairs)}</div>
+                          <div className="font-semibold">Δ {drop > 0 ? "−" : drop < 0 ? "+" : ""}{Math.abs(drop * 100).toFixed(1)} pp · paired n = {pairs}</div>
+                          <div>{noise === null || noisePairs === null ? "no noise estimate" : `test–retest noise ±${pct(noise)} (paired n=${noisePairs}, v${iteration?.policyVersion})`}</div>
+                          {(pairs < 5 || (noisePairs !== null && noisePairs < 5)) && <div className="font-semibold text-amber-900">insufficient pairs</div>}
+                        </div>
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
+            );
           })}</tbody>
         </table>
       </div>

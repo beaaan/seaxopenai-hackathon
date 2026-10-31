@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bootstrapCI, conflictRate, iterationMetrics, noiseBand } from "../src/reviewer/metrics";
+import { bootstrapCI, conflictRate, iterationMetrics, noiseBand, reproductionNoise } from "../src/reviewer/metrics";
 import type { Finding, Grade, Reading } from "../src/shared/schema";
 
 function reading(scenarioId: string, version = 0, questionCount = 0): Reading {
@@ -81,13 +81,14 @@ describe("iterationMetrics", () => {
       findings: [finding("f1", ["c1", "c2"]), finding("f2", ["c3"], "design_gap"), finding("f3", ["c1"]), finding("f4", ["c4"])],
       scenarioIdsByFinding: { f1: ["s1", "s2", "s3", "uncoded", "missing"], f2: ["s1"], f3: ["missing", "uncoded"], f4: ["s1"] },
       threshold: 0.5, noiseBand: 0.1, noiseBandScenarios: 10, seed: 7,
+      reproductionNoise: { f1: { band: 0.2, pairedScenarios: 5 }, f2: { band: 0.3, pairedScenarios: 4 } },
     });
     expect(result.readings).toBe(4);
     expect(result.conflictRate).toBe(1 / 4);
     expect(result.openQuestionRate).toBe(2 / 4);
     expect(result.findingReproduction).toEqual([
-      { findingId: "f1", rate: 0.5, n: 3 }, { findingId: "f2", rate: 1, n: 1 },
-      { findingId: "f3", rate: 0, n: 0 }, { findingId: "f4", rate: 0.49, n: 1 },
+      { findingId: "f1", rate: 0.5, n: 3, noiseBand: 0.2 }, { findingId: "f2", rate: 1, n: 1, noiseBand: null },
+      { findingId: "f3", rate: 0, n: 0, noiseBand: null }, { findingId: "f4", rate: 0.49, n: 1, noiseBand: null },
     ]);
     expect(result.openWordingFindings).toBe(2);
     expect(result.noiseBand).toBe(0.1);
@@ -95,11 +96,29 @@ describe("iterationMetrics", () => {
   });
 
   it("does not treat absent readings as observed non-conflicts", () => {
-    const result = iterationMetrics({ version: 1, readings: [], grades: [], codings: [], findings: [finding("f1", ["c1"])], scenarioIdsByFinding: { f1: ["s1"] }, noiseBand: null, noiseBandScenarios: null, threshold: 0.5, seed: 1 });
+    const result = iterationMetrics({ version: 1, readings: [], grades: [], codings: [], findings: [finding("f1", ["c1"])], scenarioIdsByFinding: { f1: ["s1"] }, noiseBand: null, noiseBandScenarios: null, reproductionNoise: null, threshold: 0.5, seed: 1 });
     expect(result.readings).toBe(0);
     expect(result.ci95).toEqual({ lo: 0, hi: 0 });
-    expect(result.findingReproduction).toEqual([{ findingId: "f1", rate: 0, n: 0 }]);
+    expect(result.findingReproduction).toEqual([{ findingId: "f1", rate: 0, n: 0, noiseBand: null }]);
     expect(result.openWordingFindings).toBe(1);
+  });
+});
+
+describe("reproductionNoise", () => {
+  it("pairs only scenarios coded in both runs and takes the larger of drift and paired SE", () => {
+    const a = ["s1", "s2", "s3"].map((id) => reading(id, 0));
+    const b = ["s1", "s2", "s4"].map((id) => ({ ...reading(id, 0), id: `r-${id}-v0-rt` }));
+    const noise = reproductionNoise(
+      [finding("f1", ["c1", "c2"])],
+      { f1: ["s1", "s2", "s3", "s4"] },
+      { readings: a, codings: [{ readingId: a[0]!.id, clusterId: "c1", probability: 0.9 }, { readingId: a[1]!.id, clusterId: "c2", probability: 0.5 }, { readingId: a[2]!.id, clusterId: "c1", probability: 1 }] },
+      { readings: b, codings: [{ readingId: b[0]!.id, clusterId: "c2", probability: 0.7 }, { readingId: b[1]!.id, clusterId: "c1", probability: 0.5 }, { readingId: b[2]!.id, clusterId: "c1", probability: 0 }] },
+    );
+    // Paired: s1 (0.9 − 0.7) and s2 (0.5 − 0.5); s3 and s4 were coded in one run only.
+    expect(noise.f1!.pairedScenarios).toBe(2);
+    const mean = 0.1;
+    const se = Math.sqrt(((0.2 - mean) ** 2 + (0 - mean) ** 2) / 1 / 2);
+    expect(noise.f1!.band).toBeCloseTo(Math.max(mean, 1.96 * se), 12);
   });
 });
 

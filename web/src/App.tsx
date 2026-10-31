@@ -7,7 +7,7 @@ import { FindingsPane } from "./components/FindingsPane";
 import { PolicyPane } from "./components/PolicyPane";
 import { HumanCheckPage, NewPolicyPage } from "./components/RunPages";
 import { SuiteComparisonPanel } from "./components/WorkflowPanels";
-import { foldEvents } from "./state";
+import { foldEvents, mergeEvents } from "./state";
 
 type Mode = "replay" | "live";
 type Speed = "instant" | "x1" | "x4";
@@ -82,6 +82,11 @@ function RunApp(props: { initialRunId: string | null }): ReactNode {
   revealedRef.current = revealed;
   const speedRef = useRef(speed);
   speedRef.current = speed;
+  const selectedRunRef = useRef(runId);
+  selectedRunRef.current = runId;
+  const refreshRequestRef = useRef(0);
+
+  useEffect(() => () => { refreshRequestRef.current += 1; }, []);
 
   const initialized = useRef(props.initialRunId !== null);
   useEffect(() => {
@@ -105,7 +110,7 @@ function RunApp(props: { initialRunId: string | null }): ReactNode {
     let cancelled = false;
     fetchEvents(runId).then(
       (all) => {
-        if (cancelled) return;
+        if (cancelled || selectedRunRef.current !== runId) return;
         setEvents(all);
         if (speedRef.current === "instant") setRevealed(all.length);
         else {
@@ -113,7 +118,7 @@ function RunApp(props: { initialRunId: string | null }): ReactNode {
           setPlaying(revealedRef.current < all.length);
         }
       },
-      (err: unknown) => { if (!cancelled) setError(String(err)); },
+      (err: unknown) => { if (!cancelled && selectedRunRef.current === runId) setError(String(err)); },
     );
     return () => {
       cancelled = true;
@@ -125,15 +130,23 @@ function RunApp(props: { initialRunId: string | null }): ReactNode {
     if (runId === null || mode !== "live") return;
     const from = revealedRef.current;
     setEvents((prev) => prev.slice(0, from));
-    return subscribeEvents(
+    let active = true;
+    const unsubscribe = subscribeEvents(
       runId,
       from,
       (event) => {
+        if (!active || selectedRunRef.current !== runId) return;
         setError(null);
-        setEvents((prev) => (event.seq === prev.length ? [...prev, event] : prev));
+        setEvents((prev) => {
+          if (!active || selectedRunRef.current !== runId) return prev;
+          if (event.seq === (prev.at(-1)?.seq ?? -1) + 1) return [...prev, event];
+          if (prev.some((item) => item.seq === event.seq)) return prev;
+          return mergeEvents(prev, [event]);
+        });
       },
-      setError,
+      (message) => { if (active && selectedRunRef.current === runId) setError(message); },
     );
+    return () => { active = false; unsubscribe(); };
   }, [runId, mode]);
 
   useEffect(() => {
@@ -151,9 +164,11 @@ function RunApp(props: { initialRunId: string | null }): ReactNode {
 
   const visible = useMemo(() => (mode === "live" ? events : events.slice(0, revealed)), [mode, events, revealed]);
   const view = useMemo(() => foldEvents(visible), [visible]);
-  const version = pickedVersion !== null && view.versions[pickedVersion] !== undefined ? pickedVersion : view.currentVersion;
+  const version = pickedVersion !== null && view.versions[pickedVersion] !== undefined ? pickedVersion : view.stop?.finalVersion ?? view.currentVersion;
 
   const selectRun = (id: string): void => {
+    selectedRunRef.current = id === "" ? null : id;
+    refreshRequestRef.current += 1;
     setRunId(id === "" ? null : id);
     setEvents([]);
     setRevealed(0);
@@ -171,15 +186,22 @@ function RunApp(props: { initialRunId: string | null }): ReactNode {
   };
 
   const refresh = (): void => {
-    if (runId === null) return;
+    if (runId === null || selectedRunRef.current !== runId) return;
     if (mode !== "live") changeMode("live");
     else {
-      fetchEvents(runId).then((all) => setEvents(all), (err: unknown) => setError(String(err)));
+      const request = ++refreshRequestRef.current;
+      fetchEvents(runId).then((all) => {
+        if (request !== refreshRequestRef.current || selectedRunRef.current !== runId) return;
+        setEvents((current) => request === refreshRequestRef.current && selectedRunRef.current === runId ? mergeEvents(current, all) : current);
+      }, (err: unknown) => {
+        if (request === refreshRequestRef.current && selectedRunRef.current === runId) setError(String(err));
+      });
     }
   };
 
   const changeMode = (next: Mode): void => {
     if (next === mode) return;
+    refreshRequestRef.current += 1;
     const position = mode === "live" ? events.length : revealed;
     setRevealed(position);
     revealedRef.current = position;

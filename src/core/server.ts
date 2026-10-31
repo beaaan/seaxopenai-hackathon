@@ -17,7 +17,7 @@
  *   POST /api/runs/:runId/approve          → {ok}; record approval of an existing version
  */
 import { spawn } from "node:child_process";
-import { closeSync, existsSync, mkdirSync, openSync, writeFileSync } from "node:fs";
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { Hono } from "hono";
@@ -71,8 +71,14 @@ function reserveRunId(base: string, numbered: boolean): string {
   }
 }
 
-async function launchCli(runId: string, args: string[]): Promise<void> {
-  const stderr = openSync(path.join(RUNS_DIR, runId, "stderr.log"), "a");
+/**
+ * Starts a detached CLI job. A non-zero exit is published to the run's log (the UI only
+ * watches the log): `run.failed` for run/test jobs that did not record a terminal event
+ * themselves, an error `log` event for annotation jobs such as `map-human`.
+ */
+async function launchCli(runId: string, args: string[], writer: RunWriter, terminal: boolean): Promise<void> {
+  const stderrPath = path.join(RUNS_DIR, runId, "stderr.log");
+  const stderr = openSync(stderrPath, "a");
   try {
     const child = spawn(process.execPath, [path.join(REPO_ROOT, "node_modules/tsx/dist/cli.mjs"), "src/cli.ts", ...args], {
       cwd: REPO_ROOT, detached: true, stdio: ["ignore", "ignore", stderr],
@@ -80,6 +86,17 @@ async function launchCli(runId: string, args: string[]): Promise<void> {
     const { promise, resolve, reject } = Promise.withResolvers<void>();
     child.once("error", reject);
     child.once("spawn", resolve);
+    child.once("exit", (code, signal) => {
+      if (code === 0) return;
+      const tail = existsSync(stderrPath) ? readFileSync(stderrPath, "utf8").slice(-600).trim() : "";
+      const error = `${args[0]} exited (${code ?? signal})${tail ? `: ${tail}` : ""}`;
+      if (!terminal) {
+        writer.append("log", { level: "error", message: error });
+        return;
+      }
+      const events = existsSync(eventsPath(runId)) ? readEvents(runId) : [];
+      if (!events.some((event) => event.type === "run.completed" || event.type === "run.failed")) writer.append("run.failed", { error });
+    });
     await promise;
     child.unref();
   } finally { closeSync(stderr); }
@@ -108,7 +125,7 @@ export function createApp(): Hono {
     loadPolicyPackage(body.policyId);
     const stamp = new Date().toISOString().replace(/\D/g, "");
     const runId = reserveRunId(`${body.policyId}-${stamp}`, false);
-    await launchCli(runId, ["run", body.policyId, "--run-id", runId, "--mode", body.mode, "--budget", String(body.budget), "--iterations", String(body.maxIterations)]);
+    await launchCli(runId, ["run", body.policyId, "--run-id", runId, "--mode", body.mode, "--budget", String(body.budget), "--iterations", String(body.maxIterations)], writerFor(runId), true);
     return c.json({ runId });
   });
 
@@ -122,7 +139,7 @@ export function createApp(): Hono {
     const runId = reserveRunId(`${suiteRunId}-rt`, true);
     const file = path.join(RUNS_DIR, runId, "surfaces.json");
     writeFileSync(file, `${JSON.stringify(body.surfaces, null, 2)}\n`, { encoding: "utf8", flag: "wx" });
-    await launchCli(runId, ["test", file, "--suite", suiteRunId, "--run-id", runId, ...(body.smoke ? ["--smoke"] : [])]);
+    await launchCli(runId, ["test", file, "--suite", suiteRunId, "--run-id", runId, ...(body.smoke ? ["--smoke"] : [])], writerFor(runId), true);
     return c.json({ runId });
   });
 
@@ -160,7 +177,7 @@ export function createApp(): Hono {
     try { events = readEvents(runId); }
     catch (error) { return c.json({ error: (error as Error).message }, 404); }
     if (!finished(events)) return c.json({ error: "run is not completed" }, 409);
-    await launchCli(runId, ["map-human", runId]);
+    await launchCli(runId, ["map-human", runId], writerFor(runId), false);
     return c.json({ ok: true });
   });
 

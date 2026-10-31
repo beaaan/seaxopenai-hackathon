@@ -386,8 +386,16 @@ export const Iteration = z.strictObject({
   ci95: Interval,
   openQuestionRate: z.number().min(0).max(1),
   openWordingFindings: z.number().int().nonnegative(),
-  /** n = scenarios of the finding that have a reading in this cohort. */
-  findingReproduction: z.array(z.strictObject({ findingId: z.string(), rate: z.number().min(0).max(1), n: z.number().int().nonnegative() })),
+  /**
+   * n = scenarios of the finding that have a coded reading in this cohort. noiseBand = paired test–retest band of
+   * this finding's reproduction (v0 vs v0 re-read); null when fewer than 5 scenarios were paired.
+   */
+  findingReproduction: z.array(z.strictObject({
+    findingId: z.string(),
+    rate: z.number().min(0).max(1),
+    n: z.number().int().nonnegative(),
+    noiseBand: z.number().nullable(),
+  })),
   /** Test–retest noise (paired); null before it has been measured. */
   noiseBand: z.number().nullable(),
   /** Paired scenarios the noise band was computed on; < 5 ⇒ comparisons are inconclusive. */
@@ -494,8 +502,10 @@ export const SuiteComparison = z.strictObject({
   baseVersion: z.number().int().nonnegative(), // version of the suite run compared against
   before: Iteration,
   after: Iteration,
-  verdict: z.enum(["pass", "fail", "inconclusive"]), // inconclusive: too few paired scenarios or unmeasured required findings
-  reasons: z.array(z.string()), // human-readable reasons for fail/inconclusive; empty on pass
+  // fail: conflict rate or a finding rose beyond its noise band. inconclusive: < 5 paired scenarios, a measured
+  // finding lost its measurement, or (no reference) nothing moved beyond noise. pass: otherwise.
+  verdict: z.enum(["pass", "fail", "inconclusive"]),
+  reasons: z.array(z.string()), // human-readable evidence for the verdict (regressions, improvements, coverage notes)
 });
 export type SuiteComparison = z.infer<typeof SuiteComparison>;
 

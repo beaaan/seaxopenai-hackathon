@@ -18,14 +18,6 @@ function findingTouches(view: RunView, finding: Finding, filter: string): boolea
   });
 }
 
-function sentenceText(view: RunView, id: string): string {
-  for (const v of Object.values(view.versions)) {
-    const s = v.sentences.find((x) => x.id === id);
-    if (s !== undefined) return s.text;
-  }
-  return "(unknown sentence)";
-}
-
 function ClusterCard(props: { view: RunView; cluster: Cluster; samples: number }): ReactNode {
   const { view, cluster } = props;
   const conflict = cluster.conflictShare;
@@ -125,10 +117,11 @@ function FindingDetail(props: { view: RunView; finding: Finding; onClose: () => 
         <h3 className="mt-1 text-lg font-bold">{finding.title}</h3>
       </div>
       <div className="space-y-1">
+        <div className="text-xs font-bold text-slate-500 uppercase">Original v0 source sentences</div>
         {finding.sentenceIds.map((id) => (
           <blockquote key={id} className="border-l-4 border-indigo-300 bg-indigo-50 px-2 py-1 text-sm">
             <span className="mr-2 font-mono text-xs text-slate-400">{id}</span>
-            {sentenceText(view, id)}
+            {view.versions[0]?.sentences.find((sentence) => sentence.id === id)?.text ?? "(unknown v0 sentence)"}
           </blockquote>
         ))}
       </div>
@@ -183,7 +176,7 @@ export function FindingsPane(props: {
 }): ReactNode {
   const { view, sentenceFilter } = props;
   const selected = view.findings.find((f) => f.id === props.selectedFindingId);
-  const findings = sentenceFilter === null ? view.findings : view.findings.filter((f) => findingTouches(view, f, sentenceFilter));
+  const findings = props.version !== 0 || sentenceFilter === null ? view.findings : view.findings.filter((f) => findingTouches(view, f, sentenceFilter));
   const versionClusters = props.version === null ? [] : (view.clusters[props.version] ?? []);
   const clusters = sentenceFilter === null ? versionClusters : versionClusters.filter((c) => onSentence(c.sentenceId, sentenceFilter));
 
@@ -193,17 +186,18 @@ export function FindingsPane(props: {
         right={
           sentenceFilter !== null && (
             <button type="button" onClick={props.onClearFilter} className="rounded bg-indigo-100 px-2 py-0.5 text-xs font-semibold text-indigo-800">
-              {sentenceFilter === NOT_IN_TEXT ? "not in text" : sentenceFilter} ✕
+              {props.version === 0 ? "" : "clusters: "}{sentenceFilter === NOT_IN_TEXT ? "not in text" : sentenceFilter} ✕
             </button>
           )
         }
       >
-        Findings
+        {props.version === 0 ? "Findings" : "v0 findings"}
       </SectionTitle>
       {selected !== undefined ? (
         <FindingDetail view={view} finding={selected} onClose={() => props.onSelectFinding(null)} />
       ) : (
         <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
+          {props.version !== 0 && <p className="text-sm text-slate-600">Findings reference the original v0 text, not sentence positions in v{props.version ?? "—"}. Only v0 supports sentence-level finding filters.</p>}
           {findings.length === 0 && <p className="text-slate-500">No findings{sentenceFilter === null ? " yet" : " on this sentence"}.</p>}
           <ul className="space-y-2">
             {findings.map((f) => {
@@ -217,7 +211,7 @@ export function FindingsPane(props: {
                   >
                     <div className="flex items-center gap-2">
                       <Badge className={meta.className}>{meta.label}</Badge>
-                      <span className="font-mono text-xs text-slate-400">{f.sentenceIds.join(", ") || "not in text"}</span>
+                      <span className="font-mono text-xs text-slate-500">v0 · {f.sentenceIds.join(", ") || "not in text"}</span>
                     </div>
                     <div className="mt-1 font-semibold">{f.title}</div>
                   </button>

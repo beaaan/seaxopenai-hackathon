@@ -58,6 +58,14 @@ function Iterations(props: { view: RunView }): ReactNode {
           ))}
         </tbody>
       </table>
+      <h3 className="pt-3 text-lg font-bold">Finding reproduction · rate (n scenarios)</h3>
+      <table className="w-full text-sm">
+        <thead><tr className="border-b border-slate-200 text-left"><th className="py-2">Finding</th>{iterations.map((iteration, index) => <th key={index} className="text-right">v{iteration.policyVersion}</th>)}</tr></thead>
+        <tbody>{[...new Set(iterations.flatMap((iteration) => iteration.findingReproduction.map((finding) => finding.findingId)))].map((findingId) => <tr key={findingId} className="border-b border-slate-100"><th className="py-2 text-left font-medium">{props.view.findings.find((finding) => finding.id === findingId)?.title ?? findingId}</th>{iterations.map((iteration, index) => {
+          const result = iteration.findingReproduction.find((finding) => finding.findingId === findingId);
+          return <td key={index} className="text-right font-mono">{result === undefined || result.n === 0 ? "unmeasured" : `${pct(result.rate)} (n=${result.n})`}</td>;
+        })}</tr>)}</tbody>
+      </table>
       {stop !== null && (
         <p className="text-sm">
           <span className="font-semibold">Stopped at v{stop.finalVersion}:</span> {stop.reason}
@@ -78,7 +86,9 @@ function Diff(props: { view: RunView }): ReactNode {
   const to = toVersion === undefined ? undefined : versions[toVersion];
   const from = to?.parentVersion === null || to === undefined ? undefined : versions[to.parentVersion];
   if (to === undefined || from === undefined) return <p className="text-slate-500">Only one version so far.</p>;
-  const rewrite = rewrites.find((r) => r.toVersion === to.version);
+  const proposals = rewrites.filter((rewrite) => rewrite.fromVersion === from.version && rewrite.toVersion === to.version);
+  const rewrite = proposals.findLast((proposal) => proposal.fidelity.passed) ?? proposals.at(-1);
+  const surfaceIds = [...new Set([...from.surfaces.map((surface) => surface.id), ...to.surfaces.map((surface) => surface.id)])];
   return (
     <div className="space-y-3">
       <div className="flex gap-1">
@@ -93,13 +103,14 @@ function Diff(props: { view: RunView }): ReactNode {
           </button>
         ))}
       </div>
-      {to.surfaces.map((surface) => {
-        const before = from.surfaces.find((s) => s.id === surface.id)?.text ?? "";
+      {surfaceIds.map((surfaceId) => {
+        const source = from.surfaces.find((surface) => surface.id === surfaceId);
+        const destination = to.surfaces.find((surface) => surface.id === surfaceId);
         return (
-          <div key={surface.id}>
-            <div className="mb-1 text-xs font-semibold text-slate-500">{surface.label}</div>
+          <div key={surfaceId}>
+            <div className="mb-1 text-xs font-semibold text-slate-500">{destination?.label ?? source?.label ?? surfaceId}{destination === undefined ? " · removed surface" : ""}</div>
             <p className="leading-relaxed whitespace-pre-wrap">
-              {wordDiff(before, surface.text).map((part, i) =>
+              {wordDiff(source?.text ?? "", destination?.text ?? "").map((part, i) =>
                 part.kind === "same" ? (
                   <span key={i}>{part.text}</span>
                 ) : part.kind === "del" ? (
@@ -129,6 +140,7 @@ function Diff(props: { view: RunView }): ReactNode {
 
 function ScoreTab(props: { view: RunView }): ReactNode {
   const { score, baselines } = props.view;
+  const baselineRuns = baselines.filter((baseline) => /^baseline-\d+$/.test(baseline.id)).length;
   return (
     <div className="grid grid-cols-2 gap-4">
       <div>
@@ -140,7 +152,7 @@ function ScoreTab(props: { view: RunView }): ReactNode {
               <tbody>
                 {score.systems.map((s) => (
                   <tr key={s.id} className="border-t border-slate-100">
-                    <td className="py-1 font-semibold">{s.label}</td>
+                    <td className="py-1 font-semibold">{s.label}{(s.id === "baseline-mean" || s.id === "baseline-union") && <span className="ml-2 text-sm font-normal text-slate-600">({baselineRuns} runs)</span>}</td>
                     <td className="w-1/2">
                       <div className="h-4 rounded bg-slate-100">
                         <div className={`h-4 rounded ${s.id === "wind-tunnel" ? "bg-indigo-600" : "bg-slate-400"}`} style={{ width: pct(s.recall) }} />
@@ -152,7 +164,7 @@ function ScoreTab(props: { view: RunView }): ReactNode {
               </tbody>
             </table>
             <MatchMatrix view={props.view} />
-            <p className="mt-3 text-sm text-slate-600">Wind Tunnel uses ~{Object.keys(props.view.readings).length} model calls vs 1 for a baseline (reader calls only; reviewer and evaluation add calls).</p>
+            <p className="mt-3 text-sm text-slate-600">Wind Tunnel: {Object.keys(props.view.readings).length} persona readings (cached readings included); {baselineRuns} recorded baseline runs. Readings are not a count of model calls.</p>
             {score.outsideReference.length > 0 && <div className="mt-4 rounded border border-amber-200 bg-amber-50 p-3"><h3 className="font-bold">Unmatched by holdout (not validated, not disproved)</h3><ul className="mt-2 list-disc pl-5">{score.outsideReference.map((item, index) => <li key={index}>{item.systemId} · {item.itemId}</li>)}</ul></div>}
           </>
         )}

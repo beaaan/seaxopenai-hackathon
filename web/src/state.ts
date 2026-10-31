@@ -205,6 +205,14 @@ export function foldEvents(events: readonly RunEvent[]): RunView {
   return events.reduce(applyEvent, EMPTY_VIEW);
 }
 
+/** Snapshot refreshes must retain newer SSE events; the append-only seq is their identity. */
+export function mergeEvents(current: readonly RunEvent[], snapshot: readonly RunEvent[]): RunEvent[] {
+  const bySeq = new Map<number, RunEvent>();
+  for (const event of snapshot) bySeq.set(event.seq, event);
+  for (const event of current) bySeq.set(event.seq, event);
+  return [...bySeq.values()].sort((a, b) => a.seq - b.seq);
+}
+
 /** Latest cluster with this id across versions (findings reference clusters by id). */
 export function findCluster(view: RunView, clusterId: string): Cluster | null {
   const versions = Object.keys(view.clusters)
