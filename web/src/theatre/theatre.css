@@ -176,6 +176,18 @@
   .t-counters { gap: 18px; }
   .t-brand { font-size: 12px; }
 }
+@media (max-height: 800px) and (min-width: 701px) {
+  .t-sidebar { gap: 10px; }
+  .t-agent, .t-result { padding: 10px; }
+  .ag { gap: 7px; }
+  .ag-dims { gap: 3px; }
+  .ag-dims li { grid-template-columns: 150px minmax(0, 1fr) 30px; gap: 6px; }
+  .ag-bubble { padding: 8px 10px; }
+  .ag-rounds { height: 30px; margin-top: 2px; }
+  .t-result-count { margin: 8px 0 6px; }
+  .t-result-count b { font-size: 34px; }
+  .t-kind { margin-top: 8px; }
+}
 @media (max-width: 700px) {
   .t-body { grid-template-columns: minmax(0, 1fr); }
   .t-sidebar { display: none; }

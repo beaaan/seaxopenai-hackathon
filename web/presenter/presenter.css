@@ -199,7 +199,7 @@ kbd { display: inline-flex; align-items: center; justify-content: center; min-wi
   .timer-panel { padding-top: 12px; padding-bottom: 10px; }
   .timer-value { font-size: 45px; }
   .timer-main { padding-bottom: 10px; }
-  .current-note, .next-note { padding: 20px 24px; }
+  .current-note, .next-note { padding: 16px 24px; }
   .current-note h1 { margin-top: 14px; margin-bottom: 10px; }
   .say { font-size: 28px; line-height: 1.33; }
   .note-points { gap: 6px; margin-top: 15px; }
@@ -209,7 +209,7 @@ kbd { display: inline-flex; align-items: center; justify-content: center; min-wi
   .chapter-strip > button { padding: 7px 8px; }
   .chapter-strip .chapter-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 11px; }
   .qa-browser { max-height: calc(100dvh - 155px); }
-  .preview-card { padding: 24px 32px; }
+  .preview-card { padding: 20px 32px; }
   .preview-card .question-card h1 { font-size: 30px; margin: 17px 0 15px; }
   .preview-card .question-answer { font-size: 18px; line-height: 1.42; }
   .preview-card .question-figures { margin: 18px 0; padding: 15px 0; }
@@ -218,6 +218,8 @@ kbd { display: inline-flex; align-items: center; justify-content: center; min-wi
   .preview-card .evidence-points { gap: 8px; margin-top: 18px; }
   .preview-card .evidence-points > li { font-size: 14px; line-height: 1.42; }
   .preview-card .evidence-link { margin-top: 18px; }
+  .qa-send-bar { padding-top: 12px; }
+  .judges-stage { padding-block: 28px; }
   .question-card--projector h1 { font-size: clamp(40px, 3.15vw, 52px); margin-top: 19px; margin-bottom: 19px; }
   .question-card--projector .question-answer { font-size: 24px; line-height: 1.4; }
   .question-card--projector .question-figures { margin: 22px 0; padding: 18px 0; }
@@ -244,7 +246,7 @@ kbd { display: inline-flex; align-items: center; justify-content: center; min-wi
   .action-badge { padding: 8px 12px; margin-top: 13px; }
   .action-badge strong { font-size: 12px; }
   .chapter-strip { gap: 5px; }
-  .chapter-strip > button { padding: 7px 10px; }
+  .chapter-strip > button { padding: 7px 5px; }
   .chapter-name { font-size: 11px; }
   .qa-browser { max-height: calc(100dvh - 134px); }
 }

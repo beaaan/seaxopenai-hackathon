@@ -170,8 +170,8 @@ export function TheatrePage(props: { runId: string }): ReactNode {
   const read = useMemo(() => originalReadings(replay).length, [replay]);
   const defaultActive = data?.pools.reduce((best, pool, i, pools) => pool.readers > pools[best]!.readers ? i : best, 0) ?? -1;
   const picked = data?.pools.findIndex((p) => p.id === activeId) ?? -1;
-  const active = picked >= 0 ? picked : defaultActive;
-  const selected = data?.pools[active];
+  const active = picked;
+  const selected = data?.pools[active >= 0 ? active : defaultActive];
   const finding = rows.find((r) => r.id === selected?.id);
   const total = endOf(events, times.current);
   const live = loaded.model?.status === "running";
@@ -223,7 +223,7 @@ export function TheatrePage(props: { runId: string }): ReactNode {
             <div><dt>Agent tool calls</dt><dd>{hud.toolCalls}</dd></div>
           </dl>
           <div className="t-stage" aria-label="Reader flow at the current replay time">
-            {data ? <ReaderFlow data={data} active={active} onActive={(i) => setActiveId(data.pools[i]?.id ?? null)} /> : (
+            {data ? <ReaderFlow data={data} active={active} onActive={(i) => setActiveId(data.pools[i]?.id ?? null)} onClear={() => setActiveId(null)} /> : (
               <div className="t-empty"><span className="t-kicker">Waiting for the first readers</span><p>{loaded.error ?? "The flow begins when the run creates its reader scenarios."}</p></div>
             )}
           </div>
@@ -246,7 +246,7 @@ export function TheatrePage(props: { runId: string }): ReactNode {
 
       <footer className="t-controls">
         <button type="button" onClick={() => setPlaying((p) => !p)} aria-label={playing ? "Pause" : "Play"}>{playing ? <Pause /> : <Play />}</button>
-        <button type="button" onClick={() => { seek(0); setPlaying(true); }} aria-label="Restart"><RotateCcw /></button>
+        <button type="button" onClick={() => { seek(0); setActiveId(null); setPlaying(true); }} aria-label="Restart"><RotateCcw /></button>
         <button type="button" onClick={() => setSpeed((s) => SPEEDS[(SPEEDS.indexOf(s) + 1) % SPEEDS.length]!)} aria-label="Change speed"><FastForward /> {speed}×</button>
         <input type="range" min={0} max={1000} value={Math.round(progress * 1000)} aria-label="Position in the run" onChange={(e) => seek((Number(e.currentTarget.value) / 1000) * total)} />
         <output className="t-time">{timestamp(progress * total)}<span> / {timestamp(total)}</span></output>

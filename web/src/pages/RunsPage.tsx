@@ -95,8 +95,8 @@ function RunTable(props: { runs: RunSummary[] }): ReactNode {
         <thead><tr><th>Run</th><th>Policy</th><th className="hide-phone">Kind</th><th className="hide-phone">Started</th><th className="n">Status</th></tr></thead>
         <tbody>
           {props.runs.map((run) => (
-            <tr key={run.runId} className="pick" onClick={() => { window.location.hash = `#/run/${encodeURIComponent(run.runId)}`; }}>
-              <td><a className="id" style={{ color: "var(--text)" }} href={`#/run/${encodeURIComponent(run.runId)}`}>{run.runId}</a></td>
+            <tr key={run.runId} className={run.events > 0 ? "pick" : undefined} onClick={run.events > 0 ? () => { window.location.hash = `#/run/${encodeURIComponent(run.runId)}`; } : undefined}>
+              <td>{run.events > 0 ? <a className="id" style={{ color: "var(--text)" }} href={`#/run/${encodeURIComponent(run.runId)}`}>{run.runId}</a> : <span className="id muted" title="No report is available because this run has no log.">{run.runId}</span>}</td>
               <td>{run.policyId ?? <span className="dash">–</span>}</td>
               <td className="hide-phone muted">{kind(run)}</td>
               <td className="hide-phone muted">{run.startedAt ? new Date(run.startedAt).toLocaleString() : <span className="dash">–</span>}</td>

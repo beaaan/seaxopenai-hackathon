@@ -82,7 +82,7 @@ export const NOTES: Note[] = [
     chapter: "The fix",
     at: "3:40",
     say: "We tried the obvious fix: one honest sentence. A fact check confirmed no rule changed. The same 10 readers: the target stayed within noise and another misreading rose. The tunnel caught a fix that would not have worked: only 3 of 10 ever see that article.",
-    points: ["0.85 → 0.82 within ±0.12; another misreading 17% → 28%", "Retest took 17 seconds"],
+    points: ["Belief scores: 0.85 → 0.82 within ±0.12; another misreading rose 0.17 → 0.28.", "Retest took 17 seconds"],
   },
   {
     chapter: "Every edit",
@@ -253,14 +253,14 @@ export const QAS: QA[] = [
     a: "It proposes edits, fact-checks them against the original rules, and retests them on the same readers before anything ships.",
     points: [
       "Grab rider terms: mean belief score 0.97 → 0.62 on the same 12 simulated readers, beyond ±0.05 noise; the rewrite was kept",
-      "Shopee scope sentence: the target stayed within noise and another misreading rose 17% → 28%, so the edit failed; only 3 of 10 readers ever see that article",
+      "Shopee scope sentence: the target stayed within noise and another misreading's mean belief score rose 0.17 → 0.28, so the edit failed; only 3 of 10 readers ever see that article",
       "“Pay at a convenience store” edit: rejected, it promised something the original never said",
       "Our ten-reader retests took 17 and 23 seconds",
     ],
     figures: [
       { value: "0.97→0.62", label: "Grab belief score, kept", tone: "green" },
       { value: "+1 promise", label: "Shopee edit, rejected", tone: "red" },
-      { value: "17 s", label: "per retest", tone: "cyan" },
+      { value: "17 s", label: "scope-sentence retest", tone: "cyan" },
     ],
   },
   {

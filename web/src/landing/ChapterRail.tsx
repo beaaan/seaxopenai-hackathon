@@ -146,9 +146,11 @@ export function ChapterRail(): ReactNode {
     const onKey = (e: KeyboardEvent): void => {
       if (e.altKey || e.ctrlKey || e.metaKey) return;
       const t = e.target;
-      if (t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT|BUTTON)$/.test(t.tagName))) return;
+      if (t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || (t.tagName === "BUTTON" && e.key === " "))) return;
       const dir = e.key === "PageDown" || (e.key === " " && !e.shiftKey) ? 1 : e.key === "PageUp" || (e.key === " " && e.shiftKey) ? -1 : 0;
-      if (dir !== 0 && performance.now() >= busyUntil && jump(dir)) e.preventDefault();
+      if (dir === 0) return;
+      // Keep Page Up/Down working after a rail click, and do not leak native scrolling during a jump.
+      if (performance.now() < busyUntil || jump(dir)) e.preventDefault();
     };
     window.addEventListener("wheel", onWheel, { passive: false });
     window.addEventListener("keydown", onKey);
