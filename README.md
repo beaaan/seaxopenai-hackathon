@@ -53,6 +53,8 @@ npm run check                        # typecheck + tests + holdout guard
 | Clustering readings | Embeddings (`text-embedding-3-small`) |
 | Reviewer agent and tool-using hero personas, inspectable on stage | Codex App Server threads with client-side dynamic tools |
 
+**Measured cost.** With `PWT_USAGE_LOG=<file>` set, every real API call logs its tokens and pipeline stage (`src/core/llm/usage.ts`; `scripts/usage-summary.ts` prices them). A fresh 20-reader run (`runs/usage-probe-metered`) made 372 calls and cost $1.54 at OpenAI list prices in 10 minutes ([docs/usage-probe.json](docs/usage-probe.json)). Scaled to 50 readers that is about $2.66 per full test; retesting one edit on 10 readers is about $0.49; one single AI review is about $0.03.
+
 ## Docs
 
 - [AGENTS.md](AGENTS.md): conventions, contracts, ownership, commands (read first)
