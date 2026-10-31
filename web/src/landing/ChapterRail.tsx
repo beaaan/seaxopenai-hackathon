@@ -48,8 +48,8 @@ export function ChapterRail(): ReactNode {
   }, []);
 
   // A presenter window on the same origin can follow the talk and drive it: the page reports the chapter in view and
-  // scrolls to a chapter on request. Only a visible page takes part, so a landing tab left open in the background never
-  // answers for the audience window.
+  // scrolls to a chapter on request. Only a visible page reports, so a landing tab left open in the background never
+  // speaks for the audience window; any page obeys a goto, since scrolling a hidden one is harmless.
   const latest = useRef<{ chapters: Chapter[]; active: HTMLElement | null }>({ chapters: [], active: null });
   const channel = useRef<BroadcastChannel | null>(null);
   const report = (): void => {
@@ -66,9 +66,9 @@ export function ChapterRail(): ReactNode {
     channel.current = ch;
     ch.onmessage = (e: MessageEvent<unknown>) => {
       const m = e.data;
-      if (!isPresenterMessage(m) || document.visibilityState !== "visible") return;
+      if (!isPresenterMessage(m)) return;
       if (m.type === "hello") report();
-      else if (m.type === "goto") latest.current.chapters.find((c) => c.label === m.chapter)?.el.scrollIntoView({ behavior: "smooth" });
+      else if (m.type === "goto") latest.current.chapters.find((c) => c.label === m.chapter)?.el.scrollIntoView({ behavior: document.visibilityState === "visible" ? "smooth" : "auto" });
     };
     document.addEventListener("visibilitychange", report);
     return () => {

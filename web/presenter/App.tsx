@@ -254,7 +254,7 @@ export function App() {
     <div className="console-shell">
       <header className="console-header">
         <Brand />
-        <div className="header-actions"><span className={`connection-badge${connected ? " is-connected" : ""}`}><span className="status-dot" />Audience {connected ? "connected" : "not connected"}</span><button type="button" className="button" onClick={() => window.open("/#/", "pwt-audience")}><Monitor size={17} aria-hidden="true" />Open audience window<ExternalLink size={14} aria-hidden="true" /></button></div>
+        <div className="header-actions"><span className={`connection-badge${connected ? " is-connected" : ""}`}><span className="status-dot" />Audience {connected ? "connected" : "not connected"}</span><button type="button" className="button" onClick={() => window.open("/#/", "pwt-audience", "popup,width=1600,height=900")}><Monitor size={17} aria-hidden="true" />Open audience window<ExternalLink size={14} aria-hidden="true" /></button></div>
       </header>
       <div className="console-toolbar"><div className="console-tabs" role="tablist" aria-label="Presenter mode"><button type="button" role="tab" aria-selected={tab === "present"} id="present-tab" aria-controls="present-panel" onClick={() => setTab("present")}><Radio size={16} aria-hidden="true" />Present</button><button type="button" role="tab" aria-selected={tab === "qa"} id="qa-tab" aria-controls="qa-panel" onClick={() => setTab("qa")}><Send size={16} aria-hidden="true" />Q&A<span className="tab-count">{QAS.length}</span></button></div><span className="toolbar-caption">{tab === "present" ? "The story, at a glance." : "Select an answer. Put the evidence on screen."}</span></div>
       {tab === "present" ? (
