@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { AlertTriangle, CheckCircle2, Circle, Loader2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Circle, Loader2, Megaphone, Play, Square } from "lucide-react";
 import { api, type PolicyDetail } from "../api";
-import { useRun } from "../hooks";
-import { CLASS_LABEL, STAGES, codebook, finalVersion, hasReference, originalReadings, sharedBeliefs, type RunModel } from "../model";
+import { useReplay, useRun } from "../hooks";
+import { CLASS_LABEL, STAGES, codebook, finalVersion, foldRun, hasReference, originalReadings, sharedBeliefs, type RunModel } from "../model";
 import { Badge, Stat, cx, pct, pp } from "../ui";
 import { TextMap } from "../run/TextMap";
 import { Findings } from "../run/Findings";
@@ -31,7 +31,13 @@ const NAV = [
 ] as const;
 
 export function RunPage(props: { runId: string }): ReactNode {
-  const { model, error } = useRun(props.runId);
+  const loaded = useRun(props.runId);
+  const replay = useReplay(loaded.events.length);
+  const model = useMemo(
+    () => (replay.shown === null ? loaded.model : foldRun(props.runId, loaded.events.slice(0, replay.shown))),
+    [replay.shown, loaded, props.runId],
+  );
+  const error = loaded.error;
   const [policy, setPolicy] = useState<PolicyDetail | null>(null);
   const policyId = model?.config?.policyId ?? null;
   useEffect(() => {
@@ -57,7 +63,7 @@ export function RunPage(props: { runId: string }): ReactNode {
 
   return (
     <main className="pb-32">
-      <RunHeader ctx={ctx} />
+      <RunHeader ctx={ctx} replay={loaded.model?.status === "completed" ? { active: replay.shown !== null, progress: replay.shown === null ? 0 : replay.shown / loaded.events.length, start: replay.start, stop: replay.stop } : null} />
       <nav className="sticky top-14 z-20 border-b border-stone-200/80 bg-[#f7f6f3]/90 backdrop-blur">
         <div className="mx-auto flex max-w-7xl gap-1 overflow-x-auto px-6 py-2">
           {nav.map((item) => (
@@ -86,8 +92,9 @@ export function RunPage(props: { runId: string }): ReactNode {
   );
 }
 
-function RunHeader(props: { ctx: RunContext }): ReactNode {
+function RunHeader(props: { ctx: RunContext; replay: { active: boolean; progress: number; start: () => void; stop: () => void } | null }): ReactNode {
   const { model, policy } = props.ctx;
+  const replay = props.replay;
   const p = model.provenance;
   const warnings = model.logs.filter((l) => l.level !== "info");
   return (
@@ -101,7 +108,7 @@ function RunHeader(props: { ctx: RunContext }): ReactNode {
         </div>
         <h1 className="mt-2 text-3xl font-semibold tracking-tight text-stone-900 md:text-4xl">{policy?.package.title ?? model.config?.policyId ?? "Run"}</h1>
         <div className="mt-4 flex flex-wrap items-center gap-2">
-          {model.status === "running" && <Badge tone="info"><Loader2 size={12} className="animate-spin" /> running · {model.events} events</Badge>}
+          {model.status === "running" && <Badge tone="info"><Loader2 size={12} className="animate-spin" /> {replay?.active ? "replaying" : "running"} · {model.events} events</Badge>}
           {model.status === "completed" && <Badge tone="good"><CheckCircle2 size={12} /> completed</Badge>}
           {model.status === "failed" && <Badge tone="bad"><AlertTriangle size={12} /> failed</Badge>}
           {p.decisions && <Badge tone={p.decisions === "real" ? "accent" : "warn"} title="Grades and codings come from the Decisions API (gpt-6-luna)">Decisions API: {p.decisions}</Badge>}
@@ -109,6 +116,14 @@ function RunHeader(props: { ctx: RunContext }): ReactNode {
           {p.backends && <Badge title="Bulk calls / agent threads">{p.backends}</Badge>}
           {model.config && <Badge tone={hasReference(model) ? "good" : "warn"}>{hasReference(model) ? "reference facts loaded" : "no reference: conflicts not graded"}</Badge>}
           {model.runId.startsWith("fixture") && <Badge tone="warn">synthetic fixture</Badge>}
+          {replay && (replay.active ? (
+            <button onClick={replay.stop} className="ml-auto flex items-center gap-2 rounded-full bg-stone-900 px-3 py-1 text-xs font-semibold text-white">
+              <Square size={12} /> Stop replay
+              <span className="h-1 w-24 overflow-hidden rounded-full bg-stone-600"><span className="block h-1 bg-white" style={{ width: `${replay.progress * 100}%` }} /></span>
+            </button>
+          ) : (
+            <button onClick={replay.start} className="ml-auto flex items-center gap-1 rounded-full bg-stone-100 px-3 py-1 text-xs font-semibold text-stone-800 hover:bg-stone-200"><Play size={12} /> Replay run</button>
+          ))}
         </div>
         {model.error && <div className="mt-4 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-800">{model.error}</div>}
         {warnings.length > 0 && (
@@ -186,6 +201,30 @@ function Overview(props: { ctx: RunContext }): ReactNode {
         })}
       </ol>
       {model.stop && <p className="mt-6 max-w-4xl text-stone-600"><span className="font-medium text-stone-900">Loop stopped:</span> {model.stop.reason}</p>}
+      {policy && policy.folk.versions.length > 0 && (
+        <div className="mt-10">
+          <div className="flex items-center gap-2 text-sm font-semibold text-stone-900"><Megaphone size={16} /> What people hear instead</div>
+          <p className="mt-1 max-w-3xl text-sm text-stone-500">Versions of the rule circulating online. None is in the official text; some readers were given one as a prior belief or as what a friend told them.</p>
+          <div className="mt-3 grid gap-3 md:grid-cols-2">
+            {policy.folk.versions.map((f) => {
+              const exposed = model.scenarios.filter((s) => s.exposure.folkVersionId === f.id).length;
+              let host = f.source;
+              try {
+                host = new URL(f.source).hostname.replace(/^www\./, "");
+              } catch {
+                // not a URL; show the source as written
+              }
+              return (
+                <div key={f.id} className="rounded-2xl border border-amber-200 bg-amber-50/60 px-4 py-3">
+                  <div className="text-sm text-stone-900">“{f.textVi}”</div>
+                  <div className="mt-1 text-xs text-stone-500">{f.claimEn}</div>
+                  <div className="mt-2 flex flex-wrap gap-2 text-xs text-stone-500"><span>{host}{f.date ? ` · ${f.date}` : ""}</span>{exposed > 0 && <Badge tone="warn">{exposed} readers had heard it</Badge>}</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </section>
   );
 }

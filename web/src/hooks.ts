@@ -1,41 +1,48 @@
 import { useEffect, useState } from "react";
-import type { RunSummary } from "@shared/events";
+import type { RunEvent, RunSummary } from "@shared/events";
 import { api, tail } from "./api";
 import { applyEvent, foldRun, type RunModel } from "./model";
 
+export interface LoadedRun {
+  model: RunModel | null;
+  /** Every event so far, in order (for replay). */
+  events: readonly RunEvent[];
+  error: string | null;
+}
+
 /** Loads a run, folds it, and keeps following it over SSE while it is running. */
-export function useRun(runId: string): { model: RunModel | null; error: string | null } {
-  const [model, setModel] = useState<RunModel | null>(null);
-  const [error, setError] = useState<string | null>(null);
+export function useRun(runId: string): LoadedRun {
+  const [state, setState] = useState<LoadedRun>({ model: null, events: [], error: null });
   useEffect(() => {
     let alive = true;
     let stop: (() => void) | null = null;
     let frame = 0;
     let retry = 0;
-    setModel(null);
-    setError(null);
+    setState({ model: null, events: [], error: null });
     const load = (attempt: number): void => {
       api.events(runId).then(
         (events) => {
           if (!alive) return;
           const live = foldRun(runId, events);
-          setModel({ ...live });
+          const all = [...events];
+          setState({ model: { ...live }, events: all, error: null });
           if (live.status !== "running") return;
           let last = events.at(-1)?.seq ?? -1;
           stop = tail(runId, last + 1, (event) => {
             if (event.seq <= last) return;
             last = event.seq;
+            all.push(event);
             applyEvent(live, event);
             // Many events arrive in bursts; render at most once per frame.
             cancelAnimationFrame(frame);
-            frame = requestAnimationFrame(() => alive && setModel({ ...live }));
+            frame = requestAnimationFrame(() => alive && setState({ model: { ...live }, events: [...all], error: null }));
           });
         },
         (err: unknown) => {
           if (!alive) return;
           // A just-launched run has no log for a few seconds.
           if (attempt < 20) retry = window.setTimeout(() => load(attempt + 1), 1500);
-          else setError(err instanceof Error ? err.message : String(err));
+          else setState({ model: null, events: [], error: err instanceof Error ? err.message : String(err) });
         },
       );
     };
@@ -47,7 +54,23 @@ export function useRun(runId: string): { model: RunModel | null; error: string |
       stop?.();
     };
   }, [runId]);
-  return { model, error };
+  return state;
+}
+
+/** Progressive replay of a finished log over about `seconds`; `shown` is null when not replaying. */
+export function useReplay(total: number, seconds = 45): { shown: number | null; start: () => void; stop: () => void } {
+  const [shown, setShown] = useState<number | null>(null);
+  useEffect(() => {
+    if (shown === null) return;
+    if (shown >= total) {
+      const done = window.setTimeout(() => setShown(null), 800);
+      return () => clearTimeout(done);
+    }
+    const step = Math.max(1, Math.ceil(total / (seconds * 10)));
+    const timer = window.setTimeout(() => setShown((n) => (n === null ? null : Math.min(total, n + step))), 100);
+    return () => clearTimeout(timer);
+  }, [shown, total, seconds]);
+  return { shown, start: () => setShown(1), stop: () => setShown(null) };
 }
 export function useRuns(refreshMs = 4000): RunSummary[] | null {
   const [runs, setRuns] = useState<RunSummary[] | null>(null);
