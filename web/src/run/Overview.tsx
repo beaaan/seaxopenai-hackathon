@@ -34,16 +34,20 @@ export function Overview(props: { ctx: RunContext }): ReactNode {
   const explore = model.config?.mode === "explore";
   const title = policy?.package.title ?? model.config?.policyId ?? model.runId;
 
-  // The headline: the most-held misreading, and whether the text corrected the rumour behind it.
+  // The headline: the most-held misreading and, as plain counts, what its holders had heard before reading. No claim
+  // that the belief *is* the rumour: exposure is recorded per reader, a rumour↔misreading match is not.
   const top = rows[0];
   let headline: ReactNode = model.status === "running" ? "Readers are still reading. What they got wrong appears here as they finish." : "No wrong idea was shared by two or more readers.";
   if (top) {
-    const [rumourId, kept] = [...top.heard.entries()].filter(([k]) => k !== null).sort((a, b) => b[1] - a[1])[0] ?? [null, 0];
+    const [rumourId, exposed] = [...top.heard.entries()].filter(([k]) => k !== null).sort((a, b) => b[1] - a[1])[0] ?? [null, 0];
     const rumour = rumourId === null ? undefined : folk.get(rumourId);
     const nothing = top.heard.get(null) ?? 0;
-    headline = rumour && kept * 2 > top.readers.length
-      ? <>Of the {told(rumour.id)} readers who had heard “{rumour.claimEn.replace(/\.$/, "")}”, <b style={{ fontWeight: 600 }}>{kept} still believed it after reading the official text</b>. {nothing ? `${nothing} readers who had heard nothing also came to believe it.` : "None of the readers who had heard nothing came up with it."}</>
-      : <><b style={{ fontWeight: 600 }}>{top.readers.length} of {total} readers</b> came away with the same idea: {top.title.charAt(0).toLowerCase() + top.title.slice(1)}.</>;
+    headline = (
+      <>
+        <b style={{ fontWeight: 600 }}>{top.readers.length} of {total} readers</b> came away believing: “{top.title}”.
+        {rumour && exposed * 2 > top.readers.length && <> {exposed} of them had been told “{rumour.claimEn.replace(/\.$/, "")}” before reading ({told(rumour.id)} readers were told it). {nothing === 0 ? "None" : nothing} of the {heardNothing} readers who had heard nothing came to believe it.</>}
+      </>
+    );
   }
 
   return (
