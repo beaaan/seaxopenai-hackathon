@@ -14,7 +14,7 @@
     "typecheck": "tsc -p tsconfig.json && tsc -p web/tsconfig.json",
     "test": "vitest run",
     "guard": "tsx scripts/holdout-guard.ts",
-    "check": "npm run typecheck && npm run test && npm run guard",
+    "check": "npm run typecheck && npm run test && npm run guard && npm run build:web",
     "codex:types": "codex app-server generate-ts --out vendor/codex-app-server"
   },
   "dependencies": {
