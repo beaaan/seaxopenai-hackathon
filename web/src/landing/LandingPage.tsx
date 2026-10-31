@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Check, ChevronDown, CircleSlash, EyeOff, FileText, PenLine, RotateCcw, ShieldCheck, ShoppingCart, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
+import { Check, ChevronDown, CircleHelp, CircleSlash, EyeOff, FileText, PenLine, RotateCcw, ShieldCheck, ShoppingCart, X } from "lucide-react";
 import type { FolkVersion, GradeLabel, Iteration, Scenario } from "@shared/schema";
 import { beyondNoise, effectiveBand } from "@shared/noise";
 import { api, type PolicyDetail } from "../api";
@@ -86,7 +86,8 @@ export function LandingPage(): ReactNode {
       <header className="l-nav">
         <a href="#/" className="l-word"><TunnelMark />Policy Wind Tunnel</a>
       </header>
-      <Hook message={[sentence("checkout.1"), sentence("checkout.2")].filter((s): s is string => s !== null)} />
+      <Opening />
+      <Case message={[sentence("checkout.1"), sentence("checkout.2")].filter((s): s is string => s !== null)} />
       <Answer text={sentence("help.4")} />
       <Blanks folk={folk} />
       <Stakes />
@@ -126,14 +127,62 @@ export function LandingPage(): ReactNode {
 }
 
 // ---------------------------------------------------------------------------
-// The story before the run: the hook, the official answer, the blanks people fill.
+// The story before the run: the gap, one real case, the official answer, the blanks people fill.
 
-function Hook(props: { message: string[] }): ReactNode {
+/** What a platform tests before release; the last row is the one nobody can tick. */
+const CHECKS: Array<{ what: string; how: string }> = [
+  { what: "Code", how: "unit tests" },
+  { what: "Checkout pages", how: "A/B tests" },
+  { what: "Servers", how: "load tests" },
+];
+
+function Opening(): ReactNode {
   return (
-    <section className="l-ch l-hook" aria-labelledby="hook-title" data-chapter="Why?">
+    <section className="l-ch l-open" aria-labelledby="open-title" data-chapter="Untested">
+      <div className="l-open-copy">
+        <h1 id="open-title">Platforms test what they ship.</h1>
+        <p className="l-open-q">Who tests how the rules are read?</p>
+        <p className="l-open-sub">Policy Wind Tunnel: AI readers test policy text before it ships.</p>
+      </div>
+      <ol className="l-checks" aria-label="Checks before a release">
+        {CHECKS.map((c, i) => (
+          <li key={c.what} style={{ animationDelay: `${300 + i * 350}ms` }}><Check /><b>{c.what}</b><span>{c.how}</span></li>
+        ))}
+        <li className="unknown" style={{ animationDelay: `${300 + CHECKS.length * 350 + 250}ms` }}><CircleHelp /><b>Policy text</b><span>how people will read it</span></li>
+      </ol>
+      <button type="button" className="l-scroll" aria-label="Next" onClick={() => scrollTo("case")}><ChevronDown /></button>
+    </section>
+  );
+}
+
+/** Sets `seen` once the element is mostly on screen, so a chapter's animation plays when it is reached, not on load. */
+function useSeen<T extends Element>(): [RefObject<T | null>, boolean] {
+  const ref = useRef<T>(null);
+  const [seen, setSeen] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || seen) return;
+    const io = new IntersectionObserver(([entry]) => {
+      if (entry?.isIntersecting) setSeen(true);
+    }, { threshold: 0.5 });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [seen]);
+  return [ref, seen];
+}
+
+function Case(props: { message: string[] }): ReactNode {
+  const [ref, seen] = useSeen<HTMLElement>();
+  return (
+    <section ref={ref} className={`l-ch l-hook${seen ? " seen" : ""}`} id="case" aria-labelledby="case-title" data-chapter="The case">
       <div className="l-hook-copy">
-        <h1 id="hook-title">Cash on delivery is gone from your checkout.</h1>
+        <span className="l-kick">One real example</span>
+        <h2 id="case-title">Cash on delivery is gone from your checkout.</h2>
         <p className="l-why">Why?</p>
+        <p className="l-case-stake">
+          <b>77.5%</b> of Vietnamese online shoppers choose cash on delivery.
+          <a href="https://vietnambiz.vn/nghich-ly-tmdt-viet-nam-775-nguoi-tieu-dung-van-chon-thanh-toan-bang-tien-mat-khi-nhan-hang-2025615192910833.htm" target="_blank" rel="noreferrer">VietnamBiz, 15/06/2025</a>
+        </p>
       </div>
       <figure className="l-phone" aria-label="A Shopee checkout with cash on delivery unavailable">
         <figcaption lang="vi">Phương thức thanh toán</figcaption>
@@ -146,7 +195,6 @@ function Hook(props: { message: string[] }): ReactNode {
           </li>
         </ul>
       </figure>
-      <button type="button" className="l-scroll" aria-label="Next" onClick={() => scrollTo("answer")}><ChevronDown /></button>
     </section>
   );
 }
