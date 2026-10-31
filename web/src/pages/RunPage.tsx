@@ -22,14 +22,14 @@ export interface RunContext {
 type ScreenId = "overview" | "findings" | "rewrite" | "ci" | "benchmark" | "readers" | "reviewer" | "human";
 
 const SCREENS: Array<{ id: ScreenId; label: string; icon: ReactNode }> = [
-  { id: "overview", label: "Overview", icon: <FileText /> },
-  { id: "findings", label: "Findings", icon: <ListChecks /> },
-  { id: "rewrite", label: "Rewrite and re-read", icon: <GitCompareArrows /> },
-  { id: "ci", label: "Policy CI", icon: <FlaskConical /> },
-  { id: "benchmark", label: "Benchmark", icon: <Target /> },
-  { id: "readers", label: "Readers", icon: <Users /> },
-  { id: "reviewer", label: "Reviewer agent", icon: <Bot /> },
-  { id: "human", label: "Human check", icon: <Smartphone /> },
+  { id: "overview", label: "Report", icon: <FileText /> },
+  { id: "findings", label: "Misreadings in detail", icon: <ListChecks /> },
+  { id: "rewrite", label: "Fixing the wording", icon: <GitCompareArrows /> },
+  { id: "ci", label: "Test an edit", icon: <FlaskConical /> },
+  { id: "benchmark", label: "Compared with one AI review", icon: <Target /> },
+  { id: "readers", label: "The simulated readers", icon: <Users /> },
+  { id: "reviewer", label: "How readers were picked", icon: <Bot /> },
+  { id: "human", label: "Ask real people", icon: <Smartphone /> },
 ];
 
 function screensFor(model: RunModel | null): ScreenId[] {
@@ -66,7 +66,6 @@ export function RunPage(props: { runId: string; screen: string }): ReactNode {
     label: isRetest && s.id === "overview" ? "Test result" : s.label,
     icon: s.icon,
     current: s.id === screen,
-    count: s.id === "findings" && model && model.findings.length > 0 ? model.findings.length : undefined,
   }));
 
   const p = model?.provenance;
@@ -120,7 +119,7 @@ export function RunPage(props: { runId: string; screen: string }): ReactNode {
   }
 
   return (
-    <Shell runNav={{ label: isRetest ? "Edit test" : "This run", items }} home={false} newPolicy={false} crumb={crumb} topRight={topRight} footer={footer}>
+    <Shell runNav={{ label: isRetest ? "Edit test" : "This policy test", items }} home={false} newPolicy={false} crumb={crumb} topRight={topRight} footer={footer}>
       {body}
     </Shell>
   );

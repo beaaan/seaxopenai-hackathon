@@ -59,8 +59,8 @@ export function Shell(props: {
           </>
         )}
         <div className="group-label">Workspace</div>
-        <a href="#/" className="nav-item" aria-current={props.home ? "page" : undefined}><LayoutList /><span>All runs</span></a>
-        <a href="#/new" className="nav-item" aria-current={props.newPolicy ? "page" : undefined}><FilePlus2 /><span>Test a new policy</span></a>
+        <a href="#/" className="nav-item" aria-current={props.home ? "page" : undefined}><LayoutList /><span>Policies tested</span></a>
+        <a href="#/new" className="nav-item" aria-current={props.newPolicy ? "page" : undefined}><FilePlus2 /><span>Test a policy</span></a>
         {props.footer && <div className="bottom">{props.footer}</div>}
       </nav>
       <header className="topbar">

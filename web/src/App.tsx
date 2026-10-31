@@ -28,13 +28,13 @@ export function App(): ReactNode {
   if (hash === "#/new") {
     return <Shell runNav={null} home={false} newPolicy crumb={<b>Test a new policy</b>}><NewPolicyPage /></Shell>;
   }
-  return <Shell runNav={null} home newPolicy={false} crumb={<b>All runs</b>}><RunsPage /></Shell>;
+  return <Shell runNav={null} home newPolicy={false} crumb={<b>Home</b>}><RunsPage /></Shell>;
 }
 
 function NotFound(): ReactNode {
   return (
     <Shell runNav={null} home={false} newPolicy={false} crumb={<b>Not found</b>}>
-      <p>Nothing at this address. <a className="link" href="#/">All runs</a></p>
+      <p>Nothing at this address. <a className="link" href="#/">Home</a></p>
     </Shell>
   );
 }

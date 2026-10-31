@@ -2,10 +2,9 @@ import { useMemo, useState, type ReactNode } from "react";
 import { Check, X } from "lucide-react";
 import type { Finding } from "@shared/schema";
 import { beyondNoise } from "@shared/noise";
-import { CLASS_LABEL, finalVersion } from "../model";
+import { CLASS_LABEL, cohortSize, finalVersion } from "../model";
 import type { RunContext } from "../pages/RunPage";
 import { Empty, Panel, Pill, TitleRow, Track, band, pct, pp, type Tone } from "../ui";
-import { cohortSize } from "./TextMap";
 
 export const CLASS_TONE: Record<Finding["class"], Tone> = { wording_fix: "accent", design_gap: "warn", unresolvable: "neutral" };
 const ORDER: Record<Finding["class"], number> = { wording_fix: 0, design_gap: 1, unresolvable: 2 };
@@ -13,7 +12,7 @@ type Filter = Finding["class"] | "all";
 
 export function Findings(props: { ctx: RunContext }): ReactNode {
   const { model } = props.ctx;
-  const total = cohortSize(props.ctx);
+  const total = cohortSize(model);
   const first = model.iterations[0] ?? null;
   const last = model.iterations.findLast((it) => it.policyVersion === finalVersion(model) && it !== first) ?? null;
   const scenarioOf = useMemo(() => new Map(model.readings.map((r) => [r.id, r.scenarioId])), [model.readings]);
@@ -31,11 +30,11 @@ export function Findings(props: { ctx: RunContext }): ReactNode {
   return (
     <>
       <TitleRow
-        title="Findings"
-        sub={model.findings.length === 0 ? "Findings are written once the belief codebook is frozen." : <>{count("wording_fix")} can be fixed by wording, {count("design_gap")} need a rule change, {count("unresolvable")} need information the text does not have.</>}
-        meta={<span>Each finding is classified by attempting a repair: a rewrite that adds no new fact, passes the fidelity check and removes the misreading on re-read is a wording fix.</span>}
+        title="Misreadings in detail"
+        sub={model.findings.length === 0 ? "Misreadings are named once every reader has read the text." : <>{count("wording_fix")} can be fixed by rewording, {count("design_gap")} need a decision about the rule, {count("unresolvable")} need information the text does not give.</>}
+        meta={<span>How a misreading is sorted: the tool tries to rewrite the sentence without changing any rule. If the rewrite passes that check and the same readers stop misreading it, it is fixable by rewording; if every fix would change the rule or add a missing fact, it is not.</span>}
       />
-      {model.findings.length === 0 ? <Empty>No findings yet.</Empty> : (
+      {model.findings.length === 0 ? <Empty>No misreadings named yet.</Empty> : (
         <>
           <div className="segmented" role="group" aria-label="Kind" style={{ marginBottom: 16 }}>
             {(["all", "wording_fix", "design_gap", "unresolvable"] as const).map((k) => (
@@ -50,7 +49,7 @@ export function Findings(props: { ctx: RunContext }): ReactNode {
                 {shown.length === 0 ? <div style={{ padding: 20 }}><Empty>No finding of this kind.</Empty></div> : (
                   <div className="table-wrap">
                     <table>
-                      <thead><tr><th>Misreading</th><th>Kind</th><th className="n">Readers</th><th className="n hide-phone">Persists on re-read</th></tr></thead>
+                      <thead><tr><th>Misreading</th><th>Kind</th><th className="n">Readers</th><th className="n hide-phone" title="Share of these readers who held it again when they read the same text a second time">Held on a second read</th></tr></thead>
                       <tbody>
                         {shown.map((f) => {
                           const before = first?.findingReproduction.find((r) => r.findingId === f.id) ?? null;
@@ -69,7 +68,7 @@ export function Findings(props: { ctx: RunContext }): ReactNode {
                                   <span>{k}<span className="muted">/{total}</span></span>
                                 </div>
                               </td>
-                              <td className="n hide-phone">{before && before.n > 0 ? <>{pct(before.rate)}<span className="sub">{before.noiseBand === null ? "noise not measured" : band(before.noiseBand)}</span></> : <span className="dash">–</span>}</td>
+                              <td className="n hide-phone">{before && before.n > 0 ? <>{pct(before.rate)}<span className="sub">{before.noiseBand === null ? "variation not measured" : `${band(before.noiseBand)} variation`}</span></> : <span className="dash">–</span>}</td>
                             </tr>
                           );
                         })}
@@ -114,7 +113,7 @@ function FindingDetail(props: { ctx: RunContext; finding: Finding; sentences: Ma
 
       {before && before.n > 0 && (
         <div style={{ marginTop: 18 }}>
-          <h3>Persists when the same readers read again</h3>
+          <h3>Held when the same readers read again</h3>
           <Repro label="Original" rate={before.rate} n={before.n} noise={before.noiseBand} />
           {after && after.n > 0 && <Repro label={`v${props.lastVersion}`} rate={after.rate} n={after.n} noise={null} compare={before} />}
         </div>
@@ -158,8 +157,8 @@ function Repro(props: { label: string; rate: number; n: number; noise: number | 
       <Track value={props.rate} noise={props.compare ? null : props.noise} tick={props.compare?.rate ?? null} />
       <span className="num" style={{ textAlign: "right" }}>
         {pct(props.rate)} <span className="muted small">n={props.n}</span>
-        {delta !== null && <span className={beyond ? (delta < 0 ? "good" : "bad") : "muted"} style={{ display: "block" }} >{pp(delta)}{beyond ? "" : " (within noise)"}</span>}
-        {delta === null && props.noise !== null && <span className="muted small" style={{ display: "block" }}>{band(props.noise)} noise</span>}
+        {delta !== null && <span className={beyond ? (delta < 0 ? "good" : "bad") : "muted"} style={{ display: "block" }} >{pp(delta)}{beyond ? "" : " (within normal variation)"}</span>}
+        {delta === null && props.noise !== null && <span className="muted small" style={{ display: "block" }}>{band(props.noise)} variation</span>}
       </span>
     </div>
   );

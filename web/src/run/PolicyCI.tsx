@@ -25,13 +25,13 @@ export function PolicyCI(props: { ctx: RunContext }): ReactNode {
   return (
     <>
       <TitleRow
-        title="Policy CI"
-        sub={<>Re-test any edit on this run's frozen suite: the same {model.scenarios.length} readers and {codebook(model).length} beliefs. An edit fails if it changes a rule or makes any misreading rise beyond its own noise.</>}
+        title="Test an edit"
+        sub={<>Change the text and the same {model.scenarios.length} simulated readers read your version. The edit <b style={{ fontWeight: 500 }}>fails</b> if it changes what the policy promises or makes any misreading more common than normal variation allows; it <b style={{ fontWeight: 500 }}>passes</b> if a misreading becomes less common and nothing gets worse.</>}
       />
       <div className="grid">
         <div className="c7"><Editor model={model} onLaunched={(id) => setLaunched((prev) => [id, ...prev])} /></div>
         <div className="c5">
-          <Panel flush title="Tests on this suite" meta={tests.length ? `${tests.length} run` : undefined}>
+          <Panel flush title="Edits tested" meta={tests.length ? `${tests.length}` : undefined}>
             {tests.length === 0 ? <div style={{ padding: 20 }}><Empty>No edit tested yet.</Empty></div> : (
               <ul className="rows" style={{ padding: "4px var(--card-pad) 8px" }}>{tests.map((id) => <TestRow key={id} runId={id} />)}</ul>
             )}
@@ -130,22 +130,23 @@ export function RetestResult(props: { ctx: RunContext }): ReactNode {
     <>
       <TitleRow
         title="Edit test"
-        sub={c ? c.reasons[0] : model.status === "failed" ? "The test stopped with an error." : `Reading the edit: ${read} of ${model.scenarios.length || "…"} readers so far.`}
+        sub={c ? plainVerdict(c, titles) : model.status === "failed" ? "The test stopped with an error." : `Reading the edit: ${read} of ${model.scenarios.length || "…"} readers so far.`}
         meta={<>
           <span className="id">{model.runId}</span>
-          {suite && <a className="link" href={`#/run/${encodeURIComponent(suite)}/ci`}>Suite {suite}</a>}
+          {suite && <a className="link" href={`#/run/${encodeURIComponent(suite)}/ci`}>Back to the policy</a>}
         </>}
       />
       <Kpis items={[
         { label: "Verdict", value: c ? <span className={cx("verdict", c.verdict)}>{VERDICT[c.verdict].label}</span> : model.status === "failed" ? <span className="verdict fail">Error</span> : <span className="muted">Reading</span> },
-        { label: "Same rules as the base", value: c?.fidelity ? (c.fidelity.passed ? "Yes" : <span className="bad">No</span>) : <span className="dash">–</span>, delta: c?.fidelity ? (c.fidelity.passed ? "no fact lost, no commitment added" : "the edit changes what the policy says") : "checked against v0" },
-        { label: "Readers", value: <>{c?.after.readings ?? read}<small>/ {model.scenarios.length}</small></>, delta: "the suite's own personas" },
-        { label: "Noise pairs", value: c?.after.noiseBandScenarios ?? <span className="dash">–</span>, delta: "a change counts only beyond its noise" },
+        { label: "Rules unchanged", value: c?.fidelity ? (c.fidelity.passed ? "Yes" : <span className="bad">No</span>) : <span className="dash">–</span>, delta: c?.fidelity ? (c.fidelity.passed ? "no fact dropped, nothing new promised" : "the edit changes what the policy says") : "checked against the original" },
+        { label: "Readers", value: <>{c?.after.readings ?? read}<small>/ {model.scenarios.length}</small></>, delta: "the same simulated readers as before" },
+        { label: "Read it twice", value: c?.after.noiseBandScenarios ?? <span className="dash">–</span>, delta: "to measure normal variation" },
       ]} />
-      {c && c.reasons.length > 1 && (
-        <Panel className="" title="Why">
-          <ul className="rows">{c.reasons.map((r, i) => <li key={i} className="row">{r}</li>)}</ul>
-        </Panel>
+      {c && (
+        <details style={{ marginTop: "var(--gap)" }}>
+          <summary className="small muted" style={{ cursor: "pointer" }}>Every check behind this verdict</summary>
+          <ul className="rows">{c.reasons.map((r, i) => <li key={i} className="row small">{r}</li>)}</ul>
+        </details>
       )}
       <div className="grid">
         <div className="c5">
@@ -158,14 +159,14 @@ export function RetestResult(props: { ctx: RunContext }): ReactNode {
           </Panel>
         </div>
         <div className="c7">
-          <Panel flush title="Per misreading, same readers" meta={c ? `${c.after.readings} readings` : undefined}>
+          <Panel flush title="Each misreading, same readers" meta={c ? `${c.after.readings} readers` : undefined}>
             {!c ? <div style={{ padding: 20 }}><Empty>The comparison appears when every reader has read the edit.</Empty></div> : (
               <div className="table-wrap" style={{ marginTop: 4 }}>
                 <table>
-                  <thead><tr><th>Misreading</th><th className="n">Before</th><th className="n">After</th><th className="n">Noise</th></tr></thead>
+                  <thead><tr><th>Misreading</th><th className="n">Before</th><th className="n">After</th><th className="n">Normal variation</th></tr></thead>
                   <tbody>
                     <tr>
-                      <td>Conflict rate</td>
+                      <td>Readings that contradict the policy</td>
                       <td className="n">{pct(c.before.conflictRate)}</td>
                       <td className="n">{pct(c.after.conflictRate)}</td>
                       <td className="n muted">{c.after.noiseBand === null ? "–" : band(c.after.noiseBand)}</td>
@@ -192,4 +193,25 @@ export function RetestResult(props: { ctx: RunContext }): ReactNode {
       </div>
     </>
   );
+}
+
+/** One sentence a first-time viewer can read: why the edit passed, failed or could not be judged. */
+function plainVerdict(c: SuiteComparison, titles: Map<string, string>): string {
+  if (c.fidelity && !c.fidelity.passed) {
+    const promise = c.fidelity.newCommitments[0];
+    const lost = c.fidelity.facts.find((f) => !f.entailed);
+    return promise ? `Fails: the edit promises something the original never did (${promise.replace(/\.$/, "")}).` : lost ? `Fails: the edit no longer says something the original did (${lost.why.replace(/\.$/, "")}).` : "Fails: the edit changes what the policy says.";
+  }
+  const changes = c.before.findingReproduction.flatMap((row) => {
+    const after = c.after.findingReproduction.find((r) => r.findingId === row.findingId);
+    if (!after || after.n === 0 || row.n === 0 || row.noiseBand === null) return [];
+    const delta = after.rate - row.rate;
+    return beyondNoise(delta, row.noiseBand) ? [{ title: titles.get(row.findingId) ?? row.findingId, before: row.rate, after: after.rate, delta }] : [];
+  });
+  const worse = changes.find((x) => x.delta > 0);
+  const better = changes.filter((x) => x.delta < 0).sort((a, b) => a.delta - b.delta)[0];
+  if (c.verdict === "fail" && worse) return `Fails: more readers now believe “${worse.title}” (${pct(worse.before)} → ${pct(worse.after)}), more than normal variation.`;
+  if (c.verdict === "pass" && better) return `Passes: “${better.title}” fell from ${pct(better.before)} to ${pct(better.after)} of the same readers, more than normal variation, and nothing got worse.`;
+  if (c.verdict === "inconclusive") return "Can't tell yet: no misreading changed by more than normal variation, or too few readers read twice to measure it.";
+  return c.reasons[0] ?? "";
 }

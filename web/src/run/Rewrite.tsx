@@ -27,18 +27,18 @@ export function Rewrite(props: { ctx: RunContext }): ReactNode {
   }).length : 0;
 
   const kpis: KpiItem[] = [
-    { label: "Rewrites kept", value: final, delta: final === 0 ? "the original stands" : `v0 to v${final}` },
-    { label: "Rejected by fidelity", value: rejectedTotal, delta: "attempts that changed a rule or lost a fact" },
-    { label: "Misreadings that fell", value: fell, delta: last ? "beyond each finding's own noise" : "needs a re-read of a rewrite" },
+    { label: "Rewrites kept", value: final, delta: final === 0 ? "the original text stands" : `original → version ${final}` },
+    { label: "Rewrites rejected", value: rejectedTotal, delta: "they changed a rule or dropped a fact" },
+    { label: "Misreadings that fell", value: fell, delta: last ? "by more than normal variation" : "needs a rewrite to be read again" },
   ];
-  if (reference && first) kpis.push({ label: "Conflict rate", value: last ? <>{pct(first.conflictRate)} → {pct(last.conflictRate)}</> : pct(first.conflictRate), delta: first.noiseBand !== null ? `noise ${band(first.noiseBand)} on ${first.noiseBandScenarios} pairs` : "noise not measured" });
-  else kpis.push({ label: "Re-read pairs", value: first?.noiseBandScenarios ?? <span className="dash">–</span>, delta: "v0 read twice to measure noise" });
+  if (reference && first) kpis.push({ label: "Readings that contradict the policy", value: last ? <>{pct(first.conflictRate)} → {pct(last.conflictRate)}</> : pct(first.conflictRate), delta: first.noiseBand !== null ? `normal variation ${band(first.noiseBand)}` : "variation not measured" });
+  else kpis.push({ label: "Readers who read it twice", value: first?.noiseBandScenarios ?? <span className="dash">–</span>, delta: "to measure normal variation" });
 
   return (
     <>
       <TitleRow
-        title="Rewrite and re-read"
-        sub={model.stop ? `Loop stopped: ${model.stop.reason}` : its.at(-1)?.reason ?? "The loop reads v0 twice to measure noise, rewrites what wording can fix, and re-reads the same scenarios."}
+        title="Fixing the wording"
+        sub={final > 0 ? `A rewrite was kept: the same readers read it and fewer misread it, with no rule changed.` : model.findings.some((f) => f.class === "wording_fix") ? "No rewrite beat normal variation without changing a rule, so the original text stands." : "None of the misreadings can be fixed by rewording: each needs a rule decision or information the text does not give."}
         actions={<Approve ctx={props.ctx} />}
       />
       {its.length === 0 ? <Empty>Nothing measured yet.</Empty> : (
@@ -46,11 +46,11 @@ export function Rewrite(props: { ctx: RunContext }): ReactNode {
           <Kpis items={kpis} />
           <div className="grid">
             <div className="c7">
-              <Panel flush title="Readers holding each misreading, by version" meta="Same scenarios, same frozen codebook">
+              <Panel flush title="Share of readers holding each misreading" meta="same readers, each version">
                 <div className="table-wrap" style={{ marginTop: 4 }}>
                   <table>
                     <thead>
-                      <tr><th>Misreading</th>{its.map((it, i) => <th key={i} className="n">v{it.policyVersion}{i === 0 ? "" : ` (${i})`}</th>)}<th className="n">Noise</th></tr>
+                      <tr><th>Misreading</th>{its.map((it, i) => <th key={i} className="n">{it.policyVersion === 0 ? "Original" : `Version ${it.policyVersion}`}{i === 0 ? "" : " "}</th>)}<th className="n">Normal variation</th></tr>
                     </thead>
                     <tbody>
                       {(first?.findingReproduction ?? []).map((row) => (
@@ -73,15 +73,15 @@ export function Rewrite(props: { ctx: RunContext }): ReactNode {
             </div>
             <div className="c5">
               {reference ? (
-                <Panel title="Conflict rate by version" meta="95% CI · grey band: test–retest noise of v0">
+                <Panel title="Readings that contradict the policy" meta="95% range · grey: normal variation of the original">
                   <ConflictChart iterations={its} />
                 </Panel>
               ) : (
                 <Panel title="How a change is judged">
                   <ol className="rows">
-                    <li className="row" style={{ alignItems: "flex-start" }}><span className="id">1</span><span>The same readers read v0 twice; the spread between the two readings is each misreading's own noise band.</span></li>
-                    <li className="row" style={{ alignItems: "flex-start" }}><span className="id">2</span><span>A rewrite that loses a fact or adds a commitment the original never made is rejected before anyone re-reads it.</span></li>
-                    <li className="row" style={{ alignItems: "flex-start" }}><span className="id">3</span><span>A misreading only counts as fixed when it falls by more than its band. Without a band (too few re-read pairs) it is not judged.</span></li>
+                    <li className="row" style={{ alignItems: "flex-start" }}><span className="id">1</span><span>The same readers read the original twice. How much their answers differ between the two reads is the normal variation for each misreading.</span></li>
+                    <li className="row" style={{ alignItems: "flex-start" }}><span className="id">2</span><span>A rewrite that drops a fact or promises something the original never did is rejected before anyone reads it.</span></li>
+                    <li className="row" style={{ alignItems: "flex-start" }}><span className="id">3</span><span>A misreading only counts as fixed when it falls by more than its normal variation. If too few readers read twice to measure that, it is not judged.</span></li>
                   </ol>
                 </Panel>
               )}
@@ -89,10 +89,10 @@ export function Rewrite(props: { ctx: RunContext }): ReactNode {
           </div>
           <div className="stack" style={{ marginTop: "var(--gap)" }}>
             {versions.length === 0 ? (
-              <Panel title="No rewrite was kept"><p className="muted">{model.findings.some((f) => f.class === "wording_fix") ? "Every attempt failed the fidelity check or did not move readers beyond noise." : "None of the findings can be fixed by wording alone; they need a rule change or information the text does not have."}</p></Panel>
+              <Panel title="No rewrite was kept"><p className="muted">{model.findings.some((f) => f.class === "wording_fix") ? "Every rewrite either changed a rule or did not reduce the misreading by more than normal variation." : "None of the misreadings can be fixed by rewording; they need a rule decision or information the text does not give."}</p></Panel>
             ) : versions.map(({ version, rewrite, rejected }) => (
-              <Panel key={version} title={`v${version - 1} → v${version}`} meta={<span className="pills" style={{ justifyContent: "flex-end" }}>
-                {rewrite && <Pill tone="pos">Fidelity passed</Pill>}
+              <Panel key={version} title={`${version === 1 ? "Original" : `Version ${version - 1}`} → version ${version}`} meta={<span className="pills" style={{ justifyContent: "flex-end" }}>
+                {rewrite && <Pill tone="pos">No rule changed</Pill>}
                 {rejected > 0 && <Pill tone="warn">{rejected} attempt{rejected > 1 ? "s" : ""} rejected</Pill>}
                 {version === final ? <Pill tone="accent">Kept</Pill> : <Pill tone="neg">Rolled back</Pill>}
               </span>}>

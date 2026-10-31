@@ -188,29 +188,43 @@ textarea.input { resize: vertical; line-height: 22px; }
 .spin { animation: spin 0.9s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* ---------- the signature: the policy text as the chart's axis ---------- */
-.textmap { display: grid; }
-.textmap .surface { margin: 14px 0 4px; font-size: var(--fs-small); color: var(--faint); }
-.textmap .surface:first-child { margin-top: 0; }
-.textmap .axis { display: grid; grid-template-columns: 64px minmax(0, 1fr) 176px; gap: 12px; padding: 0 8px 6px; font-size: var(--fs-small); color: var(--faint); }
-.sline { display: grid; grid-template-columns: 64px minmax(0, 1fr) 176px; gap: 12px; align-items: start; width: 100%; padding: 8px; border: 0; border-radius: 0; background: transparent; text-align: left; line-height: 22px; transition: background-color var(--t-hover) ease; }
-.sline + .sline { border-top: 1px solid var(--rule); }
-.sline:hover { background: var(--raised); }
-.sline[aria-pressed="true"] { background: var(--active); }
-.sline .id { padding-top: 2px; }
-.sline.changed { background: var(--pill-positive-bg); }
-.sline.gap { margin-top: 10px; border: 1px dashed var(--control); border-radius: 6px; }
-.heat { display: grid; grid-template-columns: minmax(0, 1fr) 28px; align-items: center; gap: 8px; padding-top: 5px; }
+/* ---------- the report ---------- */
+/* how the test works: four short steps across, numbered by CSS */
+.steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--gap); margin-bottom: var(--gap); padding: 16px var(--card-pad); border: 1px solid var(--border); border-radius: var(--radius-card); counter-reset: step; }
+.steps li { position: relative; padding-left: 30px; color: var(--muted); line-height: 20px; counter-increment: step; }
+.steps li::before { content: counter(step); position: absolute; left: 0; top: 0; display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--pill-accent-bg); color: var(--pill-accent-ink); font-size: 12px; font-weight: 600; }
+.steps b { color: var(--text); font-weight: 500; }
+.steps + .panel { margin-bottom: var(--gap); }
+.stages.progress { grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: var(--gap); }
+
+/* what readers got wrong: the count leads each row */
+.misreadings li + li { border-top: 1px solid var(--rule); }
+.misreadings button { display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; gap: 16px; align-items: start; width: 100%; padding: 14px var(--card-pad); border: 0; background: transparent; text-align: left; transition: background-color var(--t-hover) ease; }
+.misreadings button:hover { background: var(--raised); }
+.misreadings button[aria-pressed="true"] { background: var(--active); }
+.misreadings .count { font-size: 24px; line-height: 28px; color: var(--chart-1); font-weight: 500; }
+.misreadings .count small { display: block; font-size: 12px; line-height: 16px; color: var(--muted); font-weight: 400; }
+.misreadings .what { display: grid; gap: 4px; }
+.misreadings .title { font-size: 15px; line-height: 22px; font-weight: 500; }
+
+/* the policy text with the sentences behind the selected misreading marked */
+.passage p { padding: 4px 8px; margin: 0 -8px; color: var(--muted); line-height: 22px; }
+.passage p.mark { color: var(--text); background: var(--pill-accent-bg); box-shadow: inset 2px 0 0 var(--chart-1); }
+
+/* home: a policy card leads with its most-held misreading */
+.headline-row { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 16px; align-items: start; margin-top: 14px; font-size: 15px; line-height: 22px; }
+.headline-row .count { font-size: 24px; line-height: 28px; color: var(--chart-1); font-weight: 500; }
+.headline-row .count small { display: block; font-size: 12px; line-height: 16px; color: var(--muted); font-weight: 400; }
+.dev-runs { margin-top: calc(var(--gap) * 2); }
+.dev-runs summary { cursor: pointer; color: var(--muted); margin-bottom: 12px; }
+details + .grid { margin-top: var(--gap); }
+
 .track { position: relative; height: 10px; border-radius: 2px; background: var(--chart-track); }
 .track .fill { position: absolute; inset: 0 auto 0 0; border-radius: 2px; background: var(--chart-1); }
 .track .band { position: absolute; top: -3px; bottom: -3px; border-radius: 2px; background: var(--chart-band); opacity: 0.7; }
 .track .tick { position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px; background: var(--text); }
-.heat .num { text-align: right; font-size: 13px; }
 
-/* beliefs and quotes */
-.belief + .belief { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--rule); }
-.belief .head { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
-.belief .head b { font-weight: 500; }
+/* quotes */
 .quote { margin-top: 10px; padding-left: 12px; border-left: 2px solid var(--border); }
 .quote .who { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: var(--fs-small); color: var(--muted); }
 .cite { padding: 10px 12px; border-left: 2px solid var(--chart-1); background: var(--raised); border-radius: 0 6px 6px 0; line-height: 22px; }
@@ -246,6 +260,7 @@ textarea.input { resize: vertical; line-height: 22px; }
 @media (max-width: 1100px) {
   .c4, .c5, .c6, .c7, .c8 { grid-column: 1 / -1; }
   .sticky { position: static; max-height: none; }
+  .steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 860px) {
   .app { grid-template-columns: minmax(0, 1fr); }
@@ -268,10 +283,10 @@ textarea.input { resize: vertical; line-height: 22px; }
   .kpi:last-child:nth-child(odd) { grid-column: 1 / -1; border-left: 0; }
   .kpi-value { font-size: 24px; line-height: 30px; }
   .diff { grid-template-columns: minmax(0, 1fr); }
-  .textmap .axis { display: none; }
-  .sline { grid-template-columns: minmax(0, 1fr); gap: 4px; }
-  .sline .id { padding: 0; }
-  .heat { padding: 0; grid-template-columns: minmax(0, 1fr) 28px; }
+  .steps { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .stages.progress { grid-template-columns: minmax(0, 1fr); }
+  .misreadings button { grid-template-columns: 48px minmax(0, 1fr); }
+  .misreadings button .pill { grid-column: 2; justify-self: start; }
   .hide-phone { display: none; }
 }
 @media (max-width: 480px) {

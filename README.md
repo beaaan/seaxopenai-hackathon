@@ -1,15 +1,28 @@
 # Policy Wind Tunnel
 
-Marketplace rules reach people as text, and many policy failures happen in the gap between what a rule says, what people think it says, and what they do about it. Policy Wind Tunnel reads a policy the way its users will:
-- Persona readers in Vietnamese, each with a realistic channel, attention span and prior belief, record their readings.
-- The system finds the misreadings and the behaviour the wording invites.
-- It rewrites what wording can fix and says plainly what it can't (design gaps, missing information).
-- It re-tests every future edit against the same suite.
+**Test how people will read a policy before you publish it.**
 
-Built at the Sea × OpenAI Codex Hackathon Vietnam, 31 Oct 2026.
+A platform rule only works if people understand it the way it was meant. Policy Wind Tunnel gives the exact text of a policy to dozens of simulated Vietnamese readers. Each reader has their own situation, habits and attention span, and some have already heard a rumour about the rule from a friend or a website. Each one says what they think the text means and what they would do. The tool then answers five questions:
 
-- **Worked example:** Shopee VN's COD help article 79294, verbatim (`policies/cod`).
-- **Second policy:** Grab VN scheduled-ride cancellation terms (`policies/grab-scheduled`).
+1. **Which sentences get misread, and by how many readers?** Every wrong belief that two or more readers share is traced to the sentence behind it.
+2. **Does the official text correct what people already believe?** Rules travel as rumours, so readers can be told one first, the way it happens in real life.
+3. **Does a rewrite actually fix it?** It rewrites what wording can fix, checks that the rewrite keeps every rule unchanged, and has the same readers read it again. A change only counts if it is bigger than the variation you get when the same readers read the same text twice.
+4. **What can wording not fix?** When every fix would have to change the rule or add information the text doesn't have, it says so. That is a decision for the policy owner, not the copywriter.
+5. **Does a later edit break anything?** Any edit can be re-tested on the same readers. It fails if it changes what the policy promises or makes a misreading worse.
+
+## What it found
+
+**Shopee VN, "Why can't I choose cash on delivery?"** (help article 79294, verbatim; 50 simulated shoppers, run `cod-main-noref`)
+- 24 readers had been told "3 failed deliveries in 90 days locks COD", a rule that circulates on coupon sites but appears on no Shopee page we could find. After reading the official article, 15 of them still believed it. None of the 13 readers who had heard no rumour came up with it.
+- Of 13 readers told "the lock lasts about 60 days", 8 still believed it after reading.
+- The article gives no number, no time window and no lock duration, so it cannot correct either rumour. Every finding on this text needs a rule decision or information Shopee hasn't published; none can be fixed by rewording.
+
+**Grab VN, scheduled-ride cancellation terms** (40 simulated riders, run `grab-main-noref`)
+- A rewrite of the rider clauses cut "Driver-support funding remains unresolved for riders" from 97% to 62% of the same readers, beyond the ±5-point variation of re-reading. The rewrite passed the check that no rule changed.
+
+**Limits.** The simulated readers are chosen to cover combinations of traits, not to match the population, so the counts show which misreadings are common among plausible readers, not national rates. Whether real people read the text the same way is checked on the phone page in the app (Human check).
+
+Built at the Sea × OpenAI Codex Hackathon Vietnam, 31 Oct 2026. Policies: `policies/cod` (Shopee) and `policies/grab-scheduled` (Grab).
 
 ## Quick start
 

@@ -190,22 +190,41 @@ export function sharedBeliefs(clusters: readonly Cluster[]): Cluster[] {
   return clusters.filter((c) => distinctReaders(c) >= 2).sort((a, b) => distinctReaders(b) - distinctReaders(a) || b.conflictShare - a.conflictShare);
 }
 
-export interface SentenceHeat {
-  sentenceId: string | null;
-  readers: number;
-  clusters: Cluster[];
+/** How many readers counts are measured against: the original cohort. */
+export function cohortSize(m: RunModel): number {
+  return originalReadings(m).length || m.scenarios.length;
 }
 
-/** Distinct readers per sentence across shared beliefs; `null` = rules the text never states. */
-export function sentenceHeat(m: RunModel): Map<string | null, SentenceHeat> {
-  const out = new Map<string | null, SentenceHeat>();
-  for (const cluster of sharedBeliefs(codebook(m))) {
-    const entry = out.get(cluster.sentenceId) ?? { sentenceId: cluster.sentenceId, readers: 0, clusters: [] };
-    entry.clusters.push(cluster);
-    out.set(cluster.sentenceId, entry);
-  }
-  for (const entry of out.values()) entry.readers = new Set(entry.clusters.flatMap((c) => c.readingIds)).size;
-  return out;
+/** One wrong idea readers came away with: a named finding, or, before findings exist, a belief two or more readers share. */
+export interface Misreading {
+  id: string;
+  title: string;
+  /** null for an unnamed shared belief (exploration runs, or before findings are written). */
+  kind: Finding["class"] | null;
+  summary: string | null;
+  sentenceIds: string[];
+  /** Scenario ids of the readers who hold it. */
+  readers: string[];
+  interpretationIds: string[];
+}
+
+/** Misreadings, most-held first. */
+export function misreadings(m: RunModel): Misreading[] {
+  const scenarioOf = new Map(m.readings.map((r) => [r.id, r.scenarioId]));
+  const scenariosOf = (readingIds: readonly string[]): string[] => [...new Set(readingIds.map((id) => scenarioOf.get(id) ?? id))];
+  const clusters = codebook(m);
+  const byId = new Map(clusters.map((c) => [c.id, c]));
+  const rows: Misreading[] = m.findings.length > 0
+    ? m.findings.map((f) => ({
+      id: f.id, title: f.title, kind: f.class, summary: f.readingSummary, sentenceIds: f.sentenceIds,
+      readers: scenariosOf(f.evidence.readingIds),
+      interpretationIds: f.evidence.clusterIds.flatMap((id) => byId.get(id)?.interpretationIds ?? []),
+    }))
+    : sharedBeliefs(clusters).map((c) => ({
+      id: c.id, title: c.labelEn, kind: null, summary: null, sentenceIds: c.sentenceId === null ? [] : [c.sentenceId],
+      readers: scenariosOf(c.readingIds), interpretationIds: c.interpretationIds,
+    }));
+  return rows.sort((a, b) => b.readers.length - a.readers.length);
 }
 
 export function scenarioById(m: RunModel): Map<string, Scenario> {
@@ -226,16 +245,23 @@ export function acceptedRewrite(m: RunModel, toVersion: number): Rewrite | null 
 }
 
 export const CLASS_LABEL: Record<Finding["class"], string> = {
-  wording_fix: "Wording fix",
-  design_gap: "Rule gap",
-  unresolvable: "Missing information",
+  wording_fix: "Fixable by rewording",
+  design_gap: "Needs a rule decision",
+  unresolvable: "Text lacks the information",
+};
+
+/** What each kind means for the person who owns the text. */
+export const CLASS_MEANING: Record<Finding["class"], string> = {
+  wording_fix: "A rewrite that keeps every rule the same removed this misreading when the same readers read it again.",
+  design_gap: "Every fix would have to change what the policy says. The policy owner has to decide the rule.",
+  unresolvable: "Readers need a fact the text does not give (a number, a deadline, a next step). Rewording alone cannot supply it.",
 };
 
 export const STAGES = [
-  { id: "sample", label: "Sample readers", done: (m: RunModel) => m.scenarios.length > 0 },
-  { id: "read", label: "Read", done: (m: RunModel) => m.readings.length > 0 },
-  { id: "codebook", label: "Freeze beliefs", done: (m: RunModel) => m.codebookIds !== null },
-  { id: "findings", label: "Findings", done: (m: RunModel) => m.findings.length > 0 },
-  { id: "rewrite", label: "Rewrite + re-read", done: (m: RunModel) => m.stop !== null },
-  { id: "evaluate", label: "Evaluate", done: (m: RunModel) => m.status === "completed" },
+  { id: "sample", label: "Choose readers", done: (m: RunModel) => m.scenarios.length > 0 },
+  { id: "read", label: "Readers read the text", done: (m: RunModel) => m.readings.length > 0 },
+  { id: "codebook", label: "Group what they believe", done: (m: RunModel) => m.codebookIds !== null },
+  { id: "findings", label: "Name the misreadings", done: (m: RunModel) => m.findings.length > 0 },
+  { id: "rewrite", label: "Rewrite and read again", done: (m: RunModel) => m.stop !== null },
+  { id: "evaluate", label: "Compare with one AI review", done: (m: RunModel) => m.status === "completed" },
 ] as const;
