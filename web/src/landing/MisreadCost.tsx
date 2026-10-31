@@ -25,7 +25,7 @@ export function MisreadCost(props: { model: RunModel | null; top: Misreading | u
   const cost = buyers * share * contact * SUPPORT_CONTACT.usd;
   return (
     <section className="l-ch l-cost" id="cost" aria-labelledby="cost-title" data-chapter="The cost">
-      <span className="l-kick" data-rise>What it costs</span>
+      <span className="l-kick" data-rise>What it could cost</span>
       <h2 id="cost-title" data-rise>One misreading, priced in support calls</h2>
       <div className="c-eq" data-rise>
         <div className="c-term">
@@ -39,7 +39,7 @@ export function MisreadCost(props: { model: RunModel | null; top: Misreading | u
         <div className="c-term measured">
           <strong>{Math.round(share * 100)}%</strong>
           <span>believe a rule that isn't there</span>
-          <small>{held} of {model.scenarios.length} readers in our run</small>
+          <small>{held} of {model.scenarios.length} simulated readers</small>
         </div>
         <b className="c-op">×</b>
         <div className="c-term">
@@ -58,7 +58,7 @@ export function MisreadCost(props: { model: RunModel | null; top: Misreading | u
       </div>
       <div className="c-total" data-rise>
         <strong><CountUp fact={{ value: Math.round(cost), prefix: "$" }} /></strong>
-        <span>in support contacts, for this one misreading</span>
+        <span>illustrative support-cost scenario for this one misreading</span>
       </div>
       {runCost > 0 && (
         <p className="c-vs" data-rise>
