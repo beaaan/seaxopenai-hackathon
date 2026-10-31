@@ -35,11 +35,18 @@ interface Hud {
   done: boolean;
 }
 
-const EMPTY: Hud = { stage: null, reached: new Set(), readers: 0, readings: 0, rereads: 0, interpretations: 0, graded: 0, clusters: 0, toolCalls: 0, baselines: 0, agent: [], log: [], findings: null, total: 0, score: null, done: false };
+/** A fresh HUD: playback mutates it in place, so every reset needs new objects. */
+function emptyHud(): Hud {
+  return { stage: null, reached: new Set(), readers: 0, readings: 0, rereads: 0, interpretations: 0, graded: 0, clusters: 0, toolCalls: 0, baselines: 0, agent: [], log: [], findings: null, total: 0, score: null, done: false };
+}
 const SPEEDS = [1, 2, 4] as const;
 
-export function TheatrePage(props: { runId: string }): ReactNode {
-  const { runId } = props;
+/**
+ * The run as a theatre. `embedded` is the landing hero: the scene alone, at 2×, looping, paused while off screen,
+ * with the stage rail and counters but none of the panels or controls.
+ */
+export function TheatrePage(props: { runId: string; embedded?: boolean }): ReactNode {
+  const { runId, embedded = false } = props;
   const loaded = useRun(runId);
   const events = loaded.events;
   const [policy, setPolicy] = useState<PolicyDetail | null>(null);
@@ -57,13 +64,13 @@ export function TheatrePage(props: { runId: string }): ReactNode {
   const overlay = useRef<HTMLDivElement>(null);
   const host = useRef<HTMLDivElement>(null);
   const scene = useRef<TheatreScene | null>(null);
-  const [hud, setHud] = useState<Hud>(EMPTY);
-  const hudRef = useRef<Hud>(EMPTY);
+  const [hud, setHud] = useState<Hud>(emptyHud);
+  const hudRef = useRef<Hud>(emptyHud());
   const times = useRef<number[]>([]);
   const cursor = useRef(0);
   const clock = useRef(0);
   const [playing, setPlaying] = useState(true);
-  const [speed, setSpeed] = useState<(typeof SPEEDS)[number]>(1);
+  const [speed, setSpeed] = useState<(typeof SPEEDS)[number]>(embedded ? 2 : 1);
   const [progress, setProgress] = useState(0);
   const folk = useMemo(() => new Map<string, FolkVersion>((policy?.folk.versions ?? []).map((f) => [f.id, f])), [policy]);
   const eventsRef = useRef<readonly RunEvent[]>(events);
@@ -147,7 +154,7 @@ export function TheatrePage(props: { runId: string }): ReactNode {
       case "grades.added":
         s?.grade(e.payload.grades, instant);
         h.graded += e.payload.grades.length;
-        detail = `${e.payload.grades.length} interpretations judged against the reference`;
+        detail = `${e.payload.grades.length} interpretations graded`;
         break;
       case "clusters.updated": {
         const all = eventsRef.current.slice(0, index + 1);
@@ -210,13 +217,11 @@ export function TheatrePage(props: { runId: string }): ReactNode {
     setHud({ ...h, reached: new Set(h.reached) });
   }, []);
 
+  /** Jump to `target` seconds: rebuild the scene and HUD from the event prefix, so nothing in flight survives. */
   const seek = useCallback((target: number): void => {
-    const s = scene.current;
-    if (target < clock.current) {
-      s?.reset();
-      hudRef.current = { ...EMPTY, reached: new Set() };
-      cursor.current = 0;
-    }
+    scene.current?.reset();
+    hudRef.current = emptyHud();
+    cursor.current = 0;
     const list = eventsRef.current;
     while (cursor.current < list.length && times.current[cursor.current]! <= target) {
       apply(list[cursor.current]!, cursor.current, true);
@@ -235,35 +240,56 @@ export function TheatrePage(props: { runId: string }): ReactNode {
     let frame = 0;
     let last = performance.now();
     let sinceFlush = 0;
+    let dirty = false;
+    let endedAt: number | null = null;
+    let visible = true;
+    const seen = embedded && host.current ? new IntersectionObserver(([entry]) => {
+      visible = entry?.isIntersecting ?? true;
+    }) : null;
+    if (seen && host.current) seen.observe(host.current);
     const tick = (now: number): void => {
       const dt = Math.min(0.1, (now - last) / 1000);
       last = now;
+      frame = requestAnimationFrame(tick);
+      if (!visible) return;
       const list = eventsRef.current;
       const end = endOf(list, times.current);
+      // The hero loops: hold the finished picture for a few seconds, then start again.
+      if (embedded && list.length > 0 && clock.current >= end) {
+        endedAt ??= now;
+        if (now - endedAt > 5000) {
+          endedAt = null;
+          seek(0);
+        }
+      }
       if (playingRef.current && list.length > 0) {
         clock.current = Math.min(end, clock.current + dt * speedRef.current);
-        let changed = false;
         while (cursor.current < list.length && times.current[cursor.current]! <= clock.current) {
           apply(list[cursor.current]!, cursor.current, false);
           cursor.current++;
-          changed = true;
+          dirty = true;
         }
         sinceFlush += dt;
-        if (changed && sinceFlush > 0.08) {
+        // Batch HUD renders, but never leave a change unshown once the burst ends.
+        if (dirty && (sinceFlush > 0.08 || cursor.current >= list.length)) {
           sinceFlush = 0;
+          dirty = false;
           flush();
         }
       }
       scene.current?.frame(dt);
-      setProgress(end > 0 ? clock.current / end : 0);
-      frame = requestAnimationFrame(tick);
+      if (!embedded) setProgress(end > 0 ? clock.current / end : 0);
     };
     frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
-  }, [apply, flush]);
+    return () => {
+      cancelAnimationFrame(frame);
+      seen?.disconnect();
+    };
+  }, [apply, flush, seek, embedded]);
 
   // Space toggles play; arrows change speed.
   useEffect(() => {
+    if (embedded) return; // On the landing page Space scrolls.
     const key = (e: KeyboardEvent): void => {
       if (e.target instanceof HTMLInputElement) return;
       if (e.code === "Space") {
@@ -273,13 +299,40 @@ export function TheatrePage(props: { runId: string }): ReactNode {
     };
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
-  }, []);
+  }, [embedded]);
 
   const total = endOf(events, times.current);
   const live = loaded.model?.status === "running";
   const caughtUp = cursor.current >= events.length;
   const title = policy?.package.title ?? policyId ?? runId;
-  const stageIndex = hud.stage ? STAGES.findIndex((s) => s.id === hud.stage) : -1;
+
+  if (embedded) {
+    return (
+      <div className="theatre embedded">
+        <div className="t-stage" ref={host}>
+          <canvas ref={canvas} className="t-canvas" aria-label="A real run replaying: readers, the policy text and the beliefs they formed" />
+          <div className="t-overlay" ref={overlay} aria-hidden="true" />
+          <div className="t-zone readers">{hud.readers || "…"} readers<small><i className="c-amber">told a rumour</i> <i className="c-cyan">heard nothing</i></small></div>
+          <div className="t-zone text">Policy text</div>
+          <div className="t-zone beliefs">Beliefs<small><i className="c-green">fits the policy</i> <i className="c-amber">not in the text</i> <i className="c-red">contradicts it</i></small></div>
+        </div>
+        <div className="t-embedded-hud">
+          <ol className="t-rail" aria-label="Pipeline stages">
+            {STAGES.map((s) => (
+              <li key={s.id} className={s.id === hud.stage ? "now" : hud.reached.has(s.id) ? "done" : undefined}>{s.label}</li>
+            ))}
+          </ol>
+          <dl className="t-counters">
+            <div><dt>Readings</dt><dd>{hud.readings + hud.rereads}</dd></div>
+            <div><dt>Interpretations</dt><dd>{hud.interpretations}</dd></div>
+            <div><dt>Belief clusters</dt><dd>{hud.clusters}</dd></div>
+            <div><dt>Agent tool calls</dt><dd>{hud.toolCalls}</dd></div>
+            <div><dt>Misreadings</dt><dd>{hud.findings?.length ?? 0}</dd></div>
+          </dl>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="theatre">
@@ -298,8 +351,8 @@ export function TheatrePage(props: { runId: string }): ReactNode {
           <span>{live && caughtUp ? <i className="t-live">Live</i> : <i className="t-replay">Replay · {speed}×</i>} <code>{runId}</code></span>
         </div>
         <ol className="t-rail" aria-label="Pipeline stages">
-          {STAGES.map((s, i) => (
-            <li key={s.id} className={s.id === hud.stage ? "now" : hud.reached.has(s.id) || i < stageIndex ? "done" : undefined}>{s.label}</li>
+          {STAGES.map((s) => (
+            <li key={s.id} className={s.id === hud.stage ? "now" : hud.reached.has(s.id) ? "done" : undefined}>{s.label}</li>
           ))}
         </ol>
       </header>

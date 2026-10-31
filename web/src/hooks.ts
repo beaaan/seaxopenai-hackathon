@@ -29,7 +29,7 @@ export function useRun(runId: string, followFinished = true): LoadedRun {
           if (!alive) return;
           const live = foldRun(runId, events);
           const all = [...events];
-          setState({ model: { ...live }, events: all, error: null });
+          setState({ model: { ...live }, events: [...all], error: null });
           if (live.status !== "running" && !followFinished) return;
           let last = events.at(-1)?.seq ?? -1;
           const close = tail(runId, last + 1, (event) => {

@@ -15,15 +15,15 @@ The web app has three views: a landing page with the result on Shopee's article,
 ## What it found
 
 **Shopee VN, "Why can't I choose cash on delivery?"** (help article 79294, verbatim; 50 simulated shoppers, run `cod-main`)
-- 22 readers were told "3 failed COD orders within 90 consecutive days locks COD", a rule that circulates on coupon sites but appears on no Shopee page we could find. After reading the article, 16 of them believed a three-failure cutoff is policy. None of the 13 readers who heard no rumour came up with it.
-- 11 of the 15 readers told "the lock lasts about 60 days" still expected a 60-day lock after reading.
+- 22 readers were told "3 failed COD orders within 90 consecutive days locks COD", a rule that circulates on coupon sites but appears on no Shopee page we could find. 16 of them came away believing a three-failure cutoff is policy: 3 of the 5 who read the help article, 6 of the 7 who saw only the checkout message, and 7 of the 10 who saw no official text. None of the 13 readers who heard no rumour came up with it. The groups are small; the pattern is that the official text does not dislodge the rumour.
+- 11 of the 15 readers told "the lock lasts about 60 days" kept expecting a 60-day lock.
 - 11 readers found no retry time in the checkout message "temporarily unavailable".
 - The article gives no number, time window or lock duration, so it cannot correct either rumour. Every finding needs a rule decision or information Shopee has not published.
-- Edit tests on the same readers (`cod-main-rt1`, `cod-main-rt2`): a sentence spelling out the scope moved the three-failure belief from 85% to 82%, within variation, and made another misreading more common, so it fails. An edit telling cash-only buyers to pay at a convenience store fails because it promises something the original never did.
-- Against nine edge cases from research written before any run, scored blind, each single AI review found 8 and the wind tunnel 5. The wind tunnel also found 3 problems missing from that list, and it reports how many readers each problem affects and what they had heard.
+- Edit tests on the same readers (`cod-main-rt1`, `cod-main-rt2`, 10 readers each): a sentence spelling out the scope moved the three-failure belief from 85% to 82%, within variation, and made another misreading more common, so it fails. An edit telling cash-only buyers to pay at a convenience store fails because it promises something the original never did.
+- Against nine edge cases from research written before any run, scored blind, each single AI review found 8 and the wind tunnel 5. Three wind-tunnel findings matched no listed edge case; they are not validated. What the wind tunnel adds is how many readers each problem affects and what they had heard.
 
 **Grab VN, scheduled-ride cancellation terms** (40 simulated riders, run `grab-main-noref`)
-- A rewrite of the rider clauses cut "Driver-support funding remains unresolved for riders" from 97% to 62% of the same readers, beyond the ±5-point variation between reads. The rewrite kept every rule unchanged.
+- A rewrite of the rider clauses reduced "Driver-support funding remains unresolved for riders" from 97% to 62% of the same 12 readers, beyond the ±5-point variation between reads. The rewrite kept every rule unchanged.
 
 **Limits.** The simulated readers cover combinations of traits; they are not a sample of the population, so the counts are not national rates. Whether real people read the text the same way is checked on the phone page in the app (Ask real people).
 

@@ -65,6 +65,13 @@
 .t-rail li.now { color: #05070b; background: var(--t-cyan); border-color: var(--t-cyan); box-shadow: 0 0 18px rgba(143, 227, 255, 0.55); }
 
 .t-counters { position: absolute; top: 64px; right: 24px; margin: 0; display: flex; gap: 22px; }
+
+/* Embedded in the landing hero: the scene, a stage rail along the bottom, counters above it on the right. */
+.theatre.embedded { position: absolute; inset: 0; z-index: 0; }
+.t-embedded-hud { position: absolute; z-index: 2; left: 0; right: 0; bottom: 0; display: grid; justify-items: end; gap: 14px; padding: 0 clamp(20px, 3.4vw, 48px) 26px; pointer-events: none; }
+.t-embedded-hud .t-rail { margin: 0 !important; justify-self: stretch; justify-content: space-between; padding: 6px; border-radius: 999px; background: rgba(9, 13, 20, 0.7); border: 1px solid var(--t-edge); }
+.t-embedded-hud .t-counters { position: static; order: -1; }
+.theatre.embedded .t-zone { top: 92px; }
 .t-counters div { display: grid; justify-items: end; }
 .t-counters dt { font-size: 11.5px; color: var(--t-dim); }
 .t-counters dd { margin: 0; font-family: var(--mono); font-size: 22px; font-variant-numeric: tabular-nums; color: var(--t-ink); }
@@ -130,6 +137,8 @@
   .t-findings { width: min(440px, 60vw); }
 }
 @media (max-width: 700px) {
+  .theatre.embedded .t-label.slab, .theatre.embedded .t-label.orb, .theatre.embedded .t-label.tag { display: none; }
+  .t-embedded-hud .t-counters { justify-content: space-between; align-self: stretch; }
   .t-top { padding: 12px 14px; gap: 12px; }
   .t-title b { max-width: 60vw; }
   .t-counters { top: 58px; right: 14px; left: 14px; gap: 12px; justify-content: space-between; }

@@ -15,6 +15,7 @@ export const TINT = {
   conflicts: new THREE.Color("#ff5d5d"),
   unclear: new THREE.Color("#9aa0a6"),
   slab: new THREE.Color("#3d5a80"),
+  orb: new THREE.Color("#bfe6ff"),
   hit: new THREE.Color("#ffd28a"),
 };
 
@@ -148,6 +149,7 @@ export class TheatreScene {
   private readonly renderer: THREE.WebGLRenderer;
   private readonly composer: EffectComposer;
   private readonly bloom: UnrealBloomPass;
+  private readonly passes: Array<{ dispose(): void }>;
   private readonly scene = new THREE.Scene();
   private readonly camera = new THREE.PerspectiveCamera(38, 1, 0.1, 200);
   private readonly root = new THREE.Group();
@@ -179,10 +181,11 @@ export class TheatreScene {
     for (const cloud of [this.dust, this.flights, this.sparkCloud, this.readerCloud]) this.root.add(cloud.points);
     this.camera.position.set(0, -1.6, 25);
     this.composer = new EffectComposer(this.renderer);
-    this.composer.addPass(new RenderPass(this.scene, this.camera));
+    const render = new RenderPass(this.scene, this.camera);
     this.bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 1.05, 0.55, 0.08);
-    this.composer.addPass(this.bloom);
-    this.composer.addPass(new OutputPass());
+    const output = new OutputPass();
+    this.passes = [render, this.bloom, output];
+    for (const pass of [render, this.bloom, output]) this.composer.addPass(pass);
     this.seedDust();
   }
 
@@ -205,18 +208,7 @@ export class TheatreScene {
   /** Clear every event-driven object; the dust stays. */
   reset(): void {
     this.active = [];
-    for (const s of this.slabs) {
-      this.root.remove(s.mesh);
-      s.mesh.geometry.dispose();
-      (s.mesh.material as THREE.Material).dispose();
-      s.label.remove();
-    }
-    this.slabs = [];
-    if (this.gapSlab) {
-      this.root.remove(this.gapSlab.mesh);
-      this.gapSlab.label.remove();
-      this.gapSlab = null;
-    }
+    this.dropSlabs();
     for (const o of this.orbs) this.dropOrb(o);
     this.orbs = [];
     for (const t of this.tags) t.el.remove();
@@ -230,11 +222,25 @@ export class TheatreScene {
   // -------------------------------------------------------------------------
   // Event handlers. `instant` applies the end state without animation (skipping ahead).
 
-  policy(sentences: readonly Sentence[]): void {
+  private dropSlabs(): void {
     for (const s of this.slabs) {
       this.root.remove(s.mesh);
+      s.mesh.geometry.dispose();
+      (s.mesh.material as THREE.Material).dispose();
       s.label.remove();
     }
+    this.slabs = [];
+    if (this.gapSlab) {
+      this.root.remove(this.gapSlab.mesh);
+      this.gapSlab.mesh.geometry.dispose();
+      (this.gapSlab.mesh.material as THREE.Material).dispose();
+      this.gapSlab.label.remove();
+      this.gapSlab = null;
+    }
+  }
+
+  policy(sentences: readonly Sentence[]): void {
+    this.dropSlabs();
     const n = sentences.length;
     const span = Math.min(7.2, n * 0.62);
     this.slabs = sentences.map((s, i) => {
@@ -276,22 +282,27 @@ export class TheatreScene {
     const from = reader?.pos ?? READERS_AT.clone();
     const color = reader?.color ?? TINT.spark;
     if (reader && !instant) reader.pulse = 1;
+    // A re-read measures variation and a rewrite's reading refers to another version's sentences: neither adds beliefs.
+    const beliefs = !retest && r.policyVersion === 0;
     for (const [k, it] of r.interpretations.entries()) {
       const slab = this.slabs.find((s) => s.id === it.sentenceId);
       const hitAt = slab ? new THREE.Vector3((hash(k, 3) - 0.5) * 2.6, slab.y, 0.05) : this.gapSlab ? this.gapSlab.mesh.position.clone().add(new THREE.Vector3((hash(k, 4) - 0.5) * 2.6, 0, 0)) : new THREE.Vector3();
-      const sparkId = it.id;
+      // The interpretation exists from now on, so grades and clusters that arrive mid-flight still apply to it.
+      const spark = beliefs ? this.spawnSpark(it.id, hitAt, instant) : null;
       const land = (): void => {
         if (slab) slab.heat = Math.min(2.2, slab.heat + 0.7);
         else if (this.gapSlab) this.gapSlab.heat = Math.min(2.2, this.gapSlab.heat + 0.7);
-        if (retest) return; // A re-read measures variation; its interpretations are not new beliefs.
-        this.spawnSpark(sparkId, hitAt, instant);
+        if (spark && !spark.visible) {
+          spark.pos.copy(hitAt);
+          spark.visible = true;
+        }
       };
       if (instant) {
         land();
         continue;
       }
       const delay = k * 0.12;
-      this.fly(from, hitAt, color, retest ? 0.75 : 1.1, delay, retest ? 0.55 : 1, land);
+      this.fly(from, hitAt, color, beliefs ? 1.1 : 0.75, delay, beliefs ? 1 : 0.55, land);
     }
   }
 
@@ -317,7 +328,7 @@ export class TheatreScene {
       if (!orb) {
         const mesh = new THREE.Mesh(
           new THREE.SphereGeometry(1, 24, 16),
-          new THREE.MeshBasicMaterial({ color: c.conflictShare > 0.3 ? TINT.conflicts : TINT.rumour, transparent: true, opacity: 0.0, depthWrite: false, blending: THREE.AdditiveBlending }),
+          new THREE.MeshBasicMaterial({ color: c.conflictShare > 0.3 ? TINT.conflicts : TINT.orb, transparent: true, opacity: 0.0, depthWrite: false, blending: THREE.AdditiveBlending }),
         );
         mesh.position.copy(center);
         this.root.add(mesh);
@@ -364,13 +375,18 @@ export class TheatreScene {
     while (this.tags.length > 1) this.tags.shift()!.el.remove();
   }
 
-  private spawnSpark(id: string, at: THREE.Vector3, instant: boolean): void {
-    if (this.sparkById.has(id) || this.sparks.length >= MAX_SPARKS) return;
+  /** Create an interpretation's spark; it stays hidden until its flight lands (`instant` shows it at once). */
+  private spawnSpark(id: string, at: THREE.Vector3, instant: boolean): Spark | null {
+    const existing = this.sparkById.get(id);
+    if (existing) return existing;
+    if (this.sparks.length >= MAX_SPARKS) return null;
     const i = this.sparks.length;
-    const target = HOLDING_AT.clone().add(sphere(i, 160, 1.3, 1.6));
-    const spark: Spark = { id, pos: instant ? target.clone() : at.clone(), target, color: TINT.spark.clone(), goal: TINT.spark.clone(), phase: hash(i, 9) * Math.PI * 2, visible: true };
+    // Concentric shells of 160, so any number of interpretations has a place to wait.
+    const target = HOLDING_AT.clone().add(sphere(i % 160, 160, 1.3 + Math.floor(i / 160) * 0.35, 1.6));
+    const spark: Spark = { id, pos: instant ? target.clone() : at.clone(), target, color: TINT.spark.clone(), goal: TINT.spark.clone(), phase: hash(i, 9) * Math.PI * 2, visible: instant };
     this.sparks.push(spark);
     this.sparkById.set(id, spark);
+    return spark;
   }
 
   private fly(a: THREE.Vector3, b: THREE.Vector3, color: THREE.Color, duration: number, delay: number, size: number, arrive?: () => void): void {
@@ -444,12 +460,12 @@ export class TheatreScene {
 
     // Sparks drift toward their target and settle into their grade colour.
     this.sparks.forEach((s, i) => {
-      s.pos.lerp(s.target, Math.min(1, dt * 2.2));
+      if (s.visible) s.pos.lerp(s.target, Math.min(1, dt * 2.2));
       s.color.lerp(s.goal, Math.min(1, dt * 3));
       tmp.copy(s.pos);
       tmp.x += Math.cos(t * 0.9 + s.phase) * 0.05 * sway;
       tmp.y += Math.sin(t * 1.1 + s.phase) * 0.05 * sway;
-      this.sparkCloud.set(i, tmp, s.color, 1.5, 0.9);
+      this.sparkCloud.set(i, tmp, s.color, 1.5, s.visible ? 0.9 : 0);
     });
     this.sparkCloud.commit(this.sparks.length);
 
@@ -513,6 +529,7 @@ export class TheatreScene {
   dispose(): void {
     this.reset();
     for (const cloud of [this.dust, this.flights, this.sparkCloud, this.readerCloud]) cloud.dispose();
+    for (const pass of this.passes) pass.dispose();
     this.composer.dispose();
     this.renderer.dispose();
   }

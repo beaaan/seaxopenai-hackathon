@@ -252,9 +252,9 @@ export const CLASS_LABEL: Record<Finding["class"], string> = {
 
 /** What each kind means for the person who owns the text. */
 export const CLASS_MEANING: Record<Finding["class"], string> = {
-  wording_fix: "Rewording fixed it: the same readers stopped believing it, and no rule changed.",
+  wording_fix: "A tested rewording made it less common among the same readers, with no rule changed.",
   design_gap: "Fixing it means changing or stating a rule. The policy owner has to decide.",
-  unresolvable: "Readers need a fact the text does not give, such as a number, a deadline or a next step.",
+  unresolvable: "Readers need information the text does not give.",
 };
 
 /** Wrap text in quotation marks unless it already opens with one (some finding titles quote the text). */
