@@ -21,7 +21,7 @@ Every future edit is re-tested against the same suite ("policy CI").
 ```bash
 npm install
 cp .env.example .env              # then set OPENAI_API_KEY
-npm run check                     # typecheck (node + web) + vitest + holdout guard; must pass before every merge
+npm run check                     # typecheck (node + web) + vitest + holdout guard + web build; must pass before every merge
 npm run server                    # API + SSE on :8787
 npm run web                       # Vite UI on :5173 (proxies /api)
 npm run pwt -- runs               # list runs

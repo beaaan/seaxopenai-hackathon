@@ -32,7 +32,7 @@ Built at the Sea × OpenAI Codex Hackathon Vietnam, 31 Oct 2026. Policies: `poli
 ## Quick start
 
 ```bash
-npm install
+npm ci                              # install the exact dependencies in package-lock.json
 cp .env.example .env                 # set OPENAI_API_KEY; `codex login` for App Server
 npm run pwt -- smoke                 # live check: Responses, Decisions, embeddings, App Server
 npm run pwt -- fixture               # synthetic run for the UI
@@ -41,8 +41,14 @@ npm run pwt -- test edit.json --suite <runId> --smoke   # policy CI on an edited
 npm run server                       # http://localhost:8787
 npm run web                          # http://localhost:5173 (landing); #/live/cod-main replays the canonical run
 npm run web -- --host                # same, reachable from phones on the venue Wi-Fi (human check: /#/check/<runId>)
-npm run check                        # typecheck + tests + holdout guard
+npm run check                        # typecheck + tests + holdout guard + web build
 ```
+
+If **Watch the run** reports a missing Three.js addon such as `OutputPass.js`, stop
+the dev servers, run `npm ci` from this repository, and restart `npm run server`
+and `npm run web` in separate terminals. A missing local dependency can cause
+Node/Vite to resolve an older Three.js installation from a parent directory.
+`npm ls three --depth=0` should show the version installed for this project.
 
 ## How it uses OpenAI
 
