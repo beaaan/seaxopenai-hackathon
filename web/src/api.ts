@@ -34,8 +34,8 @@ export const api = {
   startRun: (policyId: string, mode: "full" | "explore", budget: number) => call("/api/runs", RunCreated, { policyId, mode, budget }),
   retest: (runId: string, surfaces: Surface[], smoke: boolean) => call(`/api/runs/${id(runId)}/retest`, RunCreated, { surfaces, smoke }),
   check: (runId: string) => call(`/api/runs/${id(runId)}/check`, HumanCheck),
-  answer: (runId: string, respondent: string, answers: Array<{ questionId: string; answerVi: string }>) =>
-    call(`/api/runs/${id(runId)}/check/answers`, Ok, { respondent, answers }),
+  answer: (runId: string, respondentId: string, respondent: string, answers: Array<{ questionId: string; answerVi: string }>) =>
+    call(`/api/runs/${id(runId)}/check/answers`, Ok, { respondentId, respondent, answers }),
   mapAnswers: (runId: string) => call(`/api/runs/${id(runId)}/check/map`, Ok, {}),
   approve: (runId: string, version: number, approvedBy: string) => call(`/api/runs/${id(runId)}/approve`, Ok, { version, approvedBy }),
 };

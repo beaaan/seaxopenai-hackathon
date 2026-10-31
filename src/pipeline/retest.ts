@@ -6,9 +6,9 @@ import { Surface, type Finding, type Iteration, type PolicyVersion, type Reading
 import { DEFAULT_CONFLICT_THRESHOLD, gradeReadings } from "../reviewer/grade";
 import { codeReadings } from "../reviewer/code";
 import { checkFidelity } from "../reviewer/fidelity";
-import { iterationMetrics, noiseBand, reproductionNoise } from "../reviewer/metrics";
 import { compareSuite } from "./suite";
-import { RunRecorder, cohort, createStageContext, inputFingerprints, logProvenance, pairedCohorts, readBatch, rebuildRunState, scenarioIdsByFinding, type RunState } from "./run";
+import { measureComparison } from "./comparison";
+import { RunRecorder, cohort, createStageContext, inputFingerprints, logProvenance, readBatch, rebuildRunState, scenarioIdsByFinding, type RunState } from "./run";
 
 export interface RetestPreflight {
   suite: RunState;
@@ -121,25 +121,21 @@ export async function retestEdit(args: { runId: string; suiteRunId: string; surf
     recorder.emit("grades.added", { grades });
     const codings = await codeReadings(ctx, { readings, codebook: suite.codebook });
     recorder.emit("codings.added", { policyVersion: version.version, codebookVersion: 0, codings });
-    const pairs = pairedCohorts(
-      cohort(suite.readings, 0).filter((reading) => scenarioIds.has(reading.scenarioId)),
-      cohort(suite.readings, 0, "rt").filter((reading) => scenarioIds.has(reading.scenarioId)),
-    );
-    // Empty/sub-five subsets remain explicitly inconclusive, never borrow parent coverage.
-    const noise = noiseBand({ readings: pairs.before, grades: suite.grades }, { readings: pairs.after, grades: suite.grades }, DEFAULT_CONFLICT_THRESHOLD);
-    // CI measures each finding's prevalence over ALL selected scenarios, not only its original holders: an edit that
-    // spreads a misreading to readers who did not have it must fail.
-    const subsetFindingScenarios = Object.fromEntries(suite.findings.map((finding) => [finding.id, [...scenarioIds]]));
-    const findingNoise = reproductionNoise(suite.findings, subsetFindingScenarios, { readings: pairs.before, codings: suite.codings }, { readings: pairs.after, codings: suite.codings });
+    const measured = measureComparison({
+      scenarioIds: [...scenarioIds], beforeVersion: baseVersion, afterVersion: version.version,
+      beforeReadings, afterReadings: readings, originalReadings: cohort(suite.readings, 0), repeatReadings: cohort(suite.readings, 0, "rt"),
+      grades: [...suite.grades, ...grades], codings: [...suite.codings, ...codings], findings: suite.findings,
+      conflictMeasured: ctx.reference !== null, threshold: DEFAULT_CONFLICT_THRESHOLD, seed: config.seed,
+    });
     const before: Iteration = {
-      ...iterationMetrics({ version: baseVersion, readings: beforeReadings, grades: suite.grades, codings: suite.codings, findings: suite.findings, scenarioIdsByFinding: subsetFindingScenarios, noiseBand: noise.band, noiseBandScenarios: noise.pairedScenarios, reproductionNoise: findingNoise, threshold: DEFAULT_CONFLICT_THRESHOLD, seed: config.seed }),
+      ...measured.before,
       decision: "stop", reason: "Suite baseline recomputed on the selected scenarios.",
     };
     const after: Iteration = {
-      ...iterationMetrics({ version: version.version, readings, grades, codings, findings: suite.findings, scenarioIdsByFinding: subsetFindingScenarios, noiseBand: noise.band, noiseBandScenarios: noise.pairedScenarios, reproductionNoise: findingNoise, threshold: DEFAULT_CONFLICT_THRESHOLD, seed: config.seed }),
+      ...measured.after,
       decision: "stop", reason: "Edited text tested against the frozen suite.",
     };
-    const result = compareSuite({ before, after, noiseBand: noise.band, conflictMeasured: ctx.reference !== null, fidelity });
+    const result = compareSuite({ ...measured, conflictMeasured: ctx.reference !== null, fidelity });
     after.reason = result.verdict === "pass" ? "Frozen suite passed." : result.reasons.join("; ");
     comparison = { suiteRunId: args.suiteRunId, baseVersion, before, after, fidelity, ...result };
     recorder.emit("iteration.completed", { iteration: after });

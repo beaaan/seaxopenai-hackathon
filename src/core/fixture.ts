@@ -911,7 +911,7 @@ export function writeFixtureRun(opts: { runId: string; runsDir?: string }): { ev
     { id: "ha3", respondent: "[fixture] Minh — synthetic respondent", questionId: "hq3", answerVi: "Tôi sẽ chờ vài tuần rồi đặt COD lại." },
   ];
   for (const question of humanQuestions) append("human.question", { question });
-  for (const answer of humanAnswers) append("human.answer", { answer });
+  for (const answer of humanAnswers) append("human.answer", { answer: { ...answer, respondentId: "8fb72362-cf04-4e39-8be5-4a592f8f1b76" } });
   append("human.mapped", { mapping: { answerId: "ha1", findingId: "find-2", why: "[fixture] Synthetic mapping: confuses the daily order cap with failed deliveries." } });
   append("human.mapped", { mapping: { answerId: "ha2", findingId: "find-1", why: "[fixture] Synthetic mapping: assumes all failed deliveries count regardless of fault." } });
   append("human.mapped", { mapping: { answerId: "ha3", findingId: "find-3", why: "[fixture] Synthetic mapping: assumes waiting alone restores COD." } });

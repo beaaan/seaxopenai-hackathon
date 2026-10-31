@@ -35,11 +35,14 @@ What we claim, how we measure it, and what we cannot claim.
 - With fewer than 5 paired scenarios, the comparison is reported as inconclusive.
 - Cohorts (version × replicate) are never pooled.
 - Each finding gets its own band from the same two runs: d = reproduction(A) − reproduction(B) on that finding's scenarios coded in both. A finding with fewer than 5 such pairs has no noise estimate and is never judged as improved or regressed.
+- Conflict-noise pairs require complete grades; finding-noise pairs require complete belief codings independently. A refused grade does not discard an otherwise valid belief measurement. Rewrite acceptance, recorded conflict bands and stopping use the same validated measurements.
 
 **Policy CI verdict** (`npm run pwt -- test <surfaces.json> --suite <runId>`). The edited text is read on the suite's frozen scenarios and coded on its frozen codebook, then compared on identical scenarios. In CI a finding is measured as **prevalence over every selected scenario**, not only over its original holders, so an edit that spreads a misreading to new readers is caught. Each band is floored at 5 pp, the smallest change we report, because a saturated band (every pair at P≈1) can be zero.
 - **fail**: the edit changes the rule (the blind fidelity check against v0 finds a new commitment or a lost fact), or the conflict rate (when a reference exists) or any finding rose beyond its band;
-- **inconclusive**: fewer than 5 test–retest pairs, a finding measured before but not after, or — without a reference, where conflicts cannot be measured — no finding fell beyond its band;
+- **inconclusive**: fewer than 5 test–retest pairs, missing/refused conflict grades when a reference exists, nonidentical reader cohorts, incomplete finding codings, a finding without its own noise estimate, or — without a reference, where conflicts cannot be measured — no finding fell beyond its band;
 - **pass** otherwise. The reasons list every rule change, regression, improvement and within-noise change.
+
+Every selected scenario must have exactly one reading on each side, and every finding must have all of its associated beliefs coded on each reading. Equal counts alone do not establish matching cohorts. A refused cluster coding is unobserved, not zero. Automatic rewrites use this same gate over all selected scenarios before retaining a candidate, including people who did not originally hold a finding. Failed or inconclusive candidates retain the previous policy. Without a reference, continuation uses the finding-level gate rather than an unmeasured zero conflict rate.
 
 Smoke runs (`--smoke`, `smokeSize` scenarios) start with the evidence scenarios of the findings anchored to the edited sentences, then cover the other findings round-robin.
 
@@ -59,6 +62,7 @@ A retest refuses to run if the reference or folk inputs changed since the suite 
 - Free-text answers are stored as `human.answer` events and coded against the same codebook with the Decisions API, exactly as the persona readings are.
 - Target: 6–8 people at the venue.
 - The result is qualitative only: whether a finding survives contact with real people.
+- New submissions carry a per-run participant UUID separately from the optional display name. The phone retains it across reloads and offers an explicit new-person action for shared devices. Corrections append new answers; only the latest answer per participant and question contributes to counts and coding, and an older mapping cannot suppress a correction. Legacy logs remain readable with a null participant ID; their name-based identity cannot be recovered retrospectively, and the report labels that limitation.
 
 ## Limitations (say these before judges ask)
 

@@ -25,6 +25,7 @@ import { streamSSE } from "hono/streaming";
 import type { RunEvent } from "../shared/events";
 import { z } from "zod";
 import { PolicyPackage, Surface, type FolkFile, type PolicyVersion } from "../shared/schema";
+import { HumanAnswersRequest } from "../shared/human";
 import { listPolicyIds, loadFolk, loadPolicyPackage, loadReference, versionZero } from "./policy";
 import { RunWriter, eventsPath, listRuns, readEvents, tailEvents } from "./store";
 import { POLICIES_DIR, REPO_ROOT, RUNS_DIR } from "./paths";
@@ -52,10 +53,6 @@ const NewRun = z.strictObject({
   budget: z.number().int().positive().default(50), maxIterations: z.number().int().nonnegative().default(3),
 });
 const RetestRequest = z.strictObject({ surfaces: z.array(Surface).min(1), smoke: z.boolean() });
-const AnswersRequest = z.strictObject({
-  respondent: z.string().trim().min(1),
-  answers: z.array(z.strictObject({ questionId: z.string().min(1), answerVi: z.string().trim().min(1) })).min(1),
-});
 const ApprovalRequest = z.strictObject({ version: z.number().int().nonnegative(), approvedBy: z.string().trim().min(1) });
 
 function finished(events: RunEvent[]): boolean {
@@ -157,7 +154,7 @@ export function createApp(): Hono {
   app.post("/api/runs/:runId/check/answers", async (c) => {
     const runId = c.req.param("runId");
     if (!RUN_ID.test(runId)) return c.json({ error: "bad run id" }, 400);
-    const body = AnswersRequest.parse(await c.req.json());
+    const body = HumanAnswersRequest.parse(await c.req.json());
     let events: RunEvent[];
     try { events = readEvents(runId); }
     catch (error) { return c.json({ error: (error as Error).message }, 404); }
@@ -166,7 +163,8 @@ export function createApp(): Hono {
     if (body.answers.some((answer) => !questionIds.has(answer.questionId))) return c.json({ error: "unknown question id" }, 400);
     if (new Set(body.answers.map((answer) => answer.questionId)).size !== body.answers.length) return c.json({ error: "duplicate question id" }, 400);
     const writer = writerFor(runId);
-    for (const answer of body.answers) writer.append("human.answer", { answer: { ...answer, id: `ha-${randomUUID()}`, respondent: body.respondent } });
+    const respondentId = "respondentId" in body ? body.respondentId : randomUUID();
+    for (const answer of body.answers) writer.append("human.answer", { answer: { ...answer, id: `ha-${randomUUID()}`, respondentId, respondent: body.respondent } });
     return c.json({ ok: true });
   });
 

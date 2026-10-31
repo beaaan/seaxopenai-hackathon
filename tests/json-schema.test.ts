@@ -39,6 +39,7 @@ describe("llmJsonSchema", () => {
     ["BaselineRun", S.BaselineRun],
     ["Score", S.Score],
     ["Reference", S.Reference],
+    ["HumanAnswer", S.HumanAnswer],
   ])("%s converts to a strict LLM schema", (_name, schema) => {
     expect(() => llmJsonSchema(schema)).not.toThrow();
   });

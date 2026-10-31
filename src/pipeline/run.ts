@@ -20,8 +20,10 @@ import { draftFindings } from "../reviewer/findings";
 import { classifyByRepair } from "../reviewer/classify";
 import { rewritePolicy, type RewriteCandidate } from "../reviewer/rewrite";
 import { checkFidelity } from "../reviewer/fidelity";
-import { conflictRate, iterationMetrics, noiseBand, reproductionNoise } from "../reviewer/metrics";
+import { conflictRate, iterationMetrics, reproductionNoise } from "../reviewer/metrics";
 import { stopDecision } from "../reviewer/stop";
+import { measureComparison } from "./comparison";
+import { compareSuite } from "./suite";
 import { runBaseline } from "../eval/baseline";
 import { scoreAgainstHoldout } from "../eval/score";
 import { humanQuestions } from "../eval/human";
@@ -254,15 +256,16 @@ export async function runWindTunnel(args: { runId: string; config: RunConfig }):
       const retestReadings = await readBatch(ctx, recorder, v0, recorder.state.scenarios, "rt", true);
       recorder.emit("grades.added", { grades: await gradeReadings(ctx, v0, retestReadings) });
       recorder.emit("codings.added", { policyVersion: 0, codebookVersion: 0, codings: await codeReadings(ctx, { readings: retestReadings, codebook }) });
-      const aIds = new Set(originalReadings.map((r) => r.scenarioId));
-      const bIds = new Set(retestReadings.map((r) => r.scenarioId));
-      const pairedA = originalReadings.filter((r) => bIds.has(r.scenarioId));
-      const pairedB = retestReadings.filter((r) => aIds.has(r.scenarioId));
-      const noise = noiseBand({ readings: pairedA, grades: recorder.state.grades }, { readings: pairedB, grades: recorder.state.grades }, DEFAULT_CONFLICT_THRESHOLD);
+      const originalMeasurement = measureComparison({
+        scenarioIds: recorder.state.scenarios.map((scenario) => scenario.id), beforeVersion: 0, afterVersion: 0,
+        beforeReadings: originalReadings, afterReadings: originalReadings, originalReadings, repeatReadings: retestReadings,
+        grades: recorder.state.grades, codings: recorder.state.codings, findings: recorder.state.findings,
+        conflictMeasured: ctx.reference !== null, threshold: DEFAULT_CONFLICT_THRESHOLD, seed: config.seed,
+      }).before;
       const findingScenarios = scenarioIdsByFinding(recorder.state.findings, recorder.state.readings);
-      const findingNoise = reproductionNoise(recorder.state.findings, findingScenarios, { readings: pairedA, codings: recorder.state.codings }, { readings: pairedB, codings: recorder.state.codings });
-      const initial = iterationMetrics({ version: 0, readings: originalReadings, grades: recorder.state.grades, codings: recorder.state.codings, findings: recorder.state.findings, scenarioIdsByFinding: findingScenarios, noiseBand: noise.band, noiseBandScenarios: noise.pairedScenarios, reproductionNoise: findingNoise, threshold: DEFAULT_CONFLICT_THRESHOLD, seed: config.seed });
-      let decision = stopDecision({ history: [], current: initial, iterationIndex: 0, maxIterations: config.maxIterations, fidelityFailures: 0 });
+      const findingNoise = reproductionNoise(recorder.state.findings, findingScenarios, { readings: originalReadings, codings: recorder.state.codings }, { readings: retestReadings, codings: recorder.state.codings });
+      const initial = iterationMetrics({ version: 0, readings: originalReadings, grades: recorder.state.grades, codings: recorder.state.codings, findings: recorder.state.findings, scenarioIdsByFinding: findingScenarios, noiseBand: originalMeasurement.noiseBand, noiseBandScenarios: originalMeasurement.noiseBandScenarios, reproductionNoise: findingNoise, threshold: DEFAULT_CONFLICT_THRESHOLD, seed: config.seed });
+      let decision = stopDecision({ history: [], current: initial, iterationIndex: 0, maxIterations: config.maxIterations, fidelityFailures: 0, conflictMeasured: ctx.reference !== null });
       recorder.emit("iteration.completed", { iteration: { ...initial, ...decision } });
       let currentVersion = v0;
       let finalVersion = v0;
@@ -271,11 +274,12 @@ export async function runWindTunnel(args: { runId: string; config: RunConfig }):
       for (let i = 1; i <= config.maxIterations && decision.decision === "continue"; i++) {
         let rejected: RewriteCandidate | null = null;
         let accepted: RewriteCandidate | null = null;
+        let acceptedFidelity: FidelityResult | null = null;
         for (let attempt = 0; attempt < 2; attempt++) {
           const candidate = await rewritePolicy(ctx, { version: currentVersion, findings: recorder.state.findings, nextVersion: i, feedback, rejected });
           const fidelity = await checkFidelity(ctx, { original: v0, candidate: candidate.surfaces });
           recorder.emit("rewrite.proposed", { rewrite: { fromVersion: currentVersion.version, toVersion: i, edits: candidate.edits, fidelity } });
-          if (fidelity.passed) { accepted = candidate; feedback = null; break; }
+          if (fidelity.passed) { accepted = candidate; acceptedFidelity = fidelity; feedback = null; break; }
           feedback = fidelity;
           rejected = candidate;
         }
@@ -288,28 +292,28 @@ export async function runWindTunnel(args: { runId: string; config: RunConfig }):
         recorder.emit("clusters.updated", { policyVersion: i, clusters: await clusterInterpretations(ctx, { version: currentVersion, readings, grades: recorder.state.grades, idPrefix: `c-v${i}` }) });
         const previous = recorder.state.iterations.at(-1);
         if (!previous) throw new Error("rewrite comparison is missing its previous iteration");
-        const pairs = pairedCohorts(cohort(recorder.state.readings, previous.policyVersion), readings);
-        const pairedIds = new Set(pairs.scenarioIds);
-        const comparisonNoise = noiseBand(
-          { readings: originalReadings.filter((reading) => pairedIds.has(reading.scenarioId)), grades: recorder.state.grades },
-          { readings: retestReadings.filter((reading) => pairedIds.has(reading.scenarioId)), grades: recorder.state.grades },
-          DEFAULT_CONFLICT_THRESHOLD,
-        );
-        const comparisonFindingNoise = reproductionNoise(
-          recorder.state.findings, findingScenarios,
-          { readings: originalReadings.filter((reading) => pairedIds.has(reading.scenarioId)), codings: recorder.state.codings },
-          { readings: retestReadings.filter((reading) => pairedIds.has(reading.scenarioId)), codings: recorder.state.codings },
-        );
-        const previousMetrics = iterationMetrics({ version: previous.policyVersion, readings: pairs.before, grades: recorder.state.grades, codings: recorder.state.codings, findings: recorder.state.findings, scenarioIdsByFinding: findingScenarios, noiseBand: comparisonNoise.band, noiseBandScenarios: comparisonNoise.pairedScenarios, reproductionNoise: comparisonFindingNoise, threshold: DEFAULT_CONFLICT_THRESHOLD, seed: config.seed });
-        const metrics = iterationMetrics({ version: i, readings: pairs.after, grades: recorder.state.grades, codings: recorder.state.codings, findings: recorder.state.findings, scenarioIdsByFinding: findingScenarios, noiseBand: comparisonNoise.band, noiseBandScenarios: comparisonNoise.pairedScenarios, reproductionNoise: comparisonFindingNoise, threshold: DEFAULT_CONFLICT_THRESHOLD, seed: config.seed });
-        ctx.log("info", `Version comparison v${previous.policyVersion} → v${i}: ${pairs.after.length} paired scenarios; conflict ${previousMetrics.conflictRate.toFixed(3)} → ${metrics.conflictRate.toFixed(3)}; ${comparisonNoise.pairedScenarios} noise pairs.`);
-        const comparisonHistory = [...recorder.state.iterations.slice(0, -1), { ...previousMetrics, decision: previous.decision, reason: previous.reason }];
-        decision = stopDecision({ history: comparisonHistory, current: metrics, iterationIndex: i, maxIterations: config.maxIterations, fidelityFailures: 0 });
-        if (pairs.after.length < 5 || comparisonNoise.pairedScenarios < 5) {
-          decision = { decision: "stop", reason: `Inconclusive comparison: ${pairs.after.length} paired scenarios and ${comparisonNoise.pairedScenarios} noise pairs (minimum 5); previous policy retained.` };
-        } else if (metrics.conflictRate - previousMetrics.conflictRate > comparisonNoise.band + Number.EPSILON) {
-          decision = { decision: "stop", reason: "Conflict rate regressed beyond the noise band on identical scenarios; previous policy retained." };
-        } else finalVersion = currentVersion;
+        // Accept on the whole intended suite, including readers who did not originally hold a finding.
+        // Do not hide failed readers by passing only the intersection of before/after readings.
+        const measured = measureComparison({
+          scenarioIds: recorder.state.scenarios.map((scenario) => scenario.id),
+          beforeVersion: previous.policyVersion, afterVersion: i,
+          beforeReadings: cohort(recorder.state.readings, previous.policyVersion), afterReadings: readings,
+          originalReadings, repeatReadings: retestReadings, grades: recorder.state.grades, codings: recorder.state.codings,
+          findings: recorder.state.findings, conflictMeasured: ctx.reference !== null, threshold: DEFAULT_CONFLICT_THRESHOLD, seed: config.seed,
+        });
+        // Reports retain the original-holder finding cohort. Conflict measurements, noise and stopping
+        // use exactly the validated data used by the acceptance gate, including refused-grade exclusions.
+        const holderMetrics = iterationMetrics({ version: i, readings, grades: recorder.state.grades, codings: recorder.state.codings, findings: recorder.state.findings, scenarioIdsByFinding: findingScenarios, noiseBand: measured.after.noiseBand, noiseBandScenarios: measured.after.noiseBandScenarios, reproductionNoise: findingNoise, threshold: DEFAULT_CONFLICT_THRESHOLD, seed: config.seed });
+        const metrics = { ...measured.after, findingReproduction: holderMetrics.findingReproduction, openWordingFindings: holderMetrics.openWordingFindings };
+        const comparisonHistory = [...recorder.state.iterations.slice(0, -1), { ...measured.before, decision: previous.decision, reason: previous.reason }];
+        const gate = compareSuite({ ...measured, conflictMeasured: ctx.reference !== null, fidelity: acceptedFidelity });
+        ctx.log("info", `Rewrite gate v${previous.policyVersion} → v${i}, all selected scenarios: ${gate.verdict.toUpperCase()}. ${gate.reasons.join("; ")}`);
+        if (gate.verdict !== "pass") {
+          decision = { decision: "stop", reason: `${gate.verdict.toUpperCase()}: ${gate.reasons.join("; ")}; previous policy retained.` };
+        } else {
+          finalVersion = currentVersion;
+          decision = stopDecision({ history: comparisonHistory, current: metrics, iterationIndex: i, maxIterations: config.maxIterations, fidelityFailures: 0, conflictMeasured: ctx.reference !== null });
+        }
         recorder.emit("iteration.completed", { iteration: { ...metrics, ...decision } });
         stopReason = decision.reason;
       }
@@ -354,7 +358,8 @@ export async function runWindTunnel(args: { runId: string; config: RunConfig }):
       const finalPairs = pairedCohorts(originalReadings, cohort(recorder.state.readings, finalVersion.version));
       const beforeRate = conflictRate(finalPairs.before, recorder.state.grades, DEFAULT_CONFLICT_THRESHOLD);
       const afterRate = conflictRate(finalPairs.after, recorder.state.grades, DEFAULT_CONFLICT_THRESHOLD);
-      summary = `${recorder.state.scenarios.length} scenarios, ${recorder.state.findings.length} findings (${recorder.state.findings.filter((f) => f.class === "wording_fix").length} wording fixes); final v${finalVersion.version}; conflict rate ${beforeRate.toFixed(3)} → ${afterRate.toFixed(3)} on ${finalPairs.after.length} paired scenarios; noise band ${noise.band.toFixed(3)} (${noise.pairedScenarios} noise pairs); ${recorder.state.baselines.length} baselines.`;
+      const conflictSummary = ctx.reference === null ? "conflict rate unmeasured (no reference)" : `conflict rate ${beforeRate.toFixed(3)} → ${afterRate.toFixed(3)} on ${finalPairs.after.length} paired scenarios; noise band ${originalMeasurement.noiseBand?.toFixed(3) ?? "unmeasured"} (${originalMeasurement.noiseBandScenarios ?? 0} noise pairs)`;
+      summary = `${recorder.state.scenarios.length} scenarios, ${recorder.state.findings.length} findings (${recorder.state.findings.filter((f) => f.class === "wording_fix").length} wording fixes); final v${finalVersion.version}; ${conflictSummary}; ${recorder.state.baselines.length} baselines.`;
     }
   } catch (error) { failed = true; failure = error; }
   finally {

@@ -449,6 +449,8 @@ export type HumanQuestion = z.infer<typeof HumanQuestion>;
 
 export const HumanAnswer = z.strictObject({
   id: z.string(),
+  /** Stable participant identity; old event logs only recorded the display name. */
+  respondentId: z.string().uuid().nullable().default(null),
   respondent: z.string(),
   questionId: z.string(),
   answerVi: z.string(),

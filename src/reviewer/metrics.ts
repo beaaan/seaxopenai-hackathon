@@ -60,18 +60,25 @@ export interface IterationMetricsArgs {
 
 /**
  * One finding's reproduction per scenario: max P(belief) over the finding's clusters. Scenarios without a reading,
- * or without any coding of those clusters, are absent (unobserved), never a measured zero.
+ * or without a coding of EVERY associated cluster, are absent (unobserved), never a measured zero.
  */
 export function reproductionByScenario(finding: Finding, scenarioIds: readonly string[], readings: Reading[], codings: Coding[]): Map<string, number> {
-  const scenarioByReading = new Map(readings.map((reading) => [reading.id, reading.scenarioId]));
   const wanted = new Set(scenarioIds);
   const clusters = new Set(finding.evidence.clusterIds);
   const out = new Map<string, number>();
+  if (clusters.size === 0) return out;
+  const byReading = new Map<string, Map<string, number>>();
   for (const coding of codings) {
     if (!clusters.has(coding.clusterId)) continue;
-    const scenarioId = scenarioByReading.get(coding.readingId);
-    if (scenarioId === undefined || !wanted.has(scenarioId)) continue;
-    out.set(scenarioId, Math.max(out.get(scenarioId) ?? 0, coding.probability));
+    const beliefs = byReading.get(coding.readingId) ?? new Map<string, number>();
+    beliefs.set(coding.clusterId, coding.probability);
+    byReading.set(coding.readingId, beliefs);
+  }
+  for (const reading of readings) {
+    if (!wanted.has(reading.scenarioId)) continue;
+    const beliefs = byReading.get(reading.id);
+    if (!beliefs || beliefs.size !== clusters.size) continue;
+    out.set(reading.scenarioId, Math.max(out.get(reading.scenarioId) ?? 0, ...beliefs.values()));
   }
   return out;
 }

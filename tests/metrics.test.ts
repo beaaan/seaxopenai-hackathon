@@ -87,7 +87,7 @@ describe("iterationMetrics", () => {
     expect(result.conflictRate).toBe(1 / 4);
     expect(result.openQuestionRate).toBe(2 / 4);
     expect(result.findingReproduction).toEqual([
-      { findingId: "f1", rate: 0.5, n: 3, noiseBand: 0.2 }, { findingId: "f2", rate: 1, n: 1, noiseBand: null },
+      { findingId: "f1", rate: 0.75, n: 2, noiseBand: 0.2 }, { findingId: "f2", rate: 1, n: 1, noiseBand: null },
       { findingId: "f3", rate: 0, n: 0, noiseBand: null }, { findingId: "f4", rate: 0.49, n: 1, noiseBand: null },
     ]);
     expect(result.openWordingFindings).toBe(2);
@@ -111,8 +111,8 @@ describe("reproductionNoise", () => {
     const noise = reproductionNoise(
       [finding("f1", ["c1", "c2"])],
       { f1: ["s1", "s2", "s3", "s4"] },
-      { readings: a, codings: [{ readingId: a[0]!.id, clusterId: "c1", probability: 0.9 }, { readingId: a[1]!.id, clusterId: "c2", probability: 0.5 }, { readingId: a[2]!.id, clusterId: "c1", probability: 1 }] },
-      { readings: b, codings: [{ readingId: b[0]!.id, clusterId: "c2", probability: 0.7 }, { readingId: b[1]!.id, clusterId: "c1", probability: 0.5 }, { readingId: b[2]!.id, clusterId: "c1", probability: 0 }] },
+      { readings: a, codings: a.flatMap((reading, i) => [{ readingId: reading.id, clusterId: "c1", probability: [0.9, 0.5, 1][i]! }, { readingId: reading.id, clusterId: "c2", probability: 0 }]) },
+      { readings: b, codings: b.flatMap((reading, i) => [{ readingId: reading.id, clusterId: "c1", probability: [0.7, 0.5, 0][i]! }, { readingId: reading.id, clusterId: "c2", probability: 0 }]) },
     );
     // Paired: s1 (0.9 − 0.7) and s2 (0.5 − 0.5); s3 and s4 were coded in one run only.
     expect(noise.f1!.pairedScenarios).toBe(2);
