@@ -1,0 +1,54 @@
+{
+  "policyId": "cod",
+  "versions": [
+    {
+      "id": "folk-3-in-90-consecutive",
+      "textVi": "Trong vòng 90 ngày liên tiếp bạn có 3 đơn hàng sử dụng hình thức thanh toán khi nhận hàng giao không thành công thì Shopee sẽ khóa tính năng thanh toán khi nhận hàng.",
+      "claimEn": "3 failed COD orders within 90 consecutive days locks COD; any failure counts.",
+      "source": "https://magiamgiashopee.vn/shopee-khong-cho-thanh-toan-khi-nhan-hang",
+      "date": "2025-05-31"
+    },
+    {
+      "id": "folk-3-or-more-in-90",
+      "textVi": "Trong vòng 90 ngày gần nhất, bạn có từ 3 đơn hàng sử dụng COD trở lên giao không thành công.",
+      "claimEn": "3 or more failed COD orders in the last 90 days locks COD.",
+      "source": "https://bloggiamgia.vn/shopee-khong-cho-thanh-toan-khi-nhan-hang",
+      "date": "2025-05-30"
+    },
+    {
+      "id": "folk-not-seller-or-courier-fault",
+      "textVi": "Nếu trong vòng 90 ngày, có 3 đơn hàng … giao không thành công tới bạn mà lỗi không xuất phát từ phía người bán hay đơn vị vận chuyển, tài khoản … sẽ bị khóa tính năng thanh toán khi nhận hàng.",
+      "claimEn": "Only failures that are not the seller's or courier's fault count; 3 in 90 days.",
+      "source": "https://magiamgia.com/shopee-khong-cho-thanh-toan-khi-nhan-hang",
+      "date": "2024-03-25"
+    },
+    {
+      "id": "folk-more-than-2",
+      "textVi": "bạn có hơn 2 đơn hàng thanh toán khi nhận hàng nhưng giao không thành công",
+      "claimEn": "More than 2 failed COD orders locks COD.",
+      "source": "https://salework.net/tai-sao-shopee-khong-cho-thanh-toan-khi-nhan-hang",
+      "date": "2023-02-07"
+    },
+    {
+      "id": "folk-90-days-clean",
+      "textVi": "Để được mở lại … bạn cần đảm bảo trong 90 ngày tính năng này bị khóa không có thêm đơn giao không thành công.",
+      "claimEn": "To unlock, go 90 days without another failed delivery.",
+      "source": "https://salework.net/tai-sao-shopee-khong-cho-thanh-toan-khi-nhan-hang",
+      "date": "2023-02-07"
+    },
+    {
+      "id": "folk-60-days",
+      "textVi": "tài khoản Shopee bị khóa chức năng thanh toán COD tạm thời do người dùng nhiều lần không nhận hàng. Thời gian hạn chế thường kéo dài khoảng 60 ngày.",
+      "claimEn": "The COD lock lasts about 60 days.",
+      "source": "https://viettelstore.vn/tin-tuc/tai-khoan-shopee-bi-khoa",
+      "date": "2026-01-05"
+    },
+    {
+      "id": "folk-24h-failed-orders",
+      "textVi": "Shopee áp dụng hình thức tạm khóa chức năng thanh toán COD trong 24 giờ nếu tài khoản người dùng vượt quá giới hạn đơn hàng COD không thành công trong ngày.",
+      "claimEn": "Too many failed COD orders in one day locks COD for 24 hours (conflates the daily order cap with the failure lock).",
+      "source": "https://tuoitre.vn/nld/nhuc-nhoi-nan-bom-hang-19625071822023801.htm",
+      "date": "2025-07-19"
+    }
+  ]
+}

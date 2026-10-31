@@ -1,0 +1,27 @@
+{
+  "id": "grab-scheduled",
+  "title": "Grab VN — GrabCar Đặt xe cố định giờ đón (Điều khoản sử dụng, mục J)",
+  "lang": "vi",
+  "sourceUrls": [
+    "https://www.grab.com/vn/terms-policies/transport-delivery-logistics"
+  ],
+  "retrievedAt": "2026-10-31",
+  "surfaces": [
+    {
+      "id": "rider",
+      "label": "Mục J §1–2: dịch vụ và hủy chuyến của Người Dùng (verbatim)",
+      "text": "J. GRABCAR – ĐẶT XE CỐ ĐỊNH GIỜ ĐÓN\nCác điều khoản và điều kiện bổ sung này được áp dụng cho việc sử dụng Giải Pháp GrabCar trên Ứng Dụng Grab. Bằng việc đặt chuyến xe theo tính năng “Đặt xe cố định giờ đón”, bạn với tư cách người tiêu dùng đồng ý chịu ràng buộc bởi các điều khoản và điều kiện bổ sung được nêu trong mục J này.\n1. Dịch vụ Đặt Xe Cố Định Giờ Đón\n1.1 Đặt Xe Cố Định Giờ Đón là tính năng được cung cấp trong Giải Pháp GrabCar cho phép Người Dùng đặt chuyến xe GrabCar với thời gian đón đã được phân bổ và cam kết trước.\n1.2 Grab áp dụng phụ phí đặt cố định giờ đón đối với dịch vụ Đặt Xe Cố Định Giờ Đón. Phụ phí đặt cố định giờ đón phụ thuộc vào nhiều yếu tố và có thể thay đổi theo thời gian mà không cần thông báo trước. Grab không có nghĩa vụ phải tiết lộ cách tính phụ phí đặt cố định giờ đón. Tổng cước phí của chuyến xe cố định giờ đón sẽ được hiển thị khi Người Dùng chọn tính năng này. Xin lưu ý rằng cước phí cuối cùng mà Người Dùng phải trả vẫn phụ thuộc vào các khoản phụ phí khác có thể áp dụng tại thời điểm đặt chỗ (ví dụ: lệ phí cầu đường, phí thời gian chờ, v.v.).\n1.3 Sau khi chuyến xe cố định giờ đón được xác nhận, một số tiền sẽ được “tạm giữ” trên phương thức thanh toán mặc định của bạn (tức là thẻ tín dụng, thẻ ghi nợ). Số tiền sẽ được “giữ lại” và chỉ được khấu trừ sau khi chuyến xe hoàn tất. Nếu chuyến xe bị hủy, bạn sẽ được hoàn lại tiền, tùy thuộc vào chính sách hủy chuyến hiện hành.\n2. Chính sách hủy chuyến đối với Người Dùng\n2.1 Nếu tại bất kỳ thời điểm nào, thời gian dự kiến đến điểm đón của Đối tác tài xế nhận chuyến muộn hơn thời gian đón cam kết theo lịch trình của bạn, bạn có quyền hủy chuyến xe cố định giờ đón mà không bị áp dụng Phí Hủy Chuyến.\n2.2 Phí Hủy Chuyến 20.000 đồng sẽ được áp dụng trong các trường hợp sau:\n1. Sau khi Đối tác tài xế đã nhận chuyến; và\n2. Thời gian dự kiến đến điểm đón sớm hơn hoặc bằng thời gian đón theo lịch trình cam kết; và\n3. Người Dùng hủy chuyến xe, cho dù Đối tác tài xế đã đến hay chưa đến điểm đón; hoặc Người Dùng không xuất hiện tại điểm đón trong vòng năm (5) phút kể từ thời gian đón được thông báo.\n2.3 Bằng cách chọn tham gia Ride Cover – Quyền lợi chuyến xe, Người Dùng sẽ nhận được Phiếu ưu đãi dịch vụ Grab nếu Đối tác tài xế đến muộn hơn mười (10) phút so với thời gian đón theo lịch trình. Phiếu ưu đãi dịch vụ Grab tuân theo các chính sách Ride Cover hiện hành.\n2.4 Nếu không có Đối tác tài xế nào nhận chuyến xe cố định giờ đón, Người Dùng sẽ nhận được một phiếu ưu đãi dịch vụ Grab. Giá trị phiếu ưu đãi sẽ được thông báo vào từng thời điểm thông qua các phương tiện truyền thông hiện hành theo quyết định riêng của Grab.\n2.5 Người Dùng cũng phải chịu các khoản phí áp dụng khác theo chính sách hủy chuyến hiện hành được công bố trên trang web của Grab và được thông báo cho Người Dùng vào từng thời điểm."
+    },
+    {
+      "id": "driver",
+      "label": "Mục J §3: hủy chuyến của Đối tác tài xế (verbatim)",
+      "text": "3. Chính sách hủy chuyến đối với Đối tác tài xế\n3.1 Chính sách hủy chuyến của Grab áp dụng cho Đối tác tài xế đối với các chuyến xe cố định giờ đón mà họ chấp nhận, bằng cách bấm nút “Chấp nhận cuốc” hoặc thông qua tính năng “Tự động nhận cuốc xe”, với điều kiện việc hủy chuyến không phải do lỗi của Người Dùng được xác định theo toàn quyền quyết định riêng của Grab và được cập nhật cho Đối tác tài xế vào từng thời điểm.\n3.2 Đối tác tài xế sẽ được hai (2) lần hủy chuyến không bị tính phí hoặc theo thông báo của Grab. Grab bảo lưu quyền xác định và điều chỉnh chính sách này bất kỳ lúc nào.\n3.3 Đối tác tài xế sẽ nhận được một khoản hỗ trợ nếu Người Dùng hủy chuyến xe cố định giờ đón sau khi Đối tác tài xế đã nhận chuyến hoặc sau giờ đón theo lịch trình trong khi Đối tác tài xế đang trên đường đến điểm đón. Grab bảo lưu quyền điều chỉnh hoặc chấm dứt chính sách hỗ trợ này bất kỳ lúc nào theo toàn quyền quyết định của mình.\n3.4 Đối tác tài xế cũng phải tuân thủ các quy tắc khác liên quan đến việc hủy chuyến xe cố định giờ đón. Ngoài ra, Grab bảo lưu quyền thực hiện các hành động thích hợp, phù hợp với Bộ quy tắc ứng xử hiện hành dành cho Đối tác tài xế của Grab nếu các chính sách này bị vi phạm."
+    },
+    {
+      "id": "general",
+      "label": "Mục J §4: điều khoản chung (verbatim)",
+      "text": "4. Điều khoản chung\nTrong trường hợp có sự mâu thuẫn giữa các điều khoản khác trong Điều Khoản Sử Dụng và phần K này, phần K này sẽ được ưu tiên vì nó liên quan đến việc sử dụng các chuyến xe cố định giờ đón."
+    }
+  ],
+  "notes": "Section J of Grab VN's terms ('Ngày hiệu lực: 22/7/2026'), copied 2026-10-31. Zero-width spaces and markdown bold removed; wording unchanged. §4 refers to 'phần K' although it is section J (as published)."
+}

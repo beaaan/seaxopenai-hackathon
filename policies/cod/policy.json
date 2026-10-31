@@ -1,0 +1,23 @@
+{
+  "id": "cod",
+  "title": "Shopee VN — Tại sao tôi không thể chọn phương thức Thanh toán khi nhận hàng?",
+  "lang": "vi",
+  "sourceUrls": [
+    "https://help.shopee.vn/portal/4/article/79294",
+    "https://salework.net/tai-sao-shopee-khong-cho-thanh-toan-khi-nhan-hang"
+  ],
+  "retrievedAt": "2026-10-31",
+  "surfaces": [
+    {
+      "id": "help",
+      "label": "Help Center article 79294 (verbatim)",
+      "text": "Bạn không thể lựa chọn hình thức Thanh toán khi nhận hàng (gọi tắt là COD) do một trong các nguyên nhân sau:\n- Người bán không sử dụng các hình thức vận chuyển của Shopee và không cung cấp hình thức thanh toán này cho sản phẩm bạn chọn mua (ví dụ: mã điện tử để nạp điện thoại, mã vé xem phim điện tử...) hoặc\n- Bạn đang bị giới hạn tạm thời chức năng thanh toán này trong 24 giờ do tài khoản đang sử dụng đã vượt mức giới hạn về số đơn hàng được chọn hình thức thanh toán COD trong ngày hoặc\n- Shopee đang tạm thời tắt chức năng Thanh toán khi nhận hàng của bạn do hệ thống ghi nhận lịch sử mua hàng của bạn có số lượng đơn hàng COD giao không thành công vượt quá quy định hiện hành\nShopee giám sát hoạt động thanh toán của bạn và sẽ có thông báo nhắc nhở mỗi lần bạn có đơn hàng \"Thanh toán khi nhận hàng\" giao không thành công (như ảnh bên dưới)\n⚠️Lưu ý:\n- Đối với trường hợp tài khoản bạn đang giới hạn tạm thời chức năng thanh toán COD trong 24 giờ:\nBạn vui lòng thử lại sau thời gian trên. Nếu sau 24h bạn vẫn chưa thể chọn được hình thức thanh toán COD, thì tài khoản của bạn có thể rơi vào trường hợp Shopee tạm thời tắt chức năng Thanh toán khi nhận hàng\n- Đối với trường hợp Shopee tạm thời tắt chức năng Thanh toán khi nhận hàng:\nHệ thống sẽ liên tục kiểm tra lịch sử mua hàng thành công của bạn mỗi ngày, bạn có thể mua và nhận hàng thành công theo các hình thức thanh toán khác hiện có trên Shopee để hệ thống ghi nhận và tự mở lại chức năng COD khi bạn đủ điều kiện sử dụng."
+    },
+    {
+      "id": "checkout",
+      "label": "Checkout message (as reported by salework.net; verify in app)",
+      "text": "Phương thức Thanh toán khi nhận hàng tạm thời không khả dụng. Vui lòng chọn phương thức khác"
+    }
+  ],
+  "notes": "Help text copied verbatim from help.shopee.vn article 79294 on 2026-10-31 (page shows no date). The checkout line is quoted by salework.net (07/02/2023) and is NOT yet verified in the Shopee app. Related official sources for the reference: 79084 (shipper falsely marking failure → contact CSKH), 77250 (refuse damaged parcels), Seller Hub 14303 (counts refusals 'chưa phù hợp'). See docs/research/policy-sources.md."
+}
