@@ -14,6 +14,13 @@ export interface Fact {
   url: string;
 }
 
+/** Average cost of one live support contact (phone, chat, email), from the 2019 Gartner Customer Service and Support Leader Poll. */
+export const SUPPORT_CONTACT = {
+  usd: 8.01,
+  source: "Gartner, 2019",
+  url: "https://emt.gartnerweb.com/ngw/globalassets/en/sales-service/documents/trends/delivering-on-the-digital-promise-ebook.pdf",
+} as const;
+
 const MARKET: Fact[] = [
   {
     value: 77.5, decimals: 1, suffix: "%",
@@ -40,10 +47,10 @@ const MARKET: Fact[] = [
     url: "https://ghn.vn/blogs/van-de-khac/don-hang-giao-khong-thanh-cong-tra-hang-thi-toi-co-mat-phi-khong",
   },
   {
-    value: 8.01, decimals: 2, prefix: "$",
+    value: SUPPORT_CONTACT.usd, decimals: 2, prefix: "$",
     claim: "per live support contact (phone, chat, email), against about $0.10 for self-service.",
-    source: "Gartner, 2019",
-    url: "https://emt.gartnerweb.com/ngw/globalassets/en/sales-service/documents/trends/delivering-on-the-digital-promise-ebook.pdf",
+    source: SUPPORT_CONTACT.source,
+    url: SUPPORT_CONTACT.url,
   },
 ];
 

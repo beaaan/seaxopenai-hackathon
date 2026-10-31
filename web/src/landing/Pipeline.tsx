@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { Bot, FileSearch, Layers, ListChecks, Scale, ScanSearch, Users, Wand2 } from "lucide-react";
 import { codebook, originalReadings, type RunModel } from "../model";
 import usage from "./usage.json";
-import { CountUp } from "./Stakes";
+import { CountUp, SUPPORT_CONTACT } from "./Stakes";
 
 /** Real token usage from one instrumented run (scripts/usage-summary.ts → docs/usage-probe.json, copied here). */
 interface StageUsage {
@@ -150,6 +150,11 @@ function stageCost(stages: readonly string[], m: RunModel): { usd: number; model
   };
 }
 
+/** Estimated model cost of the whole run `m`; every measured stage counts, including calls no layer names. */
+export function runCost(m: RunModel): number {
+  return stageCost(PROBE.stages.map((s) => s.stage), m)?.usd ?? 0;
+}
+
 function usd(x: number): string {
   return x >= 1 ? `$${x.toFixed(2)}` : x >= 0.01 ? `${Math.round(x * 100)}¢` : "<1¢";
 }
@@ -172,8 +177,7 @@ export function Pipeline(props: { model: RunModel | null; wallSeconds: number | 
   if (!model) return null;
   const readers = model.scenarios.length;
   const costs = LAYERS.map((l) => stageCost(l.stages, model));
-  // Every measured stage counts toward the total, including calls no layer above names.
-  const total = stageCost(PROBE.stages.map((s) => s.stage), model)?.usd ?? 0;
+  const total = runCost(model);
   const max = Math.max(...costs.map((c) => c?.usd ?? 0), 1e-9);
   // An edit test reuses the suite's earlier readings: one fresh reading per reader of the edited text, graded and
   // coded against the frozen groups, plus one fact check of the edit.
@@ -222,9 +226,9 @@ export function Pipeline(props: { model: RunModel | null; wallSeconds: number | 
           <a href="https://www.userinterviews.com/blog/research-incentives-report" target="_blank" rel="noreferrer">User Interviews incentive report, updated 2025</a>
         </div>
         <div>
-          <strong><CountUp fact={{ value: 8.01, decimals: 2, prefix: "$" }} /></strong>
-          <span>for one live support contact{total > 0 && total < 8.01 ? `, as much as ${Math.floor(8.01 / total)} full test runs` : ""}</span>
-          <a href="https://emt.gartnerweb.com/ngw/globalassets/en/sales-service/documents/trends/delivering-on-the-digital-promise-ebook.pdf" target="_blank" rel="noreferrer">Gartner, 2019</a>
+          <strong><CountUp fact={{ value: SUPPORT_CONTACT.usd, decimals: 2, prefix: "$" }} /></strong>
+          <span>for one live support contact{total > 0 && total < SUPPORT_CONTACT.usd ? `, as much as ${Math.floor(SUPPORT_CONTACT.usd / total)} full test runs` : ""}</span>
+          <a href={SUPPORT_CONTACT.url} target="_blank" rel="noreferrer">{SUPPORT_CONTACT.source}</a>
         </div>
       </div>
       <p className="p-worth" data-rise>

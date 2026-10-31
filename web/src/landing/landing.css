@@ -273,6 +273,26 @@
 .w-row i { height: 10px; border-radius: 999px; background: rgba(233, 238, 244, 0.08); overflow: hidden; }
 .w-row i b { display: block; height: 100%; border-radius: 999px; background: var(--n-amber); }
 .w-row small { font-family: var(--mono); font-size: 14px; color: var(--n-muted); text-align: right; }
+
+/* One misreading priced: an equation of terms, two of them chosen by the viewer. */
+.c-eq { display: flex; flex-wrap: wrap; align-items: flex-start; gap: clamp(10px, 1.6vw, 24px); }
+.c-term { display: grid; gap: 8px; align-content: start; min-width: 0; flex: 1 1 170px; padding: clamp(14px, 1.6vw, 22px); border-radius: 16px; background: var(--n-panel); border: 1px solid var(--n-edge); }
+.c-term.measured { border-color: var(--n-amber); }
+.c-term strong { font-size: clamp(34px, min(3.6vw, 6.4vh), 60px); line-height: 1; font-weight: 300; font-variant-numeric: tabular-nums; }
+.c-term.measured strong { color: var(--n-amber); }
+.c-term span { font-size: 15px; color: var(--n-ink); }
+.c-term small, .c-term a { font-size: 12px; color: var(--n-dim); }
+.c-term a { text-decoration: none; border-bottom: 1px dotted currentColor; justify-self: start; }
+.c-op { align-self: center; font-size: clamp(24px, 2.4vw, 36px); font-weight: 300; color: var(--n-dim); }
+.c-pick { display: flex; gap: 6px; flex-wrap: wrap; }
+.c-pick button { padding: 3px 10px; border-radius: 999px; border: 1px solid rgba(143, 227, 255, 0.3); font-size: 13px; color: var(--n-muted); }
+.c-pick button.on { background: var(--n-cyan); border-color: var(--n-cyan); color: #05070b; font-weight: 600; }
+.c-total { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 20px; }
+.c-total strong { font-size: clamp(56px, min(7.4vw, 13vh), 132px); line-height: 1; font-weight: 300; letter-spacing: -0.03em; color: var(--n-red); }
+.c-total > span { font-size: clamp(18px, 1.8vw, 26px); color: var(--n-muted); }
+.c-vs { font-size: clamp(20px, 2vw, 30px); }
+.c-vs b { font-weight: 500; color: var(--n-cyan); }
+@media (max-width: 700px) { .c-op { display: none; } .c-term { flex-basis: 100%; } }
 /* The ending. */
 .l-cta { min-height: 80svh; padding: 120px var(--n-m); display: grid; align-content: center; gap: 26px; justify-items: start; }
 .l-cta h2 { font-size: clamp(36px, min(4.4vw, 8vh), 72px); line-height: 1.05; }
