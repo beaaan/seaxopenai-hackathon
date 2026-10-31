@@ -5,7 +5,7 @@ import { RunsPage } from "./pages/RunsPage";
 import { RunPage } from "./pages/RunPage";
 import { NewPolicyPage } from "./pages/NewPolicyPage";
 import { HumanCheckPage } from "./pages/HumanCheckPage";
-
+import { LandingPage } from "./landing/LandingPage";
 function decode(value: string): string | null {
   try {
     return decodeURIComponent(value);
@@ -28,13 +28,17 @@ export function App(): ReactNode {
   if (hash === "#/new") {
     return <Shell runNav={null} home={false} newPolicy crumb={<b>Test a new policy</b>}><NewPolicyPage /></Shell>;
   }
-  return <Shell runNav={null} home newPolicy={false} crumb={<b>Home</b>}><RunsPage /></Shell>;
+  if (hash === "#/policies") {
+    return <Shell runNav={null} home newPolicy={false} crumb={<b>Policies tested</b>}><RunsPage /></Shell>;
+  }
+  if (hash === "#/" || hash === "#" || hash === "") return <LandingPage />;
+  return <NotFound />;
 }
 
 function NotFound(): ReactNode {
   return (
     <Shell runNav={null} home={false} newPolicy={false} crumb={<b>Not found</b>}>
-      <p>Nothing at this address. <a className="link" href="#/">Home</a></p>
+      <p>Nothing at this address. <a className="link" href="#/">Back to the start</a></p>
     </Shell>
   );
 }

@@ -1,10 +1,13 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { Suspense, lazy, useMemo, useState, type ReactNode } from "react";
 import { CircleCheck, CircleDashed, FlaskConical, Loader2 } from "lucide-react";
 import type { FolkVersion, Interpretation, Scenario } from "@shared/schema";
 import { CLASS_LABEL, CLASS_MEANING, STAGES, cohortSize, misreadings, originalReadings, scenarioById, type Misreading } from "../model";
 import type { RunContext } from "../pages/RunPage";
 import { Empty, Panel, Pill, TitleRow, Who, cx, hostOf } from "../ui";
 import { CLASS_TONE } from "./Findings";
+import { tunnelData } from "../landing/tunnel";
+
+const WindTunnel = lazy(() => import("../landing/WindTunnel").then((m) => ({ default: m.WindTunnel })));
 
 interface Row extends Misreading {
   /** Holders by what they had heard before reading: folk version id, or null for nothing. */
@@ -33,6 +36,7 @@ export function Overview(props: { ctx: RunContext }): ReactNode {
   const rumourReaders = model.scenarios.length - heardNothing;
   const explore = model.config?.mode === "explore";
   const title = policy?.package.title ?? model.config?.policyId ?? model.runId;
+  const tunnel = useMemo(() => (policy && model.status !== "running" && model.findings.length > 0 ? tunnelData(model, policy.folk.versions) : null), [model, policy]);
 
   // The headline: the most-held misreading and, as plain counts, what its holders had heard before reading. No claim
   // that the belief *is* the rumour: exposure is recorded per reader, a rumour↔misreading match is not.
@@ -69,6 +73,21 @@ export function Overview(props: { ctx: RunContext }): ReactNode {
         <li>Ideas shared by <b>two or more readers</b> are listed below, each with the sentence behind it.</li>
         <li>Fixes are tested by having the <b>same readers read again</b> (see “Fixing the wording”).</li>
       </ol>
+
+      {tunnel && (
+        <section className="tunnel-panel" aria-label="How readers moved through the text">
+          <div className="tunnel-panel-head">
+            <b>How the {tunnel.total} readers moved through the text</b>
+            <span><i className="dot rumour" /> told a rumour first <i className="dot nothing" /> heard nothing · each line is one reader, drawn to the most common wrong idea they hold</span>
+          </div>
+          <Suspense fallback={<div className="tunnel tunnel-loading">Loading</div>}>
+            <WindTunnel data={tunnel} active={tunnel.pools.findIndex((p) => p.id === selected?.id)} onActive={(i) => {
+              const id = tunnel.pools[i]?.id;
+              if (id && rows.some((r) => r.id === id)) setPicked(id);
+            }} />
+          </Suspense>
+        </section>
+      )}
 
       {model.status === "running" && <Progress ctx={props.ctx} />}
 

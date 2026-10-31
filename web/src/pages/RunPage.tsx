@@ -68,15 +68,6 @@ export function RunPage(props: { runId: string; screen: string }): ReactNode {
     current: s.id === screen,
   }));
 
-  const p = model?.provenance;
-  const footer = p && (p.decisions || p.backends) ? (
-    <>
-      {p.decisions && <div>Decisions API: {p.decisions}</div>}
-      {p.embeddings !== null && <div>Embeddings: {p.embeddings ? "on" : "off"}</div>}
-      {p.backends && <div>{p.backends}</div>}
-    </>
-  ) : undefined;
-
   const finished = loaded.model?.status === "completed";
   const status = model?.status ?? "running";
   const topRight = (
@@ -119,7 +110,7 @@ export function RunPage(props: { runId: string; screen: string }): ReactNode {
   }
 
   return (
-    <Shell runNav={{ label: isRetest ? "Edit test" : "This policy test", items }} home={false} newPolicy={false} crumb={crumb} topRight={topRight} footer={footer}>
+    <Shell runNav={{ label: isRetest ? "Edit test" : "This policy test", items }} home={false} newPolicy={false} crumb={crumb} topRight={topRight}>
       {body}
     </Shell>
   );

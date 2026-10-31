@@ -28,7 +28,6 @@ export function Shell(props: {
   newPolicy: boolean;
   crumb: ReactNode;
   topRight?: ReactNode;
-  footer?: ReactNode;
   children: ReactNode;
 }): ReactNode {
   const [open, setOpen] = useState(false);
@@ -42,8 +41,7 @@ export function Shell(props: {
       <div className={cx("scrim", open && "open")} onClick={() => setOpen(false)} />
       <nav className={cx("sidebar", open && "open")} aria-label="Main">
         <div className="brand">
-          <Mark />
-          <span>Policy Wind Tunnel</span>
+          <a href="#/" className="brand-link"><Mark /><span>Policy Wind Tunnel</span></a>
           <button className="btn ghost menu-toggle" style={{ marginLeft: "auto", padding: "0 6px" }} onClick={() => setOpen(false)} aria-label="Close menu"><X /></button>
         </div>
         {props.runNav && (
@@ -59,9 +57,8 @@ export function Shell(props: {
           </>
         )}
         <div className="group-label">Workspace</div>
-        <a href="#/" className="nav-item" aria-current={props.home ? "page" : undefined}><LayoutList /><span>Policies tested</span></a>
+        <a href="#/policies" className="nav-item" aria-current={props.home ? "page" : undefined}><LayoutList /><span>Policies tested</span></a>
         <a href="#/new" className="nav-item" aria-current={props.newPolicy ? "page" : undefined}><FilePlus2 /><span>Test a policy</span></a>
-        {props.footer && <div className="bottom">{props.footer}</div>}
       </nav>
       <header className="topbar">
         <button className="btn ghost menu-toggle" style={{ padding: "0 8px" }} onClick={() => setOpen(true)} aria-label="Open menu"><Menu /></button>
