@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Check, ChevronDown, CircleSlash, EyeOff, FileText, PenLine, RotateCcw, ShieldCheck, ShoppingCart, X } from "lucide-react";
 import type { FolkVersion, GradeLabel, Scenario } from "@shared/schema";
 import { beyondNoise, effectiveBand } from "@shared/noise";
@@ -12,11 +12,9 @@ import { ChapterRail } from "./ChapterRail";
 import { Stakes } from "./Stakes";
 import { Streamlines } from "./Streamlines";
 import { WhoMisreads } from "./WhoMisreads";
-import { tunnelData, type TunnelData } from "./tunnel";
+import { ReaderFlow } from "./ReaderFlow";
+import { shortClaim, tunnelData, type TunnelData } from "./tunnel";
 import "./landing.css";
-
-// three.js is large; only the view that draws with it loads it.
-const WindTunnel = lazy(() => import("./WindTunnel").then((m) => ({ default: m.WindTunnel })));
 
 /** The run the page is built from, and the two edit tests run on its readers. */
 const FEATURED = "cod-main";
@@ -204,11 +202,6 @@ function clip(text: string, n: number): string {
   return text.length <= n ? text : `${text.slice(0, n).replace(/\s+\S*$/, "")}…`;
 }
 
-/** The rumour itself, without the annotation some versions carry. */
-function shortClaim(f: FolkVersion): string {
-  return f.claimEn.split(";")[0]!.replace(/\s*\([^)]*\)/g, "").replace(/\.$/, "").trim();
-}
-
 // ---------------------------------------------------------------------------
 // Where readers went wrong: the headline number and the tunnel.
 
@@ -227,11 +220,7 @@ function Found(props: { model: RunModel | null; data: TunnelData | null; rows: M
         </div>
       )}
       <figure className="l-tunnel" data-rise>
-        {data ? (
-          <Suspense fallback={<div className="tunnel tunnel-loading" />}>
-            <WindTunnel data={data} active={active} onActive={setActive} />
-          </Suspense>
-        ) : <div className="tunnel tunnel-loading" />}
+        {data ? <ReaderFlow data={data} active={active} onActive={setActive} /> : null}
       </figure>
     </section>
   );

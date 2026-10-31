@@ -167,31 +167,34 @@
 .rise-in .people i.on, .people.rise-in i.on { animation: l-pop 500ms cubic-bezier(0.2, 0.9, 0.3, 1.2) both; animation-delay: var(--d); }
 @keyframes l-pop { from { transform: scale(0.2); background: rgba(233, 238, 244, 0.1); } }
 
-/* The tunnel (also drawn inside the report). */
-.l-tunnel { margin: 0; display: grid; gap: 14px; padding: 18px 20px; border-radius: 16px; background: var(--n-bg-2); border: 1px solid var(--n-edge); }
-.l-tunnel figcaption { min-height: 1.6em; font-size: 18px; color: var(--n-ink); }
-.l-tunnel figcaption b { color: var(--n-amber); font-weight: 600; font-family: var(--mono); margin-right: 8px; }
-.tunnel { position: relative; width: 100%; height: clamp(440px, 64svh, 640px); }
-.tunnel-loading { display: grid; place-items: center; color: var(--n-muted); }
-.tunnel-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
-.tunnel-text { position: absolute; display: flex; flex-direction: column; background: rgba(143, 227, 255, 0.04); border: 1px solid rgba(143, 227, 255, 0.1); border-radius: 6px; overflow: hidden; pointer-events: none; }
-.tunnel-text div { display: flex; align-items: center; min-height: 0; padding: 0 10px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 12.5px; color: rgba(200, 214, 230, 0.42); transition: color 300ms, background-color 300ms; }
-.tunnel-text div.lit { color: #fff2d8; background: rgba(255, 179, 71, 0.22); }
-.tunnel-gap { position: absolute; font-size: 13px; color: var(--n-amber); text-align: center; pointer-events: none; }
-.tunnel-pools { list-style: none; margin: 0; padding: 0; }
-.tunnel-pools li { position: absolute; transform: translateY(-50%); }
-.tunnel-pools button { display: grid; grid-template-columns: 2.2em 1fr; align-items: baseline; gap: 10px; width: 100%; text-align: left; color: var(--n-muted); padding: 6px 8px; border-radius: 8px; border: 1px solid transparent; font: inherit; background: none; cursor: pointer; transition: color 200ms, background-color 200ms, border-color 200ms; }
-.tunnel-pools button b { font-family: var(--mono); font-size: 20px; font-weight: 400; color: var(--n-ink); font-variant-numeric: tabular-nums; text-align: right; }
-.tunnel-pools button span { font-size: 14px; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.tunnel-pools button:hover, .tunnel-pools button.on { color: var(--n-ink); background: rgba(255, 179, 71, 0.08); border-color: rgba(255, 179, 71, 0.35); }
-.tunnel-pools button.on b { color: var(--n-amber); }
+/* Reader flow (also drawn inside the report): a Sankey of heard → read → believe; bands coloured by destination. */
+.l-tunnel { margin: 0; padding: 18px 20px; border-radius: 16px; background: var(--n-bg-2); border: 1px solid var(--n-edge); }
+.l-tunnel, .tunnel-panel { min-width: 0; }
+.flow { overflow-x: auto; overscroll-behavior-x: contain; }
+.flow svg { display: block; width: 100%; min-width: 720px; height: auto; font-family: var(--font); }
+.flow text { font-size: 15px; fill: var(--n-ink); paint-order: stroke; stroke: var(--n-bg-2); stroke-width: 4px; stroke-linejoin: round; }
+.flow-heads text { font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; fill: var(--n-dim); }
+.flow .flow-n { fill: var(--n-dim); font-family: var(--mono); font-size: 13px; }
+.flow .flow-count { font-family: var(--mono); font-size: 20px; fill: var(--n-muted); }
+.flow-links path { fill: none; stroke-opacity: 0.32; transition: stroke-opacity 200ms; }
+.flow-links path.dim { stroke-opacity: 0.08; }
+.flow-links path:not(.dim) { stroke-opacity: 0.55; }
+.flow-links .tone-top { stroke: var(--n-amber); }
+.flow-links .tone-misreading { stroke: #d9a066; }
+.flow-links .tone-other { stroke: #8b97a3; }
+.flow-links .tone-none { stroke: var(--n-cyan); }
+.flow-nodes rect { fill: #c8d1da; }
+.flow-nodes .tone-rumour rect, .flow-nodes .tone-top rect { fill: var(--n-amber); }
+.flow-nodes .tone-misreading rect { fill: #d9a066; }
+.flow-nodes .tone-other rect { fill: #8b97a3; }
+.flow-nodes .tone-none rect, .flow-nodes .tone-calm rect { fill: var(--n-cyan); }
+.flow-nodes g.on .flow-count, .flow-nodes .tone-top .flow-count { fill: var(--n-amber); }
+.flow-nodes g.on text { font-weight: 600; }
 
 /* The report embeds the tunnel as a dark panel. */
 .tunnel-panel { margin-top: var(--gap); padding: 16px 20px 6px; border-radius: 12px; background: var(--n-bg); color: var(--n-ink); }
-.tunnel-panel .tunnel { height: clamp(420px, 56svh, 560px); }
 .tunnel-panel-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 18px; font-size: 13px; color: var(--n-muted); }
 .tunnel-panel-head b { font-size: 15px; font-weight: 500; color: var(--n-ink); }
-.tunnel-panel-head .dot { margin: 0 4px 0 8px; vertical-align: -1px; }
 
 /* Rule-decision and other kind tags. */
 .b-kind { width: max-content; font-size: 13px; padding: 4px 12px; border-radius: 999px; white-space: nowrap; background: rgba(154, 166, 178, 0.14); color: var(--n-muted); }
@@ -366,12 +369,6 @@
   .m-row .people { grid-column: 1 / -1; grid-row: 2; }
   .m-row b { grid-row: 1; grid-column: 3; }
   .m-row .people i { width: 18px; height: 18px; }
-  .tunnel { height: 620px; }
-  .tunnel-text div { color: transparent; padding: 0; }
-  .tunnel-text div.lit { color: transparent; background: rgba(255, 179, 71, 0.5); }
-  .tunnel-pools button { grid-template-columns: 1.8em 1fr; gap: 6px; padding: 2px 4px; }
-  .tunnel-pools button b { font-size: 17px; }
-  .tunnel-pools button span { font-size: 13px; -webkit-line-clamp: 3; }
   .l-voices li { grid-template-columns: 1fr; }
   .p-layers::before { left: 37px; }
   .p-layers li { grid-template-columns: 44px minmax(0, 1fr); }

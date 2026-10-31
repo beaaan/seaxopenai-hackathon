@@ -1,4 +1,4 @@
-import { Suspense, lazy, useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { CircleCheck, CircleDashed, FlaskConical, Loader2 } from "lucide-react";
 import type { FolkVersion, Interpretation, Scenario } from "@shared/schema";
 import { CLASS_LABEL, CLASS_MEANING, STAGES, cohortSize, misreadings, originalReadings, quoted, scenarioById, type Misreading } from "../model";
@@ -6,8 +6,7 @@ import type { RunContext } from "../pages/RunPage";
 import { Empty, Panel, Pill, TitleRow, Who, cx, hostOf } from "../ui";
 import { CLASS_TONE } from "./Findings";
 import { tunnelData } from "../landing/tunnel";
-
-const WindTunnel = lazy(() => import("../landing/WindTunnel").then((m) => ({ default: m.WindTunnel })));
+import { ReaderFlow } from "../landing/ReaderFlow";
 
 interface Row extends Misreading {
   /** Holders by what they had heard before reading: folk version id, or null for nothing. */
@@ -69,15 +68,12 @@ export function Overview(props: { ctx: RunContext }): ReactNode {
       {tunnel && (
         <section className="tunnel-panel" aria-label="How readers moved through the text">
           <div className="tunnel-panel-head">
-            <b>{tunnel.total} readers through the text</b>
-            <span><i className="dot rumour" /> told a rumour first <i className="dot nothing" /> heard nothing</span>
+            <b>{tunnel.total} readers: what they heard, where they read it, what they came to believe</b>
           </div>
-          <Suspense fallback={<div className="tunnel tunnel-loading">Loading</div>}>
-            <WindTunnel data={tunnel} active={tunnel.pools.findIndex((p) => p.id === selected?.id)} onActive={(i) => {
-              const id = tunnel.pools[i]?.id;
-              if (id && rows.some((r) => r.id === id)) setPicked(id);
-            }} />
-          </Suspense>
+          <ReaderFlow data={tunnel} active={tunnel.pools.findIndex((p) => p.id === selected?.id)} onActive={(i) => {
+            const id = tunnel.pools[i]?.id;
+            if (id && rows.some((r) => r.id === id)) setPicked(id);
+          }} />
         </section>
       )}
 
