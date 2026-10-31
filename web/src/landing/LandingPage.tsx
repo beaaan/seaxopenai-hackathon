@@ -5,8 +5,8 @@ import { beyondNoise, effectiveBand } from "@shared/noise";
 import { api, type PolicyDetail } from "../api";
 import { useRun } from "../hooks";
 import { cohortSize, misreadings, originalReadings, scenarioById, type Misreading, type RunModel } from "../model";
-import { MisreadCost } from "./MisreadCost";
-import { Pipeline, runCost } from "./Pipeline";
+import { Economics } from "./Economics";
+import { Pipeline } from "./Pipeline";
 import { RunStory } from "./RunStory";
 import { ChapterRail } from "./ChapterRail";
 import { Stakes } from "./Stakes";
@@ -104,10 +104,10 @@ export function LandingPage(): ReactNode {
       ) : (
         <WhoMisreads model={model} top={rows[0]} demographic={false} />
       )}
-      <MisreadCost model={model} top={rows[0]} runCost={model ? runCost(model) : 0} />
       <Repair top={rows[0]} />
       <Numbers />
-      <Pipeline model={model} wallSeconds={wallSeconds} />
+      <Pipeline model={model} />
+      <Economics model={model} top={rows[0]} wallSeconds={wallSeconds} />
 
       <section className="l-cta" id="demo" aria-labelledby="cta-title" data-chapter="Demo">
         <h2 id="cta-title" data-rise>Now watch the whole run</h2>

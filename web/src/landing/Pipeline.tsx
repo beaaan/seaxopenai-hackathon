@@ -1,31 +1,7 @@
 import type { ReactNode } from "react";
 import { Bot, FileSearch, Layers, ListChecks, Scale, ScanSearch, Users, Wand2 } from "lucide-react";
 import { codebook, originalReadings, type RunModel } from "../model";
-import usage from "./usage.json";
-import { CountUp, SUPPORT_CONTACT } from "./Stakes";
-
-/** Real token usage from one instrumented run (scripts/usage-summary.ts → docs/usage-probe.json, copied here). */
-interface StageUsage {
-  stage: string;
-  model: string;
-  calls: number;
-  inputTokens: number;
-  cachedInputTokens: number;
-  outputTokens: number;
-  reasoningTokens: number | null;
-  costUsd: number;
-}
-interface UsageProbe {
-  runId: string;
-  readers: number;
-  stages: StageUsage[];
-  totalCostUsd: number;
-  wallSeconds: number;
-}
-const PROBE = usage as UsageProbe;
-
-/** Stages whose work grows with the number of readers; the rest run a fixed number of times per test. */
-const PER_READER = new Set(["reader", "grader", "coder", "embeddings", "decisions"]);
+import { stageCost, usd } from "./costs";
 
 function firstBeliefs(m: RunModel): number {
   return originalReadings(m).reduce((n, r) => n + r.interpretations.length, 0);
@@ -132,57 +108,11 @@ const LAYERS: Layer[] = [
   },
 ];
 
-/**
- * Estimated cost of the stages for run `m`, from the measured probe: per-reader stages scale with the reader count,
- * single AI reviews with how many `m` ran on each model, everything else as measured. Null when nothing was measured.
- */
-function stageCost(stages: readonly string[], m: RunModel): { usd: number; model: string | null } | null {
-  const rows = PROBE.stages.filter((s) => stages.includes(s.stage));
-  if (rows.length === 0) return null;
-  const scale = (s: StageUsage): number => {
-    if (PER_READER.has(s.stage)) return m.scenarios.length / Math.max(1, PROBE.readers);
-    if (s.stage === "baseline") return m.baselines.filter((b) => b.model === s.model).length / Math.max(1, s.calls);
-    return 1;
-  };
-  return {
-    usd: rows.reduce((sum, s) => sum + s.costUsd * scale(s), 0),
-    model: [...rows].sort((a, b) => b.costUsd - a.costUsd)[0]?.model ?? null,
-  };
-}
-
-/** Estimated model cost of the whole run `m`; every measured stage counts, including calls no layer names. */
-export function runCost(m: RunModel): number {
-  return stageCost(PROBE.stages.map((s) => s.stage), m)?.usd ?? 0;
-}
-
-function usd(x: number): string {
-  return x >= 1 ? `$${x.toFixed(2)}` : x >= 0.01 ? `${Math.round(x * 100)}¢` : "<1¢";
-}
-
-/** Cost of one call of `stage` on `model`, as measured. */
-function perCall(stage: string, model: string): number {
-  const row = PROBE.stages.find((s) => s.stage === stage && s.model === model);
-  return row && row.calls > 0 ? row.costUsd / row.calls : 0;
-}
-
-/** One more reading in the probe: reading it, grading it, coding it against the frozen groups (Decisions API). */
-function perReading(): number {
-  const readings = PROBE.stages.find((s) => s.stage === "reader")?.calls ?? 0;
-  const rows = PROBE.stages.filter((s) => s.stage === "reader" || s.stage === "grader" || (s.stage === "coder" && s.model === "gpt-6-luna"));
-  return readings > 0 ? rows.reduce((sum, s) => sum + s.costUsd, 0) / readings : 0;
-}
-
-export function Pipeline(props: { model: RunModel | null; wallSeconds: number | null }): ReactNode {
-  const { model, wallSeconds } = props;
+export function Pipeline(props: { model: RunModel | null }): ReactNode {
+  const { model } = props;
   if (!model) return null;
-  const readers = model.scenarios.length;
   const costs = LAYERS.map((l) => stageCost(l.stages, model));
-  const total = runCost(model);
   const max = Math.max(...costs.map((c) => c?.usd ?? 0), 1e-9);
-  // An edit test reuses the suite's earlier readings: one fresh reading per reader of the edited text, graded and
-  // coded against the frozen groups, plus one fact check of the edit.
-  const editTest = perReading() * 10 + perCall("fidelity", "gpt-6.1-sol");
-  const review = perCall("baseline", "gpt-6.1-sol");
   return (
     <section className="l-section l-pipeline" id="pipeline" aria-labelledby="pipeline-title" data-chapter="Pipeline">
       <h2 id="pipeline-title" data-rise>Eight AI layers, one question each</h2>
@@ -212,31 +142,6 @@ export function Pipeline(props: { model: RunModel | null; wallSeconds: number | 
           );
         })}
       </ol>
-      <h3 className="p-econ-title" data-rise>What it costs</h3>
-      <div className="p-econ" data-rise>
-        <div><strong><CountUp fact={{ value: total, decimals: 2, prefix: "$" }} /></strong><span>the whole run: {readers} readers{wallSeconds ? `, ${Math.round(wallSeconds / 60)} min` : ""}</span></div>
-        <div><strong>{usd(editTest)}</strong><span>to retest an edit on 10 readers, in 17 seconds</span></div>
-        <div><strong>{usd(review)}</strong><span>one AI review, which lists problems but can't count who believes them</span></div>
-      </div>
-      <h3 className="p-econ-title" data-rise>What the alternatives cost</h3>
-      <div className="p-econ versus" data-rise>
-        <div>
-          <strong><CountUp fact={{ value: 4000, prefix: "$" }} /></strong>
-          <span>to pay 50 people for a one-hour interview, at $80 an hour</span>
-          <a href="https://www.userinterviews.com/blog/research-incentives-report" target="_blank" rel="noreferrer">User Interviews incentive report, updated 2025</a>
-        </div>
-        <div>
-          <strong><CountUp fact={{ value: SUPPORT_CONTACT.usd, decimals: 2, prefix: "$" }} /></strong>
-          <span>for one live support contact{total > 0 && total < SUPPORT_CONTACT.usd ? `, as much as ${Math.floor(SUPPORT_CONTACT.usd / total)} full test runs` : ""}</span>
-          <a href={SUPPORT_CONTACT.url} target="_blank" rel="noreferrer">{SUPPORT_CONTACT.source}</a>
-        </div>
-      </div>
-      <p className="p-worth" data-rise>
-        For a few dollars, every version of the text is tested before it ships: how many readers believe each problem, who they are, and whether the fix works.
-      </p>
-      <p className="p-note" data-rise>
-        Estimated from token counts measured on a {PROBE.readers}-reader run ({PROBE.runId}) at OpenAI list prices, scaled to {readers} readers.
-      </p>
     </section>
   );
 }

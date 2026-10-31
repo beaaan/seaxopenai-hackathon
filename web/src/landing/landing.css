@@ -170,7 +170,6 @@
 /* Reader flow (also drawn inside the report): a Sankey of heard → read → believe; bands coloured by destination. */
 .l-tunnel { margin: 0; padding: 18px 20px; border-radius: 16px; background: var(--n-bg-2); border: 1px solid var(--n-edge); }
 .l-tunnel, .tunnel-panel { min-width: 0; }
-.w-take { font-size: clamp(20px, min(2.2vw, 4vh), 32px); line-height: 1.25; color: var(--n-amber); max-width: 34ch; }
 .flow { overflow-x: auto; overscroll-behavior-x: contain; }
 .flow svg { display: block; width: 100%; min-width: 720px; height: auto; font-family: var(--font); }
 .flow text { font-size: 15px; fill: var(--n-ink); paint-order: stroke; stroke: var(--n-bg-2); stroke-width: 4px; stroke-linejoin: round; }
@@ -268,6 +267,7 @@
 
 /* Who misreads it: one card per trait, share of readers holding the misreading per level. */
 .w-what { font-size: clamp(16px, 1.4vw, 20px); color: var(--n-muted); }
+.w-take { font-size: clamp(20px, min(2.2vw, 4vh), 32px); line-height: 1.25; color: var(--n-amber); max-width: 34ch; }
 .w-traits { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 16px; }
 .w-traits li { display: grid; gap: 10px; align-content: start; padding: 20px 22px; border-radius: 16px; background: var(--n-panel); border: 1px solid var(--n-edge); }
 .w-traits li.lead { border-color: var(--n-amber); }
@@ -278,7 +278,7 @@
 .w-row i b { display: block; height: 100%; border-radius: 999px; background: var(--n-amber); }
 .w-row small { font-family: var(--mono); font-size: 14px; color: var(--n-muted); text-align: right; }
 
-/* One misreading priced: an equation of terms, two of them chosen by the viewer. */
+/* Economics: the cost of one misreading as an equation (two terms chosen by the viewer), set against what finding it costs. */
 .c-eq { display: flex; flex-wrap: wrap; align-items: flex-start; gap: clamp(10px, 1.6vw, 24px); }
 .c-term { display: grid; gap: 8px; align-content: start; min-width: 0; flex: 1 1 170px; padding: clamp(14px, 1.6vw, 22px); border-radius: 16px; background: var(--n-panel); border: 1px solid var(--n-edge); }
 .c-term.measured { border-color: var(--n-amber); }
@@ -291,11 +291,19 @@
 .c-pick { display: flex; gap: 6px; flex-wrap: wrap; }
 .c-pick button { padding: 3px 10px; border-radius: 999px; border: 1px solid rgba(143, 227, 255, 0.3); font-size: 13px; color: var(--n-muted); }
 .c-pick button.on { background: var(--n-cyan); border-color: var(--n-cyan); color: #05070b; font-weight: 600; }
-.c-total { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 20px; }
-.c-total strong { font-size: clamp(56px, min(7.4vw, 13vh), 132px); line-height: 1; font-weight: 300; letter-spacing: -0.03em; color: var(--n-red); }
-.c-total > span { font-size: clamp(18px, 1.8vw, 26px); color: var(--n-muted); }
-.c-vs { font-size: clamp(20px, 2vw, 30px); }
-.c-vs b { font-weight: 500; color: var(--n-cyan); }
+.e-versus { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: stretch; gap: clamp(12px, 2vw, 28px); }
+.e-side { display: grid; gap: 10px; align-content: start; padding: clamp(18px, 2vw, 28px); border-radius: 16px; background: var(--n-panel); border: 1px solid var(--n-edge); }
+.e-side strong { font-size: clamp(48px, min(6vw, 11vh), 112px); line-height: 1; font-weight: 300; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.e-side.bill { align-content: center; border-color: rgba(255, 107, 107, 0.45); }
+.e-side.bill strong { color: var(--n-red); }
+.e-side.find strong { color: var(--n-cyan); }
+.e-side > span { font-size: clamp(15px, 1.3vw, 19px); color: var(--n-muted); }
+.e-side ul { list-style: none; margin: 6px 0 0; padding: 12px 0 0; display: grid; gap: 6px; border-top: 1px solid var(--n-edge); font-size: 15px; color: var(--n-muted); }
+.e-side li b { font-family: var(--mono); font-weight: 400; color: var(--n-ink); margin-right: 6px; }
+.e-vs { align-self: center; font-size: clamp(20px, 2vw, 30px); font-weight: 300; color: var(--n-dim); }
+.e-ratio { font-size: clamp(20px, 2vw, 30px); line-height: 1.3; }
+.e-ratio b { font-weight: 500; color: var(--n-amber); }
+@media (max-width: 800px) { .e-versus { grid-template-columns: 1fr; } .e-vs { justify-self: center; } }
 @media (max-width: 700px) { .c-op { display: none; } .c-term { flex-basis: 100%; } }
 /* The ending. */
 .l-cta { min-height: 80svh; padding: 120px var(--n-m); display: grid; align-content: center; gap: 26px; justify-items: start; }
