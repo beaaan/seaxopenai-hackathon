@@ -5,7 +5,9 @@
  *
  *   npx tsx -e "import('./src/core/fixture.ts').then(m => console.log(m.writeFixtureRun({ runId: 'fixture' })))"
  */
-import { existsSync, rmSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { existsSync, readFileSync, rmSync } from "node:fs";
+import path from "node:path";
 import type { ActionEnum } from "../shared/actions";
 import type {
   AllocationDecision,
@@ -26,6 +28,7 @@ import type {
   Surface,
 } from "../shared/schema";
 import { loadPolicyPackage, makeVersion, versionZero } from "./policy";
+import { POLICIES_DIR } from "./paths";
 import { eventsPath, readEvents, RunWriter } from "./store";
 
 const MODEL = "gpt-6.1-sol";
@@ -376,11 +379,13 @@ function makeReading(rand: () => number, scenario: Scenario, index: number, pool
       confidence: round(0.45 + rand() * 0.5),
     });
     const conflicts = rand() < a.conflictProb;
+    const confidence = round(0.6 + rand() * 0.39);
     grades.push({
       readingId,
       interpretationId: id,
       label: conflicts ? "conflicts" : a.otherLabel,
-      confidence: round(0.6 + rand() * 0.39),
+      confidence,
+      pConflicts: conflicts ? confidence : round((1 - confidence) * 0.5),
       factIds: a.factIds,
       why: conflicts ? `Trái với ${a.factIds.join(", ") || "văn bản"}: ${a.labelEn}.` : `Phù hợp hoặc không kiểm chứng được: ${a.labelEn}.`,
     });
@@ -639,10 +644,18 @@ export function writeFixtureRun(opts: { runId: string; runsDir?: string }): { ev
 
   const pkg = loadPolicyPackage(POLICY_ID);
   const v0 = versionZero(pkg);
+  const policyDir = path.join(POLICIES_DIR, POLICY_ID);
+  const referencePath = path.join(policyDir, "reference.json");
+  const folkPath = path.join(policyDir, "folk.json");
 
   append("run.started", {
     config: {
       policyId: POLICY_ID,
+      inputs: {
+        policySha256: createHash("sha256").update(readFileSync(path.join(policyDir, "policy.json"))).digest("hex"),
+        referenceSha256: existsSync(referencePath) ? createHash("sha256").update(readFileSync(referencePath)).digest("hex") : null,
+        folkSha256: existsSync(folkPath) ? createHash("sha256").update(readFileSync(folkPath)).digest("hex") : null,
+      },
       budget: 50,
       seedSize: SEED_SIZE,
       batchSize: BATCH_SIZE,
@@ -780,7 +793,7 @@ export function writeFixtureRun(opts: { runId: string; runsDir?: string }): { ev
       const repair = belief === undefined ? undefined : repairedMeanings[belief.clusterId];
       const priorGrade = item.grades.find((grade) => grade.interpretationId === interpretation.id);
       const id = interpretation.id.replace("-v0", "-v1");
-      if (priorGrade !== undefined) revisedGrades.push({ ...priorGrade, readingId, interpretationId: id, ...(repair === undefined ? {} : { label: "consistent", confidence: 0.94, why: "[fixture] Synthetic repaired reading agrees with the stated fact." }) });
+      if (priorGrade !== undefined) revisedGrades.push({ ...priorGrade, readingId, interpretationId: id, ...(repair === undefined ? {} : { label: "consistent", confidence: 0.94, pConflicts: 0.03, why: "[fixture] Synthetic repaired reading agrees with the stated fact." }) });
       return { ...interpretation, id, ...(repair ?? {}), quote: repair === undefined || belief?.sentenceId === null || belief === undefined ? interpretation.quote : sentenceText(v1, belief.sentenceId) };
     });
     append("reading.completed", { reading: {
@@ -961,7 +974,7 @@ export function writeFixtureRetest(opts: { runId: string; suiteRunId: string; ru
   }
   const after: Iteration = { ...before, decision: "stop", reason: "[fixture] Synthetic unchanged-edit re-test: conflict rate stayed inside the paired noise band; no resolved finding reappeared." };
   append("iteration.completed", { iteration: after });
-  append("suite.compared", { comparison: { suiteRunId: opts.suiteRunId, baseVersion: finalPolicy.payload.policy.version, before, after, regressions: [], passed: true } });
+  append("suite.compared", { comparison: { suiteRunId: opts.suiteRunId, baseVersion: finalPolicy.payload.policy.version, before, after, reasons: [], verdict: "pass" } });
   append("run.completed", { summary: "[fixture] Synthetic policy CI PASS; 17% → 17% conflict rate, paired test–retest noise ±5 pp, no regressions." });
   return { events: count };
 }

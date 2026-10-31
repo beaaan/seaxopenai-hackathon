@@ -75,10 +75,10 @@ describe("splitTable", () => {
   it("counts only eligible readings and threshold-qualified conflicts once per reading", () => {
     const readings = [reading(0), reading(1), reading(2), reading(3)];
     const scenarios = [scenario(0, [{ dimId: "A", levelId: "A0" }]), scenario(1, [{ dimId: "A", levelId: "A0" }]), scenario(2, [])];
-    const grades: Grade[] = [0, 1].map((index) => ({ readingId: "r0", interpretationId: `r0.i${index}`, label: "conflicts", confidence: 0.8, factIds: [], why: null }));
+    const grades: Grade[] = [0, 1].map((index) => ({ readingId: "r0", interpretationId: `r0.i${index}`, label: "conflicts", confidence: 0.8, pConflicts: null, factIds: [], why: null }));
     grades.push(
-      { readingId: "r1", interpretationId: "r1.i0", label: "conflicts", confidence: 0.79, factIds: [], why: null },
-      { readingId: "r1", interpretationId: "r1.i1", label: "consistent", confidence: 1, factIds: [], why: null },
+      { readingId: "r1", interpretationId: "r1.i0", label: "conflicts", confidence: 0.79, pConflicts: null, factIds: [], why: null },
+      { readingId: "r1", interpretationId: "r1.i1", label: "consistent", confidence: 1, pConflicts: null, factIds: [], why: null },
     );
     const [result] = splitTable({ dimensions: [dimension("A")], scenarios, readings, grades, codings: [], threshold: 0.8, permutations: 20, seed: 1 });
     expect(result?.byLevel).toEqual([{ levelId: "A0", n: 2, conflictShare: 0.5 }, { levelId: "A1", n: 0, conflictShare: 0 }]);

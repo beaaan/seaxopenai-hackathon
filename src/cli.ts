@@ -25,7 +25,7 @@ import { Gateway } from "./core/llm/gateway";
 import { listPolicyIds, loadFolk, loadPolicyPackage, loadReference, versionZero } from "./core/policy";
 import { listRuns, readEvents } from "./core/store";
 import { PolicyPackage, RunConfig, Surface, type SuiteComparison } from "./shared/schema";
-import { runWindTunnel } from "./pipeline/run";
+import { inputFingerprints, runWindTunnel } from "./pipeline/run";
 import { retestEdit } from "./pipeline/retest";
 import { mapHumanForRun } from "./pipeline/human";
 
@@ -134,9 +134,8 @@ async function smokeOne(backend: BackendName, model: string): Promise<void> {
   }
 }
 
-function clockId(): string {
-  const now = new Date();
-  return `${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}`;
+function timestampId(): string {
+  return new Date().toISOString().slice(0, 19).replace(/[-:]/g, "").replace("T", "-");
 }
 
 function validId(value: string): string {
@@ -156,7 +155,7 @@ function printComparison(comparison: SuiteComparison): void {
     })),
   ]);
   console.log(`noise band: ${comparison.after.noiseBand ?? "not measured"}; paired scenarios: ${comparison.after.noiseBandScenarios ?? "unknown"}`);
-  console.log(comparison.passed ? "PASS" : `FAIL: ${comparison.regressions.join("; ")}`);
+  console.log(`${comparison.verdict.toUpperCase()}${comparison.reasons.length ? `: ${comparison.reasons.join("; ")}` : ""}`);
 }
 
 async function main(): Promise<void> {
@@ -188,13 +187,13 @@ async function main(): Promise<void> {
     case "run": {
       const policyId = validId(arg ?? usage());
       const config = RunConfig.parse({
-        policyId, mode: z.enum(["full", "explore"]).parse(values.mode),
+        policyId, inputs: inputFingerprints(policyId), mode: z.enum(["full", "explore"]).parse(values.mode),
         budget: Number(values.budget), seedSize: Number(values["seed-size"]), batchSize: Number(values["batch-size"]),
         maxIterations: Number(values.iterations), smokeSize: 10, baselineRuns: Number(values.baselines), seed: Number(values.seed),
         suiteRunId: null, models: { reader: "gpt-6.1-sol", judge: "gpt-6.1-sol", grader: "gpt-6-luna", reviewer: "gpt-6.1-sol" },
         fresh: values.fresh,
       });
-      const runId = validId(values["run-id"] ?? `${policyId}-${clockId()}`);
+      const runId = validId(values["run-id"] ?? `${policyId}-${timestampId()}`);
       await runWindTunnel({ runId, config });
       console.log(`completed ${runId}`);
       return;
@@ -207,10 +206,10 @@ async function main(): Promise<void> {
         const data: unknown = JSON.parse(readFileSync(input, "utf8"));
         surfaces = Array.isArray(data) ? Surface.array().min(1).parse(data) : PolicyPackage.parse(data).surfaces;
       } else surfaces = loadPolicyPackage(validId(input)).surfaces;
-      const runId = validId(values["run-id"] ?? `${suiteRunId}-rt${clockId()}`);
+      const runId = validId(values["run-id"] ?? `${suiteRunId}-rt${timestampId()}`);
       const comparison = await retestEdit({ runId, suiteRunId, surfaces, smoke: values.smoke });
       printComparison(comparison);
-      if (!comparison.passed) process.exitCode = 1;
+      if (comparison.verdict !== "pass") process.exitCode = 1;
       return;
     }
     case "map-human": {

@@ -64,8 +64,11 @@ rowsForDecision(dimensions: Dimension[], decision: AllocationDecision, seed: num
 ## src/reviewer (P3)
 
 ```ts
-// grade.ts: Decisions; evidence = policyText(ids) + referenceText; data = the reading
+// grade.ts: Decisions; evidence = policyText(ids) + referenceText; data = the reading.
+// Grade.label = the top choice, confidence = its probability, pConflicts = P(conflicts) from the distribution
+// (null when unknown). Every metric uses the single predicate isConflict(grade, threshold).
 gradeReadings(ctx, version: PolicyVersion, readings: Reading[]): Promise<Grade[]>
+isConflict(grade: Grade, threshold: number): boolean
 
 // cluster.ts: embeddings + average-linkage (cosine 0.25) per sentence (+ null-sentence group), then one LLM
 // labelling pass per sentence whose labels are BELIEF STATEMENTS (VN + EN) usable as a codebook;
@@ -92,7 +95,12 @@ checkFidelity(ctx, args: { original: PolicyVersion; candidate: Surface[] }): Pro
 
 // classify.ts: attempted repair → wording_fix | design_gap | unresolvable (+ repair evidence)
 // fidelity passing proves preservation, not resolution: a passing repair is re-read on ≤ 3 evidence scenarios and coded
-// against the draft's beliefs; unresolved after one retry ⇒ design_gap marked "Provisional:" in classRationale
+// against the draft's beliefs. before/after = mean over those scenarios of max P(belief) over the draft's clusters.
+// reproduced ⇔ before ≥ 0.25; resolved ⇔ reproduced ∧ after < 0.25 ∧ after ≤ 0.5·before.
+// Not reproduced ⇒ class kept, classRationale starts "Provisional: misreading did not reproduce…".
+// Unresolved after one retry ⇒ design_gap marked "Provisional:".
+// Fidelity also checks, for every v0 sentence an edit replaces or deletes, that its rules are still stated
+// (FactCheck with factId = the sentence id), so it works without a reference.
 classifyByRepair(ctx, version: PolicyVersion, draft: FindingDraft,
   deps: { scenarios: Scenario[]; codebook: Cluster[]; readings: Reading[]; codings: Coding[] }): Promise<Finding>
 
@@ -117,11 +125,15 @@ stopDecision(args: { history: Iteration[]; current: Omit<Iteration, "decision" |
 runBaseline(ctx, version: PolicyVersion, opts: { id: string; model: string; effort: Effort }): Promise<BaselineRun>
 // blind: each system's items are shown anonymised ("System A") and shuffled; one call per (edge case, system).
 // Loads the holdout itself (only src/eval may); returns null when the policy has no holdout.
-// Adds aggregate systems "baseline-mean" and "baseline-union" over systems whose id starts with "baseline-".
+// Adds aggregate systems "baseline-mean" and "baseline-union" over the replicate systems /^baseline-\d+$/;
+// "baseline-astra" is scored separately. The scorer returns ALL matching items per edge case; an item is
+// "unmatched by holdout" only if it matched no edge case. Item text includes the quoted policy sentence(s).
 scoreAgainstHoldout(ctx, args: { version: PolicyVersion; seed: number;
   systems: Array<{ id: string; label: string; items: Array<{ id: string; text: string }> }> }): Promise<Score | null>
 humanQuestions(ctx, version: PolicyVersion, findings: Finding[]): Promise<HumanQuestion[]>   // 3 neutral VN questions
-mapHumanAnswers(ctx, args: { answers: HumanAnswer[]; questions: HumanQuestion[]; findings: Finding[] }): Promise<HumanMapping[]>  // Decisions choice
+// Answers are coded against the frozen codebook with the same predicates as persona readings, then mapped to the
+// finding whose evidence clusters hold the strongest belief ≥ 0.5 (else null).
+mapHumanAnswers(ctx, args: { answers: HumanAnswer[]; questions: HumanQuestion[]; findings: Finding[]; codebook: Cluster[] }): Promise<HumanMapping[]>
 ```
 
 ## src/sandbox (cut first)
@@ -132,12 +144,17 @@ interface RuleAssumptions { threshold: number; windowDays: number; countsCourier
   recoveryPrepaidOrders: number; lockScope: "account" }
 // tools.ts: persona ToolDefs (src/shared/actions PersonaToolInputs) bound to a sandbox world
 // episode.ts
-runProbe(ctx, args: { readings: Reading[]; assumptions: RuleAssumptions; days: number }): Promise<ProbeResult>
+// COD only (throws for other policies before any model call); null when the readings evidence no strategy
+runProbe(ctx, args: { readings: Reading[]; assumptions: RuleAssumptions; days: number }): Promise<ProbeResult | null>
 ```
 
 ## src/pipeline (P1)
 
 ```ts
 runWindTunnel(args: { runId: string; config: RunConfig }): Promise<void>         // all modes
+// Rewrite acceptance compares conflict rates on IDENTICAL scenario ids (< 5 paired ⇒ inconclusive stop).
+// Retest: uses the suite's v0 text from its log; refuses if reference/folk hashes (RunConfig.inputs) or Decisions /
+// embeddings provenance differ from the suite run. verdict = pass | fail | inconclusive (< 5 paired noise scenarios,
+// or a required finding unmeasured, n = 0 on either side).
 retestEdit(args: { runId: string; suiteRunId: string; surfaces: Surface[]; smoke: boolean }): Promise<SuiteComparison>
 ```

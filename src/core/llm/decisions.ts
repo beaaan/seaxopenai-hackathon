@@ -148,6 +148,7 @@ const EmulatedAnswers = z.strictObject({
       name: z.string(),
       probability: z.number().nullable(), // predicate
       choice: z.string().nullable(), // choice: one of the allowed values
+      choiceProbabilities: z.array(z.strictObject({ value: z.string(), probability: z.number() })).nullable(), // choice: every allowed value
       levelIndex: z.number().int().nullable(), // score: 0-based level index
       confidence: z.number().nullable(),
     }),
@@ -159,7 +160,7 @@ function describeQuestion(q: DecisionQuestion): string {
     case "predicate":
       return `- name: ${q.name}\n  type: predicate (give probability 0..1 that it is true)\n  question: ${q.instructions}`;
     case "choice":
-      return `- name: ${q.name}\n  type: choice (give exactly one value + confidence 0..1)\n  question: ${q.instructions}\n  values:\n${q.choices.map((c) => `    - ${c.value}: ${c.description}`).join("\n")}`;
+      return `- name: ${q.name}\n  type: choice (give the most likely value in choice, and in choiceProbabilities a probability 0..1 for EVERY value, summing to 1)\n  question: ${q.instructions}\n  values:\n${q.choices.map((c) => `    - ${c.value}: ${c.description}`).join("\n")}`;
     case "score":
       return `- name: ${q.name}\n  type: score (give 0-based levelIndex + confidence 0..1)\n  question: ${q.instructions}\n  levels:\n${q.levels.map((l, i) => `    ${i}. ${l.label}: ${l.description}`).join("\n")}`;
   }
@@ -195,7 +196,15 @@ export async function emulateDecisions(
         case "predicate":
           return a.probability === null ? { type: "refusal", name: q.name } : { type: "predicate", name: q.name, probability: Math.min(1, Math.max(0, a.probability)) };
         case "choice": {
-          const value = q.choices.find((c) => c.value === a.choice)?.value;
+          const allowed = q.choices.map((c) => c.value);
+          const raw = allowed.map((value) => Math.max(0, a.choiceProbabilities?.find((p) => p.value === value)?.probability ?? 0));
+          const total = raw.reduce((sum, p) => sum + p, 0);
+          if (total > 0) {
+            const probabilities = allowed.map((value, i) => ({ value, probability: (raw[i] ?? 0) / total }));
+            const top = probabilities.reduce((best, p) => (p.probability > best.probability ? p : best));
+            return { type: "choice", name: q.name, choice: top.value, confidence: top.probability, probabilities };
+          }
+          const value = allowed.find((v) => v === a.choice);
           return value === undefined ? { type: "refusal", name: q.name } : { type: "choice", name: q.name, choice: value, confidence, probabilities: [{ value, probability: confidence }] };
         }
         case "score": {

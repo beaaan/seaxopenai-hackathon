@@ -64,12 +64,22 @@ describe("applyEdits", () => {
     ])).toThrow("Overlapping edits");
   });
 
-  it("uses the first exact occurrence, detecting overlaps even for different ids", () => {
-    const repeated = makeVersion("example", 0, null, [{ id: "main", label: "T", text: "Giống nhau.\nGiống nhau." }]);
-    expect(applyEdits(repeated, [{ sentenceId: "main.2", newText: "Đã thay." }])[0]?.text).toBe("Đã thay.\nGiống nhau.");
-    expect(() => applyEdits(repeated, [
-      { sentenceId: "main.1", newText: "Một." },
-      { sentenceId: "main.2", newText: "Hai." },
-    ])).toThrow("Overlapping edits");
+  it("distinguishes repeated sentences by their ordered occurrence", () => {
+    const repeated = makeVersion("example", 0, null, [{ id: "main", label: "T", text: "Same.\nSame." }]);
+    expect(applyEdits(repeated, [{ sentenceId: "main.2", newText: "Changed." }])[0]?.text).toBe("Same.\nChanged.");
+    expect(applyEdits(repeated, [
+      { sentenceId: "main.2", newText: "Second." },
+      { sentenceId: "main.1", newText: "First." },
+    ])[0]?.text).toBe("First.\nSecond.");
+    expect(applyEdits(repeated, [{ afterSentenceId: "main.2", text: "Last." }])[0]?.text).toBe("Same.\nSame.\nLast.");
+  });
+
+  it("does not replace a sentence-shaped substring of an earlier sentence", () => {
+    const original = makeVersion("example", 0, null, [{ id: "main", label: "T", text: "Not eligible.\neligible." }]);
+    expect(applyEdits(original, [{ sentenceId: "main.2", newText: "Qualified." }])[0]?.text).toBe("Not eligible.\nQualified.");
+    expect(applyEdits(original, [
+      { sentenceId: "main.1", newText: "Disqualified." },
+      { sentenceId: "main.2", newText: "Qualified." },
+    ])[0]?.text).toBe("Disqualified.\nQualified.");
   });
 });

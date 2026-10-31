@@ -29,6 +29,9 @@ export function stopDecision(args: StopDecisionArgs): StopDecision {
     return { decision: "continue", reason: `${current.openWordingFindings} open wording findings; iteration ${iterationIndex} of ${maxIterations}; noise band is not yet measured` };
   }
   const improvement = previous.conflictRate - current.conflictRate;
+  if (improvement < -current.noiseBand - Number.EPSILON) {
+    return { decision: "stop", reason: `conflict rate rose ${previous.conflictRate.toFixed(2)} → ${current.conflictRate.toFixed(2)}, beyond the noise band ${current.noiseBand.toFixed(2)}; keeping the previous version` };
+  }
   const comparison = `conflict rate ${previous.conflictRate.toFixed(2)} → ${current.conflictRate.toFixed(2)} (Δ ${improvement.toFixed(2)})`;
   // Rates are ratios; tolerate only floating-point roundoff at an equal boundary.
   if (improvement <= current.noiseBand + Number.EPSILON) {

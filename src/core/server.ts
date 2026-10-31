@@ -17,7 +17,7 @@
  *   POST /api/runs/:runId/approve          → {ok}; record approval of an existing version
  */
 import { spawn } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { closeSync, existsSync, mkdirSync, openSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { Hono } from "hono";
@@ -26,8 +26,9 @@ import type { RunEvent } from "../shared/events";
 import { z } from "zod";
 import { PolicyPackage, Surface, type FolkFile, type PolicyVersion } from "../shared/schema";
 import { listPolicyIds, loadFolk, loadPolicyPackage, loadReference, versionZero } from "./policy";
-import { RunWriter, listRuns, readEvents, tailEvents } from "./store";
+import { RunWriter, eventsPath, listRuns, readEvents, tailEvents } from "./store";
 import { POLICIES_DIR, REPO_ROOT, RUNS_DIR } from "./paths";
+import { preflightRetest } from "../pipeline/retest";
 
 export interface PolicyListItem {
   id: string;
@@ -70,28 +71,30 @@ function reserveRunId(base: string, numbered: boolean): string {
   }
 }
 
-async function launchCli(args: string[]): Promise<void> {
-  const child = spawn(process.execPath, [path.join(REPO_ROOT, "node_modules/tsx/dist/cli.mjs"), "src/cli.ts", ...args], {
-    cwd: REPO_ROOT, detached: true, stdio: "ignore",
-  });
-  const { promise, resolve, reject } = Promise.withResolvers<void>();
-  child.once("error", reject);
-  child.once("spawn", resolve);
-  await promise;
-  child.unref();
+async function launchCli(runId: string, args: string[]): Promise<void> {
+  const stderr = openSync(path.join(RUNS_DIR, runId, "stderr.log"), "a");
+  try {
+    const child = spawn(process.execPath, [path.join(REPO_ROOT, "node_modules/tsx/dist/cli.mjs"), "src/cli.ts", ...args], {
+      cwd: REPO_ROOT, detached: true, stdio: ["ignore", "ignore", stderr],
+    });
+    const { promise, resolve, reject } = Promise.withResolvers<void>();
+    child.once("error", reject);
+    child.once("spawn", resolve);
+    await promise;
+    child.unref();
+  } finally { closeSync(stderr); }
 }
 
 export function createApp(): Hono {
   const app = new Hono();
-  const writers = new Map<string, { writer: RunWriter; nextSeq: number }>();
-  const writerFor = (runId: string, eventCount: number): { writer: RunWriter; nextSeq: number } => {
-    let entry = writers.get(runId);
-    // A detached map-human process may have extended the log since the last POST.
-    if (!entry || entry.nextSeq !== eventCount) {
-      entry = { writer: new RunWriter(runId), nextSeq: eventCount };
-      writers.set(runId, entry);
+  const writers = new Map<string, RunWriter>();
+  const writerFor = (runId: string): RunWriter => {
+    let writer = writers.get(runId);
+    if (!writer) {
+      writer = new RunWriter(runId);
+      writers.set(runId, writer);
     }
-    return entry;
+    return writer;
   };
   app.onError((error, c) => c.json({ error: error.message }, error instanceof z.ZodError || error instanceof SyntaxError ? 400 : 500));
 
@@ -105,7 +108,7 @@ export function createApp(): Hono {
     loadPolicyPackage(body.policyId);
     const stamp = new Date().toISOString().replace(/\D/g, "");
     const runId = reserveRunId(`${body.policyId}-${stamp}`, false);
-    await launchCli(["run", body.policyId, "--run-id", runId, "--mode", body.mode, "--budget", String(body.budget), "--iterations", String(body.maxIterations)]);
+    await launchCli(runId, ["run", body.policyId, "--run-id", runId, "--mode", body.mode, "--budget", String(body.budget), "--iterations", String(body.maxIterations)]);
     return c.json({ runId });
   });
 
@@ -113,14 +116,13 @@ export function createApp(): Hono {
     const suiteRunId = c.req.param("runId");
     if (!RUN_ID.test(suiteRunId)) return c.json({ error: "bad run id" }, 400);
     const body = RetestRequest.parse(await c.req.json());
-    let events: RunEvent[];
-    try { events = readEvents(suiteRunId); }
-    catch (error) { return c.json({ error: (error as Error).message }, 404); }
-    if (!finished(events) || !events.some((event) => event.type === "iteration.completed") || !events.some((event) => event.type === "codebook.fixed")) return c.json({ error: "run has no completed frozen suite" }, 409);
+    if (!existsSync(eventsPath(suiteRunId))) return c.json({ error: `no such run: ${suiteRunId}` }, 404);
+    try { preflightRetest({ suiteRunId, surfaces: body.surfaces, smoke: body.smoke }); }
+    catch (error) { return c.json({ error: (error as Error).message }, 409); }
     const runId = reserveRunId(`${suiteRunId}-rt`, true);
     const file = path.join(RUNS_DIR, runId, "surfaces.json");
     writeFileSync(file, `${JSON.stringify(body.surfaces, null, 2)}\n`, { encoding: "utf8", flag: "wx" });
-    await launchCli(["test", file, "--suite", suiteRunId, "--run-id", runId, ...(body.smoke ? ["--smoke"] : [])]);
+    await launchCli(runId, ["test", file, "--suite", suiteRunId, "--run-id", runId, ...(body.smoke ? ["--smoke"] : [])]);
     return c.json({ runId });
   });
 
@@ -146,8 +148,8 @@ export function createApp(): Hono {
     const questionIds = new Set(events.flatMap((event) => event.type === "human.question" ? [event.payload.question.id] : []));
     if (body.answers.some((answer) => !questionIds.has(answer.questionId))) return c.json({ error: "unknown question id" }, 400);
     if (new Set(body.answers.map((answer) => answer.questionId)).size !== body.answers.length) return c.json({ error: "duplicate question id" }, 400);
-    const entry = writerFor(runId, events.length);
-    for (const answer of body.answers) entry.nextSeq = entry.writer.append("human.answer", { answer: { ...answer, id: `ha-${randomUUID()}`, respondent: body.respondent } }).seq + 1;
+    const writer = writerFor(runId);
+    for (const answer of body.answers) writer.append("human.answer", { answer: { ...answer, id: `ha-${randomUUID()}`, respondent: body.respondent } });
     return c.json({ ok: true });
   });
 
@@ -158,7 +160,7 @@ export function createApp(): Hono {
     try { events = readEvents(runId); }
     catch (error) { return c.json({ error: (error as Error).message }, 404); }
     if (!finished(events)) return c.json({ error: "run is not completed" }, 409);
-    await launchCli(["map-human", runId]);
+    await launchCli(runId, ["map-human", runId]);
     return c.json({ ok: true });
   });
 
@@ -171,8 +173,7 @@ export function createApp(): Hono {
     catch (error) { return c.json({ error: (error as Error).message }, 404); }
     if (!finished(events)) return c.json({ error: "run is not completed" }, 409);
     if (!events.some((event) => event.type === "policy.version" && event.payload.policy.version === body.version)) return c.json({ error: "version is not a published or accepted policy version" }, 409);
-    const entry = writerFor(runId, events.length);
-    entry.nextSeq = entry.writer.append("rewrite.approved", body).seq + 1;
+    writerFor(runId).append("rewrite.approved", body);
     return c.json({ ok: true });
   });
 

@@ -33,6 +33,8 @@ export class Gateway {
   readonly #cache: LlmCache;
   #responses: ResponsesBackend | null = null;
   #appServer: AppServerBackend | null = null;
+  /** Identical non-fresh requests share one model call while it is running. */
+  readonly #inflight = new Map<string, Promise<unknown>>();
 
   constructor(opts: Partial<GatewayOptions> = {}) {
     const hasKey = config.openaiApiKey !== null && config.openaiApiKey !== "";
@@ -53,6 +55,24 @@ export class Gateway {
   /** Embeddings and the real Decisions API need OPENAI_API_KEY; without it clustering uses LLM grouping and decide() is emulated. */
   get hasApiKey(): boolean {
     return config.openaiApiKey !== null && config.openaiApiKey !== "";
+  }
+
+  async #cached<T>(key: string, fresh: boolean | undefined, parse: (value: unknown) => T, call: () => Promise<T>): Promise<T> {
+    if (!fresh) {
+      const hit = this.#cache.get(key);
+      if (hit !== undefined) return parse(hit);
+      const running = this.#inflight.get(key);
+      if (running) return parse(await running);
+    }
+    const promise = call();
+    if (!fresh) this.#inflight.set(key, promise);
+    try {
+      const result = await promise;
+      this.#cache.set(key, result);
+      return result;
+    } finally {
+      if (!fresh) this.#inflight.delete(key);
+    }
   }
 
   #responsesBackend(): ResponsesBackend {
@@ -83,13 +103,7 @@ export class Gateway {
       schemaName: req.schemaName,
       schema: llmJsonSchema(req.schema),
     });
-    if (!req.fresh) {
-      const hit = this.#cache.get(key);
-      if (hit !== undefined) return req.schema.parse(hit);
-    }
-    const result = await this.#backend(this.#opts.bulk).structured(req);
-    this.#cache.set(key, result);
-    return result;
+    return this.#cached(key, req.fresh, (value) => req.schema.parse(value), () => this.#backend(this.#opts.bulk).structured(req));
   }
 
   /** Embeddings for clustering; cached per text. */
@@ -124,15 +138,11 @@ export class Gateway {
   async decide(req: DecisionRequest): Promise<DecisionAnswer[]> {
     const emulated = !this.hasApiKey;
     const key = cacheKey({ v: CACHE_VERSION, kind: "decide", emulated, model: DECISIONS_MODEL, role: req.role, evidence: req.evidence, data: req.data, questions: req.questions });
-    if (!req.fresh) {
-      const hit = this.#cache.get(key);
-      if (hit !== undefined) return DecisionAnswers.parse(hit);
-    }
-    const answers = emulated
-      ? await emulateDecisions((r) => this.#backend(this.#opts.bulk).structured(r), req)
-      : await this.#responsesBackend().decide(req);
-    this.#cache.set(key, answers);
-    return answers;
+    return this.#cached(key, req.fresh, (value) => DecisionAnswers.parse(value), () =>
+      emulated
+        ? emulateDecisions((r) => this.#backend(this.#opts.bulk).structured(r), req)
+        : this.#responsesBackend().decide(req),
+    );
   }
 
   agentThread(opts: AgentThreadOptions): Promise<AgentThread> {

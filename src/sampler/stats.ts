@@ -1,4 +1,5 @@
 import type { Cluster, Coding, Dimension, DiscoveryPoint, Grade, Reading, Scenario, SplitRow } from "../shared/schema";
+import { isConflict } from "../reviewer/grade";
 import { trigramSimilarity } from "./anchor";
 
 interface BinaryFeature {
@@ -73,7 +74,7 @@ export function splitTable(args: {
   seed: number;
 }): SplitRow[] {
   const scenarios = new Map(args.scenarios.map((scenario) => [scenario.id, scenario]));
-  const conflicts = new Set(args.grades.filter((grade) => grade.label === "conflicts" && grade.confidence >= args.threshold).map((grade) => grade.readingId));
+  const conflicts = new Set(args.grades.filter((grade) => isConflict(grade, args.threshold)).map((grade) => grade.readingId));
   const codingByReading = new Map<string, Map<string, number>>();
   for (const coding of args.codings) {
     let beliefs = codingByReading.get(coding.readingId);

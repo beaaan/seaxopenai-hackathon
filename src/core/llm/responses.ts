@@ -101,6 +101,9 @@ export class ResponsesBackend implements LlmBackend {
             store: true,
           }),
         );
+        if (res.status !== "completed") {
+          throw new Error(`agent thread ${opts.label}: status ${res.status} ${JSON.stringify(res.incomplete_details ?? res.error)}`);
+        }
         previousResponseId = res.id;
         for (const item of res.output) {
           items.push(item);

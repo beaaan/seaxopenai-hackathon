@@ -92,7 +92,11 @@ export async function rewritePolicy(ctx: StageContext, args: RewritePolicyArgs):
       return (aRank ? Number(aRank[1]) : Infinity) - (bRank ? Number(bRank[1]) : Infinity)
         || b.evidence.readingIds.length - a.evidence.readingIds.length;
     });
-  if (budget === 0 || findings.length === 0) return { surfaces: args.version.surfaces, edits: [] };
+  if (findings.length === 0) return { surfaces: args.version.surfaces, edits: [] };
+  if (budget === 0) {
+    ctx.log("info", `Omitting repairs ${findings.map((finding) => finding.id).join(", ")}: the 40% sentence-change budget is zero.`);
+    return { surfaces: args.version.surfaces, edits: [] };
+  }
   const result = await ctx.gateway.structured({
     role: "rewriter",
     instructions: prompt("rewriter", { policy: policyText(args.version, { ids: true }), reference: referenceText(ctx.reference) }),
@@ -110,37 +114,67 @@ export async function rewritePolicy(ctx: StageContext, args: RewritePolicyArgs):
     if (!sentence) throw new Error(`Unknown rewrite sentence id: ${id}`);
     const findingIds = [...new Set(edit.findingIds)].filter((findingId) => rankById.has(findingId));
     if (findingIds.length === 0 || ("sentenceId" in edit && edit.newText === sentence.text)) return [];
-    return [{ edit, findingIds, rank: Math.min(...findingIds.map((findingId) => rankById.get(findingId)!)) }];
+    const normalized: SentenceEdit = "sentenceId" in edit
+      ? { sentenceId: edit.sentenceId, newText: edit.newText }
+      : { afterSentenceId: edit.afterSentenceId, text: edit.text };
+    const sentenceCount = splitSentences({ id: "changed", label: "", text: "sentenceId" in edit ? edit.newText : edit.text }).length;
+    return [{ edit: normalized, findingIds, cost: "sentenceId" in edit ? Math.max(1, sentenceCount) : sentenceCount }];
   });
-  candidates.sort((a, b) => a.rank - b.rank);
   const accepted: SentenceEdit[] = [];
   const edits: Edit[] = [];
-  const targets = new Set<string>();
-  let insertions = 0;
+  const processedFindings = new Set<string>();
+  let usedBudget = 0;
   let surfaces = args.version.surfaces;
-  for (const candidate of candidates) {
-    const edit: SentenceEdit = "sentenceId" in candidate.edit
-      ? { sentenceId: candidate.edit.sentenceId, newText: candidate.edit.newText }
-      : { afterSentenceId: candidate.edit.afterSentenceId, text: candidate.edit.text };
-    const id = "sentenceId" in edit ? edit.sentenceId : edit.afterSentenceId;
-    // Count inserted sentences as changes too; an insertion cannot bypass the change budget.
-    const added = "sentenceId" in edit ? Number(!targets.has(id)) : splitSentences({ id: "inserted", label: "", text: edit.text }).length;
-    if (targets.size + insertions + added > budget) continue;
+  for (const finding of findings) {
+    if (processedFindings.has(finding.id)) continue;
+    // Shared edits connect repairs: all edits of every connected finding are atomic together.
+    const componentFindingIds = new Set([finding.id]);
+    const pendingFindingIds = [finding.id];
+    const candidateIndices = new Set<number>();
+    for (let index = 0; index < pendingFindingIds.length; index++) {
+      const findingId = pendingFindingIds[index]!;
+      candidates.forEach((candidate, candidateIndex) => {
+        if (!candidate.findingIds.includes(findingId)) return;
+        candidateIndices.add(candidateIndex);
+        for (const linkedId of candidate.findingIds) {
+          if (componentFindingIds.has(linkedId)) continue;
+          componentFindingIds.add(linkedId);
+          pendingFindingIds.push(linkedId);
+        }
+      });
+    }
+    for (const findingId of componentFindingIds) processedFindings.add(findingId);
+    const group = [...candidateIndices].sort((a, b) => a - b).map((index) => candidates[index]!);
+    const ids = [...componentFindingIds].join(", ");
+    if (group.length === 0) {
+      ctx.log("info", `Omitting repair ${ids}: no changed sentence edits were proposed.`);
+      continue;
+    }
+    const cost = group.reduce((sum, candidate) => sum + candidate.cost, 0);
+    if (usedBudget + cost > budget) {
+      ctx.log("info", `Omitting entire repair ${ids}: ${cost} changed sentences exceed the remaining 40% budget of ${budget - usedBudget}.`);
+      continue;
+    }
+    let nextSurfaces: Surface[];
     try {
-      surfaces = applyEdits(args.version, [...accepted, edit]);
+      nextSurfaces = applyEdits(args.version, [...accepted, ...group.map((candidate) => candidate.edit)]);
     } catch (error) {
       if (!(error instanceof Error) || !error.message.startsWith("Overlapping edits")) throw error;
-      continue; // The earlier, more severe finding owns an overlapping span.
+      ctx.log("warn", `Omitting entire repair ${ids}: its edits overlap each other or an earlier, more severe repair.`);
+      continue;
     }
-    accepted.push(edit);
-    if ("sentenceId" in edit) targets.add(id);
-    else insertions += added;
-    edits.push({
-      sentenceIds: "sentenceId" in edit ? [id] : [],
-      before: "sentenceId" in edit ? sentenceById.get(id)!.text : "",
-      after: "sentenceId" in edit ? edit.newText : edit.text,
-      findingIds: candidate.findingIds,
-    });
+    surfaces = nextSurfaces;
+    usedBudget += cost;
+    for (const candidate of group) {
+      const edit = candidate.edit;
+      accepted.push(edit);
+      edits.push({
+        sentenceIds: "sentenceId" in edit ? [edit.sentenceId] : [],
+        before: "sentenceId" in edit ? sentenceById.get(edit.sentenceId)!.text : "",
+        after: "sentenceId" in edit ? edit.newText : edit.text,
+        findingIds: candidate.findingIds,
+      });
+    }
   }
   return { surfaces, edits };
 }

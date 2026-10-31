@@ -14,6 +14,19 @@ interface TextPatch {
 export function applyEdits(version: PolicyVersion, edits: SentenceEdit[]): Surface[] {
   const sentences = new Map(version.sentences.map((sentence) => [sentence.id, sentence]));
   const surfaces = new Map(version.surfaces.map((surface) => [surface.id, surface]));
+  const offsets = new Map<string, { start: number; end: number }>();
+  const cursors = new Map<string, number>();
+  for (const sentence of version.sentences) {
+    const surface = surfaces.get(sentence.surfaceId);
+    if (!surface) throw new Error(`Unknown surface for sentence ${sentence.id}: ${sentence.surfaceId}`);
+    const start = surface.text.indexOf(sentence.text, cursors.get(surface.id) ?? 0);
+    if (sentence.text.length === 0 || start < 0) {
+      throw new Error(`Sentence ${sentence.id} does not occur exactly in its surface in sentence order`);
+    }
+    const end = start + sentence.text.length;
+    offsets.set(sentence.id, { start, end });
+    cursors.set(surface.id, end);
+  }
   const patches = new Map<string, TextPatch[]>();
 
   for (const edit of edits) {
@@ -22,11 +35,7 @@ export function applyEdits(version: PolicyVersion, edits: SentenceEdit[]): Surfa
     if (!sentence) throw new Error(`Unknown sentence id: ${id}`);
     const surface = surfaces.get(sentence.surfaceId);
     if (!surface) throw new Error(`Unknown surface for sentence ${id}: ${sentence.surfaceId}`);
-    const start = surface.text.indexOf(sentence.text);
-    if (sentence.text.length === 0 || start < 0) {
-      throw new Error(`Sentence ${id} does not occur exactly in its surface`);
-    }
-    const end = start + sentence.text.length;
+    const { start, end } = offsets.get(id)!;
     const patch: TextPatch = "sentenceId" in edit
       ? { start, end, text: edit.newText }
       : {

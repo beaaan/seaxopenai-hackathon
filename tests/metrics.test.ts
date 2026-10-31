@@ -12,7 +12,7 @@ function reading(scenarioId: string, version = 0, questionCount = 0): Reading {
 }
 
 function grade(value: Reading, confidence = 1, label: Grade["label"] = "conflicts"): Grade {
-  return { readingId: value.id, interpretationId: `${value.id}.i1`, label, confidence, factIds: [], why: null };
+  return { readingId: value.id, interpretationId: `${value.id}.i1`, label, confidence, pConflicts: null, factIds: [], why: null };
 }
 
 function finding(id: string, clusterIds: string[], classification: Finding["class"] = "wording_fix"): Finding {
@@ -30,6 +30,12 @@ describe("conflictRate", () => {
     expect(conflictRate(readings, grades, 0.8)).toBe(0.25);
     expect(conflictRate(readings, [], 0.5)).toBe(0);
     expect(conflictRate([], grades, 0.5)).toBe(0);
+  });
+
+  it("uses calibrated conflict probability even when another label won", () => {
+    const value = reading("s1");
+    expect(conflictRate([value], [{ ...grade(value, 0.5, "consistent"), pConflicts: 0.5 }], 0.5)).toBe(1);
+    expect(conflictRate([value], [{ ...grade(value, 0.6, "outside"), pConflicts: 0.4 }], 0.5)).toBe(0);
   });
 });
 
@@ -83,7 +89,7 @@ describe("iterationMetrics", () => {
       { findingId: "f1", rate: 0.5, n: 3 }, { findingId: "f2", rate: 1, n: 1 },
       { findingId: "f3", rate: 0, n: 0 }, { findingId: "f4", rate: 0.49, n: 1 },
     ]);
-    expect(result.openWordingFindings).toBe(1);
+    expect(result.openWordingFindings).toBe(2);
     expect(result.noiseBand).toBe(0.1);
     expect(result.noiseBandScenarios).toBe(10);
   });
@@ -93,7 +99,7 @@ describe("iterationMetrics", () => {
     expect(result.readings).toBe(0);
     expect(result.ci95).toEqual({ lo: 0, hi: 0 });
     expect(result.findingReproduction).toEqual([{ findingId: "f1", rate: 0, n: 0 }]);
-    expect(result.openWordingFindings).toBe(0);
+    expect(result.openWordingFindings).toBe(1);
   });
 });
 

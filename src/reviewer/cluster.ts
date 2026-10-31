@@ -2,6 +2,7 @@ import { z } from "zod";
 import { prompt } from "../core/prompts";
 import type { StageContext } from "../pipeline/context";
 import type { Cluster, Grade, Interpretation, PolicyVersion, Reading } from "../shared/schema";
+import { DEFAULT_CONFLICT_THRESHOLD, isConflict } from "./grade";
 
 const GROUPING_CHUNK_SIZE = 40;
 const Grouping = z.strictObject({
@@ -128,7 +129,7 @@ export async function clusterInterpretations(
   if (sentenceGroups.length === 0) return [];
   const groupingPrompt = ctx.gateway.hasApiKey ? null : prompt("cluster-group");
   const labellingPrompt = prompt("cluster-label");
-  const conflicts = new Set(args.grades.filter((grade) => grade.label === "conflicts").map((grade) => grade.interpretationId));
+  const conflicts = new Set(args.grades.filter((grade) => isConflict(grade, DEFAULT_CONFLICT_THRESHOLD)).map((grade) => grade.interpretationId));
   const perSentence = await Promise.all(sentenceGroups.map(async ([sentenceId, members]): Promise<Omit<Cluster, "id">[]> => {
     const context = {
       sentenceId,

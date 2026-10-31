@@ -51,9 +51,20 @@ export function eventSummary(event: RunEvent): string {
     case "reading.failed":
       return `${event.payload.scenarioId}: ${event.payload.error}`;
     case "grades.added": {
-      const conflicts = event.payload.grades.filter((g) => g.label === "conflicts").length;
-      const confidence = event.payload.grades.length === 0 ? null : event.payload.grades.reduce((sum, grade) => sum + grade.confidence, 0) / event.payload.grades.length;
-      return `${event.payload.grades.length} grades · ${conflicts} conflicts · mean confidence ${confidence === null ? "—" : pct(confidence)}`;
+      let conflicts = 0;
+      let confidenceSum = 0;
+      let pConflictsSum = 0;
+      let pConflictsCount = 0;
+      for (const grade of event.payload.grades) {
+        if (grade.label === "conflicts") conflicts += 1;
+        confidenceSum += grade.confidence;
+        if (grade.pConflicts !== null) {
+          pConflictsSum += grade.pConflicts;
+          pConflictsCount += 1;
+        }
+      }
+      const confidence = event.payload.grades.length === 0 ? null : confidenceSum / event.payload.grades.length;
+      return `${event.payload.grades.length} grades · ${conflicts} conflicts · mean confidence ${confidence === null ? "—" : pct(confidence)}${pConflictsCount === 0 ? "" : ` · mean P(conflict)=${(pConflictsSum / pConflictsCount).toFixed(2)}`}`;
     }
     case "clusters.updated":
       return `v${event.payload.policyVersion} · ${event.payload.clusters.length} clusters`;
@@ -86,7 +97,7 @@ export function eventSummary(event: RunEvent): string {
     case "probe.completed":
       return `${event.payload.result.assumptions.length} assumptions · ${event.payload.result.steps.length} steps · ${event.payload.result.summary}`;
     case "suite.compared":
-      return `${event.payload.comparison.passed ? "PASS" : "FAIL"} · ${pct(event.payload.comparison.before.conflictRate)} → ${pct(event.payload.comparison.after.conflictRate)} · suite ${event.payload.comparison.suiteRunId}`;
+      return `${event.payload.comparison.verdict.toUpperCase()} · ${pct(event.payload.comparison.before.conflictRate)} → ${pct(event.payload.comparison.after.conflictRate)} · suite ${event.payload.comparison.suiteRunId}`;
     case "log":
       return `[${event.payload.level}] ${event.payload.message}`;
     case "run.completed":

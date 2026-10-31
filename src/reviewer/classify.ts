@@ -1,4 +1,4 @@
-import { makeVersion } from "../core/policy";
+import { makeVersion, versionZero } from "../core/policy";
 import type { StageContext } from "../pipeline/context";
 import { readScenario } from "../sampler/reader";
 import { Finding, type Cluster, type Coding, type FidelityResult, type FindingDraft, type PolicyVersion, type Reading, type Scenario } from "../shared/schema";
@@ -9,7 +9,7 @@ import { proposeRepair, type RepairProposal } from "./rewrite";
 export interface RepairClassificationDeps {
   scenarios: Scenario[];
   codebook: Cluster[];
-  /** Original cohort A and its codings against the frozen codebook. */
+  /** Existing current-version readings and their codings against the frozen codebook. */
   readings: Reading[];
   codings: Coding[];
 }
@@ -17,6 +17,7 @@ export interface RepairClassificationDeps {
 interface ResolutionCheck {
   before: number | null;
   after: number | null;
+  reproduced: boolean;
   resolved: boolean;
 }
 
@@ -64,9 +65,12 @@ async function checkResolution(
   const evidenceClusters = new Set(draft.evidence.clusterIds);
   const codebook = deps.codebook.filter((cluster) => evidenceClusters.has(cluster.id));
   const clusterIds = new Set(codebook.map((cluster) => cluster.id));
-  const before = meanScenarioBelief(scenarios, deps.readings, deps.codings, clusterIds);
+  const currentReadings = deps.readings.filter((reading) => reading.policyVersion === version.version);
+  const before = clusterIds.size === evidenceClusters.size ? meanScenarioBelief(scenarios, currentReadings, deps.codings, clusterIds) : null;
+  const reproduced = before !== null && before >= 0.25;
   if (scenarios.length === 0 || codebook.length === 0 || clusterIds.size !== evidenceClusters.size) {
-    return { before, after: null, resolved: false };
+    ctx.log("warn", `Repair ${draft.id} targeted belief check v${version.version}: before=${before ?? "unavailable"}, after=unavailable; resolution evidence incomplete.`);
+    return { before, after: null, reproduced, resolved: false };
   }
   const repaired = makeVersion(version.policyId, version.version, version.version, proposal.surfaces);
   const freshCtx: StageContext = { ...ctx, config: { ...ctx.config, fresh: true } };
@@ -78,7 +82,9 @@ async function checkResolution(
   })));
   const codings = await codeReadings(freshCtx, { readings, codebook });
   const after = meanScenarioBelief(scenarios, readings, codings, clusterIds);
-  return { before, after, resolved: before !== null && after !== null && after < 0.5 };
+  const resolved = reproduced && before !== null && after !== null && after < 0.25 && after <= 0.5 * before;
+  ctx.log("info", `Repair ${draft.id} targeted belief check v${version.version}: before=${before ?? "unavailable"}, after=${after ?? "unavailable"}; reproduced=${reproduced}, resolved=${resolved}.`);
+  return { before, after, reproduced, resolved };
 }
 
 export async function classifyByRepair(
@@ -90,9 +96,10 @@ export async function classifyByRepair(
   let proposal = await proposeRepair(ctx, version, draft);
   let resolutionEvidence = "";
   const anchors = draft.sentenceIds.length > 0 ? draft.sentenceIds.join(", ") : "the unstated rule";
+  const original = versionZero(ctx.policy);
   for (let attempt = 0; attempt < 2; attempt++) {
     const changed = proposal.surfaces.some((surface, index) => surface.text !== version.surfaces[index]?.text);
-    const fidelity: FidelityResult = changed ? await checkFidelity(ctx, { original: version, candidate: proposal.surfaces }) : {
+    const fidelity: FidelityResult = changed ? await checkFidelity(ctx, { original, candidate: proposal.surfaces }) : {
       passed: false,
       facts: [],
       newCommitments: [],
@@ -122,11 +129,19 @@ export async function classifyByRepair(
     const before = resolution.before === null ? "unavailable" : resolution.before.toFixed(3);
     const after = resolution.after === null ? "unavailable" : resolution.after.toFixed(3);
     resolutionEvidence = `before/after mean maximum belief probability ${before}/${after}`;
+    if (resolution.before !== null && !resolution.reproduced) {
+      return Finding.parse({
+        ...draft,
+        class: "wording_fix",
+        classRationale: `Provisional: misreading did not reproduce on the targeted scenarios (before p=${resolution.before.toFixed(2)}). The wording edit preserved all checked facts without new commitments, but resolution was not established (${resolutionEvidence}).`,
+        repair,
+      });
+    }
     if (resolution.resolved) {
       return Finding.parse({
         ...draft,
         class: "wording_fix",
-        classRationale: `The minimal edit at ${anchors} preserved all checked facts without new commitments. Targeted evidence-scenario re-reads were below the resolution threshold (${resolutionEvidence}; after < 0.5).`,
+        classRationale: `The minimal edit at ${anchors} preserved all checked facts without new commitments. The misreading reproduced before repair and met the prespecified resolution criterion (${resolutionEvidence}; after < 0.25 and after ≤ 0.5 × before).`,
         repair,
       });
     }
@@ -134,7 +149,7 @@ export async function classifyByRepair(
       return Finding.parse({
         ...draft,
         class: "design_gap",
-        classRationale: `Provisional: wording edits at ${anchors} preserved the facts but ${resolution.after === null || resolution.before === null ? "could not establish a change in readings because matching evidence or codings were unavailable" : "did not change readings enough to resolve the belief"}. The single retry remained unresolved (${resolutionEvidence}; required after < 0.5).`,
+        classRationale: `Provisional: wording edits at ${anchors} preserved the facts but ${resolution.after === null || resolution.before === null ? "could not establish a change in readings because matching evidence or codings were unavailable" : "did not change readings enough to resolve the belief"}. The single retry remained unresolved (${resolutionEvidence}; required after < 0.25 and after ≤ 0.5 × before).`,
         repair,
       });
     }
@@ -142,7 +157,9 @@ export async function classifyByRepair(
       reason: "The faithful wording edit did not resolve the targeted belief; make one different minimal attempt.",
       beforeMeanProbability: resolution.before,
       afterMeanProbability: resolution.after,
-      resolutionThreshold: 0.5,
+      minimumBeforeProbability: 0.25,
+      maximumAfterProbabilityExclusive: 0.25,
+      maximumAfterBeforeRatio: 0.5,
       previousRewriteVi: proposal.rewriteVi,
       previousSurfaces: proposal.surfaces,
     }));

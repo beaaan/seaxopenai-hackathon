@@ -6,7 +6,7 @@ import { loadHoldout } from "./holdout";
 
 const MatchResult = z.strictObject({
   matched: z.boolean(),
-  itemNumber: z.number().int().positive().nullable(),
+  itemNumbers: z.array(z.number().int().positive()),
   why: z.string(),
 });
 
@@ -25,7 +25,7 @@ export interface ScoreArgs {
 /** Adds summary rows without mutating scores or treating previous summaries as replicates. */
 export function aggregateBaselines(score: Score): Score {
   const systems = score.systems.filter((system) => system.id !== "baseline-mean" && system.id !== "baseline-union");
-  const baselines = systems.filter((system) => system.id.startsWith("baseline-"));
+  const baselines = systems.filter((system) => /^baseline-\d+$/.test(system.id));
   if (baselines.length === 0) return { ...score, systems };
   const baselineIds = new Set(baselines.map((system) => system.id));
   const edgeCases = new Set(score.matches.map((match) => match.edgeCaseId));
@@ -38,6 +38,28 @@ export function aggregateBaselines(score: Score): Score {
       { id: "baseline-union", label: "Baseline union", recall: edgeCases.size === 0 ? 0 : matched.size / edgeCases.size },
     ],
   };
+}
+
+/** Multiple items may match one case; count cases once and retain every matched item. */
+export function summarizeScore(systems: ScoringSystem[], matches: ScoreMatch[], edgeCaseCount: number): Score {
+  const matchedCasesBySystem = new Map<string, Set<string>>();
+  const matchedWindTunnelItems = new Set<string>();
+  for (const match of matches) {
+    if (!match.matched) continue;
+    let cases = matchedCasesBySystem.get(match.systemId);
+    if (!cases) {
+      cases = new Set();
+      matchedCasesBySystem.set(match.systemId, cases);
+    }
+    cases.add(match.edgeCaseId);
+    if (match.systemId === "wind-tunnel" && match.itemId !== null) matchedWindTunnelItems.add(match.itemId);
+  }
+  return aggregateBaselines({
+    systems: systems.map((system) => ({ id: system.id, label: system.label, recall: edgeCaseCount === 0 ? 0 : (matchedCasesBySystem.get(system.id)?.size ?? 0) / edgeCaseCount })),
+    matches,
+    // Historical schema name: these items are unmatched by holdout, not necessarily outside reference facts.
+    outsideReference: systems.filter((system) => system.id === "wind-tunnel").flatMap((system) => system.items.filter((item) => !matchedWindTunnelItems.has(item.id)).map((item) => ({ systemId: system.id, itemId: item.id }))),
+  });
 }
 
 export async function scoreAgainstHoldout(ctx: StageContext, args: ScoreArgs): Promise<Score | null> {
@@ -58,7 +80,7 @@ export async function scoreAgainstHoldout(ctx: StageContext, args: ScoreArgs): P
   });
   const policy = policyText(args.version, { ids: true });
   const instructions = prompt("scorer");
-  const matches = await Promise.all(holdout.edgeCases.flatMap((edgeCase) => anonymousSystems.map(async ({ system, items }): Promise<ScoreMatch> => {
+  const matches = (await Promise.all(holdout.edgeCases.flatMap((edgeCase) => anonymousSystems.map(async ({ system, items }): Promise<ScoreMatch[]> => {
     const result = await ctx.gateway.structured({
       role: "scorer",
       instructions,
@@ -74,21 +96,12 @@ export async function scoreAgainstHoldout(ctx: StageContext, args: ScoreArgs): P
       effort: "high",
       fresh: ctx.config.fresh,
     });
-    const item = result.itemNumber === null ? undefined : items[result.itemNumber - 1];
-    if ((result.matched && !item) || (!result.matched && result.itemNumber !== null)) {
+    const itemNumbers = [...new Set(result.itemNumbers)];
+    if (result.matched !== (itemNumbers.length > 0) || itemNumbers.some((number) => items[number - 1] === undefined)) {
       throw new Error(`scorer returned inconsistent match for edge case ${edgeCase.id}`);
     }
-    return { edgeCaseId: edgeCase.id, systemId: system.id, matched: result.matched, itemId: item?.id ?? null, why: result.why };
-  })));
-  const matchedItemIds = new Set(matches.filter((match) => match.systemId === "wind-tunnel" && match.matched && match.itemId !== null).map((match) => match.itemId));
-  return aggregateBaselines({
-    systems: args.systems.map((system) => ({
-      id: system.id,
-      label: system.label,
-      recall: holdout.edgeCases.length === 0 ? 0 : matches.filter((match) => match.systemId === system.id && match.matched).length / holdout.edgeCases.length,
-    })),
-    matches,
-    // Historical schema name: these items are unmatched by holdout, not necessarily outside reference facts.
-    outsideReference: args.systems.filter((system) => system.id === "wind-tunnel").flatMap((system) => system.items.filter((item) => !matchedItemIds.has(item.id)).map((item) => ({ systemId: system.id, itemId: item.id }))),
-  });
+    if (!result.matched) return [{ edgeCaseId: edgeCase.id, systemId: system.id, matched: false, itemId: null, why: result.why }];
+    return itemNumbers.map((number) => ({ edgeCaseId: edgeCase.id, systemId: system.id, matched: true, itemId: items[number - 1]!.id, why: result.why }));
+  })))).flat();
+  return summarizeScore(args.systems, matches, holdout.edgeCases.length);
 }

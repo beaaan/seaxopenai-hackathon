@@ -41,17 +41,24 @@ export function CodebookPanel(props: { view: RunView }): ReactNode {
   );
 }
 
+const SUITE_VERDICT_STYLE: Record<SuiteComparison["verdict"], string> = {
+  pass: "border-emerald-400 bg-emerald-50",
+  fail: "border-red-400 bg-red-50",
+  inconclusive: "border-amber-400 bg-amber-50",
+};
+
 export function SuiteComparisonPanel(props: { comparison: SuiteComparison }): ReactNode {
   const c = props.comparison;
   const noise = c.after.noiseBand ?? c.before.noiseBand;
   const noiseScenarios = c.after.noiseBandScenarios ?? c.before.noiseBandScenarios;
   return (
-    <section className={`rounded-xl border-2 p-5 ${c.passed ? "border-emerald-400 bg-emerald-50" : "border-red-400 bg-red-50"}`} data-testid="suite-comparison">
-      <div className="flex flex-wrap items-baseline justify-between gap-3"><h2 className="text-2xl font-bold">Policy CI · {c.passed ? "PASS" : "FAIL"}</h2><span className="text-slate-700">Suite {c.suiteRunId} · baseline v{c.baseVersion}</span></div>
+    <section className={`rounded-xl border-2 p-5 ${SUITE_VERDICT_STYLE[c.verdict]}`} data-testid="suite-comparison">
+      <div className="flex flex-wrap items-baseline justify-between gap-3"><h2 className="text-2xl font-bold">Policy CI · {c.verdict.toUpperCase()}</h2><span className="text-slate-700">Suite {c.suiteRunId} · baseline v{c.baseVersion}</span></div>
       <div className="mt-3 flex flex-wrap items-baseline gap-x-8 gap-y-2"><p className="text-xl">Conflict rate <strong className="text-3xl tabular-nums">{pct(c.before.conflictRate)} → {pct(c.after.conflictRate)}</strong></p><p>test–retest noise (paired): <strong>{noise === null ? "not measured" : `±${pct(noise)} (paired, n=${noiseScenarios ?? "unknown"})`}</strong></p></div>
       <p className="mt-2 text-sm text-slate-700">95% CI: before {pct(c.before.ci95.lo)}–{pct(c.before.ci95.hi)} · after {pct(c.after.ci95.lo)}–{pct(c.after.ci95.hi)} · {c.after.readings} re-test readings</p>
-      <div className="mt-3 font-semibold">Regressions ({c.regressions.length})</div>
-      {c.regressions.length === 0 ? <p>No regressions detected against the frozen suite.</p> : <ul className="list-disc pl-6">{c.regressions.map((reason, index) => <li key={index}>{reason}</li>)}</ul>}
+      <div className="mt-3 font-semibold">Reasons ({c.reasons.length})</div>
+      {c.verdict === "pass" && c.reasons.length === 0 && <p>No regressions detected against the frozen suite.</p>}
+      {c.reasons.length > 0 && <ul className="list-disc pl-6">{c.reasons.map((reason, index) => <li key={index}>{reason}</li>)}</ul>}
       <p className="mt-2 text-slate-700">{c.after.reason}</p>
     </section>
   );

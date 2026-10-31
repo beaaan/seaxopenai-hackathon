@@ -98,15 +98,20 @@ export async function draftFindings(ctx: StageContext, args: DraftFindingsArgs):
     effort: "high",
   });
 
-  const seen = new Set<string>();
+  const ownedClusters = new Set<string>();
   const validated = result.findings.flatMap((finding) => {
-    const clusterIds = [...new Set(finding.evidence.clusterIds)].filter((id) => clusterById.has(id));
-    const key = [...clusterIds].sort().join("|");
-    if (clusterIds.length === 0 || seen.has(key)) return [];
-    seen.add(key);
+    const suppliedClusterIds = [...new Set(finding.evidence.clusterIds)].filter((id) => clusterById.has(id));
+    const clusterIds = suppliedClusterIds.filter((id) => !ownedClusters.has(id));
+    const dropped = suppliedClusterIds.filter((id) => ownedClusters.has(id));
+    if (dropped.length > 0) ctx.log("info", `Finding "${finding.title}" drops already-owned clusters: ${dropped.join(", ")}.`);
+    if (clusterIds.length === 0) {
+      ctx.log("info", `Dropping finding "${finding.title}": it has no unowned valid clusters.`);
+      return [];
+    }
     const linkedClusters = clusterIds.map((id) => clusterById.get(id)!);
     const readingIds = [...new Set(linkedClusters.flatMap((cluster) => cluster.readingIds))].filter((id) => readingById.has(id));
     if (readingIds.length === 0) return [];
+    for (const id of clusterIds) ownedClusters.add(id);
     const scenarioIds = [...new Set(readingIds.map((id) => readingById.get(id)!.scenarioId))].filter((id) => scenarioById.has(id));
     const validFacts = [...new Set(finding.factIds)].filter((id) => factIds.has(id));
     const sentenceIds = [...new Set([...finding.sentenceIds, ...linkedClusters.flatMap((cluster) => cluster.sentenceId === null ? [] : [cluster.sentenceId])])]

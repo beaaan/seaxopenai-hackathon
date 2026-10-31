@@ -237,7 +237,8 @@ export const Grade = z.strictObject({
   readingId: z.string(),
   interpretationId: z.string(),
   label: GradeLabel,
-  confidence: z.number().min(0).max(1),
+  confidence: z.number().min(0).max(1), // probability of `label`
+  pConflicts: z.number().min(0).max(1).nullable(), // P(conflicts) from the Decisions distribution; null when unknown
   factIds: z.array(z.string()),
   why: z.string().nullable(), // null when graded by Decisions (no rationale is generated)
 });
@@ -458,6 +459,11 @@ export type HumanMapping = z.infer<typeof HumanMapping>;
 
 export const RunConfig = z.strictObject({
   policyId: z.string(),
+  inputs: z.strictObject({
+    policySha256: z.string().regex(/^[a-f0-9]{64}$/),
+    referenceSha256: z.string().regex(/^[a-f0-9]{64}$/).nullable(),
+    folkSha256: z.string().regex(/^[a-f0-9]{64}$/).nullable(),
+  }),
   /** full: explore + rewrite loop + eval; explore: exploration only (live demo of a pasted policy); retest: rerun a suite on an edited text. */
   mode: z.enum(["full", "explore", "retest"]),
   budget: z.number().int().positive(), // total readings for exploration
@@ -488,8 +494,8 @@ export const SuiteComparison = z.strictObject({
   baseVersion: z.number().int().nonnegative(), // version of the suite run compared against
   before: Iteration,
   after: Iteration,
-  regressions: z.array(z.string()), // human-readable reasons the edit fails
-  passed: z.boolean(),
+  verdict: z.enum(["pass", "fail", "inconclusive"]), // inconclusive: too few paired scenarios or unmeasured required findings
+  reasons: z.array(z.string()), // human-readable reasons for fail/inconclusive; empty on pass
 });
 export type SuiteComparison = z.infer<typeof SuiteComparison>;
 

@@ -5,13 +5,21 @@ import type { Grade, GradeLabel, PolicyVersion, Reading } from "../shared/schema
 
 export const DEFAULT_CONFLICT_THRESHOLD = 0.5;
 
+/**
+ * The single conflict predicate used by every metric. Uses the calibrated probability of
+ * `conflicts` when the grader produced a distribution; otherwise the top label.
+ */
+export function isConflict(grade: Grade, threshold: number): boolean {
+  return grade.pConflicts !== null ? grade.pConflicts >= threshold : grade.label === "conflicts" && grade.confidence >= threshold;
+}
+
 const LABEL_CHOICES: ChoiceOption[] = [
   { value: "consistent", description: "Matches what the policy text or reference facts say." },
   { value: "conflicts", description: "Contradicts a reference FACT or the policy text." },
   { value: "outside", description: "Asserts something the text does not say, including NOT COVERED items; lack of coverage is not a contradiction." },
   { value: "unclear", description: "Cannot tell whether the interpretation matches, contradicts, or goes beyond the text and facts." },
 ];
-const NON_CONFLICT_LABELS: Exclude<GradeLabel, "conflicts">[] = ["consistent", "outside", "unclear"];
+const LABEL_VALUES: readonly GradeLabel[] = ["consistent", "conflicts", "outside", "unclear"];
 
 type ChoiceAnswer = Extract<DecisionAnswer, { type: "choice" }>;
 
@@ -20,12 +28,7 @@ function probabilityOf(answer: ChoiceAnswer, label: GradeLabel): number {
     ?? (answer.choice === label ? answer.confidence : 0);
 }
 
-export async function gradeReadings(
-  ctx: StageContext,
-  version: PolicyVersion,
-  readings: Reading[],
-  threshold = DEFAULT_CONFLICT_THRESHOLD,
-): Promise<Grade[]> {
+export async function gradeReadings(ctx: StageContext, version: PolicyVersion, readings: Reading[]): Promise<Grade[]> {
   const reference = ctx.reference;
   if (reference === null) {
     return readings.flatMap((reading) => reading.interpretations.map((interpretation): Grade => ({
@@ -33,12 +36,10 @@ export async function gradeReadings(
       interpretationId: interpretation.id,
       label: "unclear",
       confidence: 0,
+      pConflicts: null,
       factIds: [],
       why: null,
     })));
-  }
-  if (!Number.isFinite(threshold) || threshold < 0 || threshold > 1) {
-    throw new RangeError("Conflict threshold must be between 0 and 1.");
   }
   if (readings.length === 0) return [];
 
@@ -89,22 +90,20 @@ export async function gradeReadings(
     }
     return reading.interpretations.map((interpretation, index): Grade => {
       const answer = byName.get(`i${index + 1}_label`);
-      if (answer?.type !== "choice" || !LABEL_CHOICES.some((option) => option.value === answer.choice)) {
-        return { readingId: reading.id, interpretationId: interpretation.id, label: "unclear", confidence: 0, factIds: [], why: null };
+      const label = LABEL_VALUES.find((value) => answer?.type === "choice" && answer.choice === value);
+      if (answer?.type !== "choice" || label === undefined) {
+        return { readingId: reading.id, interpretationId: interpretation.id, label: "unclear", confidence: 0, pConflicts: null, factIds: [], why: null };
       }
-      let label: GradeLabel = "conflicts";
-      if (probabilityOf(answer, "conflicts") < threshold) {
-        label = NON_CONFLICT_LABELS[0]!;
-        for (const candidate of NON_CONFLICT_LABELS) {
-          if (probabilityOf(answer, candidate) > probabilityOf(answer, label)) label = candidate;
-        }
-      }
+      // A full distribution (real Decisions API) gives P(conflicts) directly; an emulated answer only
+      // reports the chosen label, so P(conflicts) is known only when that label is `conflicts`.
+      const hasDistribution = answer.probabilities.length >= 2;
       const fact = byName.get(`i${index + 1}_fact`);
       return {
         readingId: reading.id,
         interpretationId: interpretation.id,
         label,
-        confidence: answer.probabilities.find((probability) => probability.value === label)?.probability ?? answer.confidence,
+        confidence: probabilityOf(answer, label),
+        pConflicts: hasDistribution ? probabilityOf(answer, "conflicts") : label === "conflicts" ? answer.confidence : null,
         factIds: fact?.type === "choice" && factIds.has(fact.choice) ? [fact.choice] : [],
         why: null,
       };

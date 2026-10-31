@@ -1,10 +1,12 @@
 /**
  * Run storage: `runs/<runId>/events.jsonl`, append-only, one validated event per line.
  */
-import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, watch } from "node:fs";
+import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, statSync, unlinkSync, watch } from "node:fs";
 import path from "node:path";
 import { EVENT_PAYLOADS, parseEvent, type EventPayload, type EventType, type RunEvent, type RunSummary } from "../shared/events";
 import { RUNS_DIR } from "./paths";
+
+const WRITER_LOCK_WAIT = new Int32Array(new SharedArrayBuffer(4));
 
 export function eventsPath(runId: string, runsDir = RUNS_DIR): string {
   return path.join(runsDir, runId, "events.jsonl");
@@ -27,31 +29,64 @@ export function readEvents(runId: string, runsDir = RUNS_DIR): RunEvent[] {
   return events;
 }
 
-/** Appends validated events with a contiguous `seq`. Reopening an existing run continues its sequence. */
+/**
+ * Appends contiguous events under a cross-process lock. A writer never reserves a
+ * sequence number across an await; cached positions are revalidated inside append.
+ * A busy/stale lock fails explicitly after five seconds rather than risking the log.
+ */
 export class RunWriter {
   readonly runId: string;
   readonly file: string;
-  #nextSeq: number;
+  readonly #runsDir: string;
+  #nextSeq = 0;
+  #knownSize = -1;
 
   constructor(runId: string, runsDir = RUNS_DIR) {
     this.runId = runId;
     this.file = eventsPath(runId, runsDir);
+    this.#runsDir = runsDir;
     mkdirSync(path.dirname(this.file), { recursive: true });
-    this.#nextSeq = existsSync(this.file) ? readEvents(runId, runsDir).length : 0;
   }
 
-  append<T extends EventType>(type: T, payload: EventPayload<T>): RunEvent {
+  append<T extends EventType>(type: T, payload: EventPayload<T>): RunEvent;
+  append<T extends EventType>(type: T, payload: EventPayload<T>, condition: (events: readonly RunEvent[]) => boolean): RunEvent | null;
+  /** The optional synchronous predicate is rechecked inside the same append lock. */
+  append<T extends EventType>(type: T, payload: EventPayload<T>, condition?: (events: readonly RunEvent[]) => boolean): RunEvent | null {
     const parsedPayload = EVENT_PAYLOADS[type].parse(payload);
-    const event = parseEvent({
-      seq: this.#nextSeq,
-      ts: new Date().toISOString(),
-      runId: this.runId,
-      type,
-      payload: parsedPayload,
-    });
-    appendFileSync(this.file, `${JSON.stringify(event)}\n`, "utf8");
-    this.#nextSeq += 1;
-    return event;
+    const lockPath = `${this.file}.lock`;
+    const deadline = Date.now() + 5_000;
+    let lock: number | null = null;
+    while (lock === null) {
+      try { lock = openSync(lockPath, "wx"); }
+      catch (error) {
+        if (!(error instanceof Error && "code" in error && error.code === "EEXIST")) throw error;
+        if (Date.now() >= deadline) throw new Error(`run log writer lock is busy: ${lockPath}`);
+        Atomics.wait(WRITER_LOCK_WAIT, 0, 0, 10);
+      }
+    }
+    try {
+      const size = existsSync(this.file) ? statSync(this.file).size : 0;
+      const current = condition || size !== this.#knownSize
+        ? (size === 0 ? [] : readEvents(this.runId, this.#runsDir))
+        : null;
+      if (current) {
+        const last = current.at(-1);
+        this.#nextSeq = last === undefined ? 0 : last.seq + 1;
+        this.#knownSize = size;
+      }
+      if (condition && !condition(current ?? [])) return null;
+      const event = parseEvent({
+        seq: this.#nextSeq, ts: new Date().toISOString(), runId: this.runId, type, payload: parsedPayload,
+      });
+      const line = `${JSON.stringify(event)}\n`;
+      appendFileSync(this.file, line, "utf8");
+      this.#knownSize = size + Buffer.byteLength(line, "utf8");
+      this.#nextSeq = event.seq + 1;
+      return event;
+    } finally {
+      try { closeSync(lock); }
+      finally { unlinkSync(lockPath); }
+    }
   }
 }
 
@@ -67,7 +102,7 @@ export function listRuns(runsDir = RUNS_DIR): RunSummary[] {
         return { runId, policyId: null, events: 0, startedAt: null, status: "unknown" };
       }
       const started = events.find((e) => e.type === "run.started");
-      const last = events[events.length - 1];
+      const last = events.findLast((event) => event.type === "run.started" || event.type === "run.completed" || event.type === "run.failed");
       const status =
         last?.type === "run.completed" ? "completed" : last?.type === "run.failed" ? "failed" : started ? "running" : "unknown";
       return {

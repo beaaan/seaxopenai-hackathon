@@ -11,16 +11,19 @@ export class Limiter {
 
   async run<T>(fn: () => Promise<T>): Promise<T> {
     if (this.#active >= this.#max) {
+      // The releasing job hands its slot over directly, so `#active` already counts us.
       const { promise, resolve } = Promise.withResolvers<void>();
       this.#waiting.push(resolve);
       await promise;
+    } else {
+      this.#active += 1;
     }
-    this.#active += 1;
     try {
       return await fn();
     } finally {
-      this.#active -= 1;
-      this.#waiting.shift()?.();
+      const next = this.#waiting.shift();
+      if (next) next();
+      else this.#active -= 1;
     }
   }
 }

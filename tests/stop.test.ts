@@ -32,7 +32,13 @@ describe("stopDecision", () => {
   it("stops at an equal boundary despite ratio roundoff, and on regressions", () => {
     const history: Iteration[] = [{ ...current({ conflictRate: 0.4 }), decision: "continue", reason: "previous" }];
     expect(stopDecision(args({ history, current: current({ conflictRate: 0.3, noiseBand: 0.1 }) })).decision).toBe("stop");
-    expect(stopDecision(args({ current: current({ conflictRate: 0.3 }) }))).toEqual({ decision: "stop", reason: "conflict rate 0.21 → 0.30 (Δ -0.09) is within the noise band 0.05" });
+    expect(stopDecision(args({ current: current({ conflictRate: 0.3 }) }))).toEqual({ decision: "stop", reason: "conflict rate rose 0.21 → 0.30, beyond the noise band 0.05; keeping the previous version" });
+  });
+
+  it("distinguishes a large regression from noise", () => {
+    const history: Iteration[] = [{ ...current({ conflictRate: 0.1 }), decision: "continue", reason: "previous" }];
+    expect(stopDecision(args({ history, current: current({ conflictRate: 0.9 }) }))).toEqual({ decision: "stop", reason: "conflict rate rose 0.10 → 0.90, beyond the noise band 0.05; keeping the previous version" });
+    expect(stopDecision(args({ history, current: current({ conflictRate: 0.12 }) })).reason).toContain("is within the noise band");
   });
 
   it("continues when improvement exceeds the measured noise", () => {

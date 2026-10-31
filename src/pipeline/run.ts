@@ -1,7 +1,10 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import path from "node:path";
 import { Gateway } from "../core/llm/gateway";
 import { loadFolk, loadPolicyPackage, loadReference, makeVersion, versionZero } from "../core/policy";
 import { eventsPath, RunWriter } from "../core/store";
+import { POLICIES_DIR } from "../core/paths";
 import type { EventPayload, EventType, RunEvent } from "../shared/events";
 import { Dimension, RunConfig, type AllocationDecision, type BaselineRun, type Cluster, type Coding, type FidelityResult, type Finding, type Grade, type HumanAnswer, type HumanMapping, type HumanQuestion, type Iteration, type PolicyVersion, type Reading, type Scenario } from "../shared/schema";
 import { extractDimensions } from "../sampler/dims";
@@ -17,7 +20,7 @@ import { draftFindings } from "../reviewer/findings";
 import { classifyByRepair } from "../reviewer/classify";
 import { rewritePolicy, type RewriteCandidate } from "../reviewer/rewrite";
 import { checkFidelity } from "../reviewer/fidelity";
-import { iterationMetrics, noiseBand } from "../reviewer/metrics";
+import { conflictRate, iterationMetrics, noiseBand } from "../reviewer/metrics";
 import { stopDecision } from "../reviewer/stop";
 import { runBaseline } from "../eval/baseline";
 import { scoreAgainstHoldout } from "../eval/score";
@@ -95,15 +98,29 @@ export class RunRecorder {
     this.state = rebuildRunState(events);
   }
 
-  emit<T extends EventType>(type: T, payload: EventPayload<T>): void {
-    this.state = reduceRunEvent(this.state, this.writer.append(type, payload));
+  emit<T extends EventType>(type: T, payload: EventPayload<T>, condition?: (events: readonly RunEvent[]) => boolean): void {
+    const event = condition ? this.writer.append(type, payload, condition) : this.writer.append(type, payload);
+    if (event) this.state = reduceRunEvent(this.state, event);
   }
 }
 
-export function createStageContext(recorder: RunRecorder, config: RunConfig, gateway: Gateway): StageContext {
+export function inputFingerprints(policyId: string): RunConfig["inputs"] {
+  if (!/^[a-zA-Z0-9][\w.-]*$/.test(policyId)) throw new Error(`invalid policy id: ${policyId}`);
+  const dir = path.join(POLICIES_DIR, policyId);
+  const hashFile = (name: string): string => createHash("sha256").update(readFileSync(path.join(dir, name))).digest("hex");
+  return {
+    policySha256: hashFile("policy.json"),
+    referenceSha256: existsSync(path.join(dir, "reference.json")) ? hashFile("reference.json") : null,
+    folkSha256: existsSync(path.join(dir, "folk.json")) ? hashFile("folk.json") : null,
+  };
+}
+
+export function createStageContext(recorder: RunRecorder, config: RunConfig, gateway: Gateway, original?: PolicyVersion): StageContext {
+  const policy = loadPolicyPackage(config.policyId);
   return {
     runId: recorder.writer.runId, config, gateway,
-    policy: loadPolicyPackage(config.policyId), reference: loadReference(config.policyId), folk: loadFolk(config.policyId),
+    policy: original ? { ...policy, surfaces: original.surfaces } : policy,
+    reference: loadReference(config.policyId), folk: loadFolk(config.policyId),
     emitThreadItem: (record) => recorder.emit("thread.item", { record }),
     log: (level, message) => recorder.emit("log", { level, message }),
   };
@@ -117,6 +134,25 @@ export function logProvenance(recorder: RunRecorder, gateway: Gateway): void {
 
 export function cohort(readings: Reading[], version: number, tag: string | null = null): Reading[] {
   return readings.filter((r) => r.policyVersion === version && r.id === `r-${r.scenarioId}-v${version}${tag === null ? "" : `-${tag}`}`);
+}
+
+export interface PairedReadings {
+  before: Reading[];
+  after: Reading[];
+  scenarioIds: string[];
+}
+
+export function pairedCohorts(before: Reading[], after: Reading[]): PairedReadings {
+  const byScenario = new Map(after.map((reading) => [reading.scenarioId, reading]));
+  const pairs: PairedReadings = { before: [], after: [], scenarioIds: [] };
+  for (const reading of before) {
+    const other = byScenario.get(reading.scenarioId);
+    if (!other) continue;
+    pairs.before.push(reading);
+    pairs.after.push(other);
+    pairs.scenarioIds.push(reading.scenarioId);
+  }
+  return pairs;
 }
 
 export function scenarioIdsByFinding(findings: Finding[], readings: Reading[]): Record<string, string[]> {
@@ -156,7 +192,7 @@ function mergeLevels(dimensions: Dimension[], decision: AllocationDecision): Dim
 }
 
 export async function runWindTunnel(args: { runId: string; config: RunConfig }): Promise<void> {
-  const config = RunConfig.parse(args.config);
+  const config = RunConfig.parse({ ...args.config, inputs: inputFingerprints(args.config.policyId) });
   const recorder = new RunRecorder(args.runId, [], true);
   const gateway = new Gateway();
   let reviewer: Reviewer | null = null;
@@ -249,23 +285,52 @@ export async function runWindTunnel(args: { runId: string; config: RunConfig }):
         recorder.emit("grades.added", { grades: await gradeReadings(ctx, currentVersion, readings) });
         recorder.emit("codings.added", { policyVersion: i, codebookVersion: 0, codings: await codeReadings(ctx, { readings, codebook }) });
         recorder.emit("clusters.updated", { policyVersion: i, clusters: await clusterInterpretations(ctx, { version: currentVersion, readings, grades: recorder.state.grades, idPrefix: `c-v${i}` }) });
-        const metrics = iterationMetrics({ version: i, readings, grades: recorder.state.grades, codings: recorder.state.codings, findings: recorder.state.findings, scenarioIdsByFinding: findingScenarios, noiseBand: noise.band, noiseBandScenarios: noise.pairedScenarios, threshold: DEFAULT_CONFLICT_THRESHOLD, seed: config.seed });
-        decision = stopDecision({ history: recorder.state.iterations, current: metrics, iterationIndex: i, maxIterations: config.maxIterations, fidelityFailures: 0 });
         const previous = recorder.state.iterations.at(-1);
-        const regressed = previous !== undefined && metrics.conflictRate - previous.conflictRate > noise.band + Number.EPSILON;
-        if (regressed) decision = { decision: "stop", reason: "Conflict rate regressed beyond the noise band; previous policy retained." };
-        else finalVersion = currentVersion;
+        if (!previous) throw new Error("rewrite comparison is missing its previous iteration");
+        const pairs = pairedCohorts(cohort(recorder.state.readings, previous.policyVersion), readings);
+        const pairedIds = new Set(pairs.scenarioIds);
+        const comparisonNoise = noiseBand(
+          { readings: originalReadings.filter((reading) => pairedIds.has(reading.scenarioId)), grades: recorder.state.grades },
+          { readings: retestReadings.filter((reading) => pairedIds.has(reading.scenarioId)), grades: recorder.state.grades },
+          DEFAULT_CONFLICT_THRESHOLD,
+        );
+        const previousMetrics = iterationMetrics({ version: previous.policyVersion, readings: pairs.before, grades: recorder.state.grades, codings: recorder.state.codings, findings: recorder.state.findings, scenarioIdsByFinding: findingScenarios, noiseBand: comparisonNoise.band, noiseBandScenarios: comparisonNoise.pairedScenarios, threshold: DEFAULT_CONFLICT_THRESHOLD, seed: config.seed });
+        const metrics = iterationMetrics({ version: i, readings: pairs.after, grades: recorder.state.grades, codings: recorder.state.codings, findings: recorder.state.findings, scenarioIdsByFinding: findingScenarios, noiseBand: comparisonNoise.band, noiseBandScenarios: comparisonNoise.pairedScenarios, threshold: DEFAULT_CONFLICT_THRESHOLD, seed: config.seed });
+        ctx.log("info", `Version comparison v${previous.policyVersion} → v${i}: ${pairs.after.length} paired scenarios; conflict ${previousMetrics.conflictRate.toFixed(3)} → ${metrics.conflictRate.toFixed(3)}; ${comparisonNoise.pairedScenarios} noise pairs.`);
+        const comparisonHistory = [...recorder.state.iterations.slice(0, -1), { ...previousMetrics, decision: previous.decision, reason: previous.reason }];
+        decision = stopDecision({ history: comparisonHistory, current: metrics, iterationIndex: i, maxIterations: config.maxIterations, fidelityFailures: 0 });
+        if (pairs.after.length < 5 || comparisonNoise.pairedScenarios < 5) {
+          decision = { decision: "stop", reason: `Inconclusive comparison: ${pairs.after.length} paired scenarios and ${comparisonNoise.pairedScenarios} noise pairs (minimum 5); previous policy retained.` };
+        } else if (metrics.conflictRate - previousMetrics.conflictRate > comparisonNoise.band + Number.EPSILON) {
+          decision = { decision: "stop", reason: "Conflict rate regressed beyond the noise band on identical scenarios; previous policy retained." };
+        } else finalVersion = currentVersion;
         recorder.emit("iteration.completed", { iteration: { ...metrics, ...decision } });
         stopReason = decision.reason;
       }
       recorder.emit("stop.decided", { finalVersion: finalVersion.version, reason: stopReason });
-      for (let i = 1; i <= config.baselineRuns + 1; i++) {
-        const astra = i > config.baselineRuns;
-        recorder.emit("baseline.completed", { run: await runBaseline(ctx, v0, { id: astra ? "baseline-astra" : `baseline-${i}`, model: astra ? "gpt-6-astra" : config.models.judge, effort: "high" }) });
+      for (let i = 1; i <= config.baselineRuns; i++) {
+        recorder.emit("baseline.completed", { run: await runBaseline(ctx, v0, { id: `baseline-${i}`, model: "gpt-6.1-sol", effort: "high" }) });
       }
+      recorder.emit("baseline.completed", { run: await runBaseline(ctx, v0, { id: "baseline-astra", model: "gpt-6-astra", effort: "high" }) });
+      const sentenceText = new Map(v0.sentences.map((sentence) => [sentence.id, sentence.text]));
       const score = await scoreAgainstHoldout(ctx, { version: v0, seed: config.seed, systems: [
-        { id: "wind-tunnel", label: "Wind tunnel", items: recorder.state.findings.map((finding) => ({ id: finding.id, text: `${finding.title}: ${finding.readingSummary}` })) },
-        ...recorder.state.baselines.map((baseline) => ({ id: baseline.id, label: `${baseline.model} (${baseline.id})`, items: baseline.issues.map((issue) => ({ id: issue.id, text: `${issue.issue}: ${issue.why}` })) })),
+        { id: "wind-tunnel", label: "Wind tunnel", items: recorder.state.findings.map((finding) => {
+          const passages = finding.sentenceIds.flatMap((id) => {
+            const text = sentenceText.get(id);
+            return text ? [`Source sentence: ${text}`] : [];
+          });
+          if (!passages.length) {
+            const interpretationIds = new Set(codebook.filter((cluster) => finding.evidence.clusterIds.includes(cluster.id)).flatMap((cluster) => cluster.interpretationIds));
+            for (const reading of originalReadings) {
+              if (!finding.evidence.readingIds.includes(reading.id)) continue;
+              for (const interpretation of reading.interpretations) {
+                if (interpretationIds.has(interpretation.id) && interpretation.quote.trim()) passages.push(`Reader quote: ${interpretation.quote}`);
+              }
+            }
+          }
+          return { id: finding.id, text: `${[...new Set(passages)].join("\n") || "(No specific sentence or quote cited.)"}\n${finding.title}: ${finding.readingSummary}` };
+        }) },
+        ...recorder.state.baselines.map((baseline) => ({ id: baseline.id, label: `${baseline.model} (${baseline.id})`, items: baseline.issues.map((issue) => ({ id: issue.id, text: `${issue.sentenceQuote}\n${issue.issue}: ${issue.why}` })) })),
       ] });
       if (score) recorder.emit("score.completed", { score });
       else ctx.log("warn", "No holdout is available; scoring skipped.");
@@ -277,8 +342,10 @@ export async function runWindTunnel(args: { runId: string; config: RunConfig }):
         if (result) recorder.emit("probe.completed", { result });
         else ctx.log("info", "No incentive was evidenced; hypothetical probe skipped.");
       } catch (error) { ctx.log("warn", `Probe failed: ${error instanceof Error ? error.message : String(error)}`); }
-      const finalIteration = recorder.state.iterations.findLast((iteration) => iteration.policyVersion === finalVersion.version);
-      summary = `${recorder.state.scenarios.length} scenarios, ${recorder.state.findings.length} findings (${recorder.state.findings.filter((f) => f.class === "wording_fix").length} wording fixes); final v${finalVersion.version}; conflict rate ${initial.conflictRate.toFixed(3)} → ${finalIteration?.conflictRate.toFixed(3) ?? "n/a"}; noise band ${noise.band.toFixed(3)} (${noise.pairedScenarios} paired scenarios); ${recorder.state.baselines.length} baselines.`;
+      const finalPairs = pairedCohorts(originalReadings, cohort(recorder.state.readings, finalVersion.version));
+      const beforeRate = conflictRate(finalPairs.before, recorder.state.grades, DEFAULT_CONFLICT_THRESHOLD);
+      const afterRate = conflictRate(finalPairs.after, recorder.state.grades, DEFAULT_CONFLICT_THRESHOLD);
+      summary = `${recorder.state.scenarios.length} scenarios, ${recorder.state.findings.length} findings (${recorder.state.findings.filter((f) => f.class === "wording_fix").length} wording fixes); final v${finalVersion.version}; conflict rate ${beforeRate.toFixed(3)} → ${afterRate.toFixed(3)} on ${finalPairs.after.length} paired scenarios; noise band ${noise.band.toFixed(3)} (${noise.pairedScenarios} noise pairs); ${recorder.state.baselines.length} baselines.`;
     }
   } catch (error) { failed = true; failure = error; }
   finally {

@@ -1,7 +1,8 @@
 import type { Coding, Finding, Grade, Interval, Iteration, Reading } from "../shared/schema";
+import { isConflict } from "./grade";
 
 function conflictIndicators(readings: Reading[], grades: Grade[], threshold: number): number[] {
-  const conflicting = new Set(grades.filter((grade) => grade.label === "conflicts" && grade.confidence >= threshold).map((grade) => grade.readingId));
+  const conflicting = new Set(grades.filter((grade) => isConflict(grade, threshold)).map((grade) => grade.readingId));
   return readings.map((reading) => (conflicting.has(reading.id) ? 1 : 0));
 }
 
@@ -87,7 +88,7 @@ export function iterationMetrics(args: IterationMetricsArgs): Omit<Iteration, "d
     conflictRate: readings.length === 0 ? 0 : indicators.reduce((sum, value) => sum + value, 0) / readings.length,
     ci95: bootstrapCI(indicators, 2000, args.seed),
     openQuestionRate: readings.length === 0 ? 0 : readings.filter((reading) => reading.questions.length > 0).length / readings.length,
-    openWordingFindings: findingReproduction.filter((finding) => wordingIds.has(finding.findingId) && finding.n > 0 && finding.rate >= 0.5).length,
+    openWordingFindings: findingReproduction.filter((finding) => wordingIds.has(finding.findingId) && (finding.n === 0 || finding.rate >= 0.5)).length,
     findingReproduction,
     noiseBand: args.noiseBand,
     noiseBandScenarios: args.noiseBandScenarios,
