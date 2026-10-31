@@ -15,6 +15,10 @@ export default defineConfig({
       "/api": "http://localhost:8787",
     },
   },
+  // The deployed preview sits behind a Cloudflare tunnel; Vite rejects unknown Host headers otherwise.
+  preview: {
+    allowedHosts: ["wind-tunnel.stargxzer.me"],
+  },
   build: {
     outDir: "../dist/web",
     emptyOutDir: true,
