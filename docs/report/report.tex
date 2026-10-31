@@ -39,11 +39,11 @@
 {\small\color{cyan}\textbf{SEA × OPENAI CODEX HACKATHON VIETNAM · 31 OCTOBER 2026}}\par\vspace{0.6ex}
 {\LARGE\bfseries\color{ink} Policy Wind Tunnel}\par\vspace{0.3ex}
 {\large\color{muted} Test how people will read a policy before it ships}\par\vspace{0.4ex}
-{\small\color{muted} Code: \url{https://github.com/beaaan/seaxopenai-hackathon}}\par}
+{\small\color{muted} Live: \url{https://wind-tunnel.stargxzer.me} \quad Code: \url{https://github.com/beaaan/seaxopenai-hackathon}}\par}
 \vspace{1ex}
 
 \noindent\colorbox{palegray}{\parbox{\dimexpr\linewidth-2\fboxsep}{\vspace{0.6ex}
-\textbf{In one paragraph.} Marketplace rules are enforced as written but acted on as understood. Policy Wind Tunnel gives the exact text of a policy to 50 simulated Vietnamese shoppers who meet it the way real buyers do (help article, checkout message, a rumour from a friend), measures what each one comes to believe, groups the misreadings and traces them to the sentence behind them. A Codex agent decides who reads next. Every proposed edit is fact-checked and re-read by the same readers, and it passes only if the improvement beats the measured test--retest noise: continuous integration for policy text. On Shopee's real COD help article, \hl{16 of 50 readers} came away believing a ``three failures in 90 days'' rule that Shopee never states. A full run costs about \textbf{\$2.56} in model calls; re-testing an edit costs about \textbf{\$0.11} and takes 17~seconds.
+\textbf{In one paragraph.} Marketplace rules are enforced as written but acted on as understood. Policy Wind Tunnel gives the exact text of a policy to 50 simulated Vietnamese shoppers who meet it the way real buyers do (help article, checkout message, a rumour from a friend), measures what each one comes to believe, groups the misreadings and traces them to the sentence behind them. A Codex agent decides who reads next. Every proposed edit is fact-checked and re-read by the same readers, and it passes only if the improvement beats the measured test--retest noise: continuous integration for policy text. On Shopee's real COD help article, \hl{16 of 50 readers} came away believing a ``three failures in 90 days'' rule that Shopee never states; a second run with 50 new readers found the same misreading first (18 of 50). A full run costs about \textbf{\$2.56} in model calls; re-testing an edit costs about \textbf{\$0.11} and takes 17~seconds.
 \vspace{0.6ex}}}
 
 \section{The problem}
@@ -68,7 +68,7 @@ Code is tested before release; policy text is reviewed by people who already kno
 
 \section{What we built}
 
-Policy Wind Tunnel is a pipeline, a CLI (\code{pwt}), an HTTP/SSE server and a web app (landing story, per-run report, live 3D replay of a run). Every stage appends to an event log; the UI, the replay and the report are all derived from that log.
+Policy Wind Tunnel is a pipeline, a CLI (\code{pwt}), an HTTP/SSE server and a web app. The web app has a landing story, a report per run, a replay in which the reader flow (what they heard $\to$ where they read $\to$ what they believe) fills in as readers report back beside the reviewer agent's tool calls, and a policy lab: pick a ready-made policy or paste one and watch up to 50 readers read and get graded live. A presenter console drives the landing during a talk and puts any of 14 sourced answers on a judges' Q\&A screen. Every stage appends to an event log; the UI, the replay and the report are all derived from that log.
 
 \begin{figure}[h]
 \centering
@@ -114,11 +114,13 @@ Policy Wind Tunnel is a pipeline, a CLI (\code{pwt}), an HTTP/SSE server and a w
 \toprule
 \textbf{Headline} & \hl{16 of 50} readers believe a three-failure / 90-day cutoff is Shopee policy. 122 first-read beliefs $\to$ 47 groups $\to$ 7 misreadings, each traced to a sentence. \\
 \textbf{The official text does not dislodge the rumour} & Of 22 readers told ``3 failures in 90 days'', 16 kept it: 3 of 5 who read the help article, 6 of 7 who saw only checkout, 7 of 10 who saw nothing official. None of the 13 readers told no rumour invented it. 11 of 15 told ``60 days'' kept expecting a 60-day lock. \\
-\textbf{The obvious fix fails, and the tunnel catches it} & Adding ``this article does not state how many failures count, or over what period'' kept 10 of 10 facts with no new promise, yet belief in the cutoff moved only 0.85 $\to$ 0.82 (inside the $\pm$0.12 band) and another misreading rose from 0.17 to 0.28. Only 3 of the 10 readers ever see the help article. \emph{Conclusion: Shopee must publish the number, where buyers see it.} \\
+\textbf{The obvious fix fails, and the tunnel catches it} & Adding ``this article does not state how many failures count, or over what period'' kept 10 of 10 facts with no new promise, yet belief in the cutoff moved only 0.85 $\to$ 0.82 (inside the $\pm$0.12 band) and another misreading rose from 0.17 to 0.28. Only 3 of the 10 readers ever see the help article. \emph{Next to test: publishing the actual threshold where buyers see it, at checkout.} \\
 \textbf{A bad edit is rejected} & ``Pay at a convenience store'' for cash-only buyers was rejected: the original text never promised it. \\
-\textbf{A good edit passes} & Grab VN scheduled-ride terms: a rider-clause rewrite lowered the top misreading from 0.97 to 0.62 on the same 12 readers, beyond the $\pm$0.05 band, with every rule unchanged. \\
+\textbf{A good edit passes} & Grab VN scheduled-ride terms: a rider-clause rewrite lowered the mean belief score of the top misreading from 0.97 to 0.62 on the same 12 readers, beyond the $\pm$0.05 band, with every rule unchanged. \\
 \bottomrule
 \end{tabularx}
+
+\vspace{0.6ex}\noindent\textbf{It replicates.} A second run with 50 new readers and age group (18--25, 30--45, 55--70) and digital literacy designed in (\code{cod-demo}, \$3.24 metered, 13 minutes) found the same misreading first: \hl{18 of 50}. In this sample, what readers heard (18 of 23 told the rumour vs 0 of 11 told nothing) and where they read (1 of 16 help-article readers vs 9 of 14 who saw nothing official) showed much larger differences than age (9/19, 5/18, 4/13) or literacy (9/22 low vs 9/28 high; largest demographic gap $p=0.08$).
 
 \vspace{1ex}
 \begin{minipage}[t]{0.47\linewidth}
@@ -140,9 +142,9 @@ Skimmed / read carefully & 10/29 \;·\; 6/21 \\
 \end{tabularx}
 \end{minipage}\hfill
 \begin{minipage}[t]{0.49\linewidth}
-\textbf{What one misreading can cost} {\small\color{muted}(illustrative)}\\[0.4ex]
+\textbf{What one misreading can cost} {\small\color{muted}(hypothetical)}\\[0.4ex]
 \small
-100{,}000 buyers locked out $\times$ \hl{32\%} who believe the rule (measured) $\times$ 25\% who then contact support (assumed) $\times$ \$8.01 per contact~\cite{gartner} $\approx$ \textbf{\$64{,}000}. Finding it took one run: about \textbf{\$2.56}. The landing page lets the viewer change both assumptions.
+100{,}000 buyers locked out $\times$ an assumed \hl{10\%} who misread $\times$ 25\% who then contact support (assumed) $\times$ \$8.01 per contact~\cite{gartner} $\approx$ \textbf{\$20{,}025}. The landing's calculator starts with the misreading rate blank: simulated counts are not population rates, so the viewer supplies all three assumptions. Finding the misreading took one run, estimated at about \textbf{\$2.56} in model calls.
 \end{minipage}
 
 \section{Build directions}
@@ -179,15 +181,15 @@ Persona agent & gpt-6.1-sol · Codex App Server & Live 180 simulated days under 
 
 \subsection{Building it with Codex}
 \begin{itemize}
-  \item \textbf{gpt-6-astra as a standing reviewer} (\code{codex exec -s read-only}): 13 logged reviews. The first, at 10:30 before any code, critiqued the plan and measurement protocol (31 items: paired noise band, frozen codebook, classification by attempted repair, blind holdout scoring). Then module-by-module code reviews, then audits of every number on the landing page against the logged runs and the cited sources.
-  \item \textbf{Real catches.} App Server persona threads had inherited Codex's shell and file tools, so a persona could have read the held-out edge cases; they are now isolated. Edit re-tests were pinned to the suite's original version and input hashes. Overstated claims were corrected before the demo (for example ``more than 80\%'', not ``80\%'').
-  \item \textbf{gpt-6.1-sol task agents} for self-contained slices: per-stage token metering and the cost probe, and sourced research for the stakes section (each figure with quote, date and URL; unverifiable figures were kept out).
-  \item \textbf{Codex at runtime.} The reviewer and the persona agent are Codex App Server threads with our tools exposed as dynamic tools; the live replay shows their tool calls as they happened.
+  \item \textbf{gpt-6-astra as a standing reviewer} (\code{codex exec -s read-only}): 14 logged reviews. The first, at 10:30 before any code, critiqued the plan and measurement protocol (31 items: paired noise band, frozen codebook, classification by attempted repair, blind holdout scoring). Then module-by-module code reviews, then audits of every number on the landing page and in the judges' Q\&A against the logged runs and the cited sources (the last one corrected 14 of 14 flagged statements).
+  \item \textbf{Real catches.} App Server persona threads had inherited Codex's shell and file tools, so a persona could have read the held-out edge cases; they are now isolated. Edit re-tests were pinned to the suite's original version and input hashes. Overstated claims were corrected before the demo (for example ``more than 80\%'', not ``80\%''; belief scores stated as 0.97 $\to$ 0.62, not as percentages of people).
+  \item \textbf{gpt-6.1-sol task agents} for self-contained slices, run in parallel with file ownership agreed up front: per-stage token metering and the cost probe; sourced research for the stakes section (each figure with quote, date and URL; unverifiable figures were kept out); designed age and literacy traits plus the \code{cod-demo} run; the replay rebuilt as a reader-flow diagram; the policy lab with ready-made policies and live grading; the presenter console and judges' Q\&A screen.
+  \item \textbf{Codex at runtime.} The reviewer and the persona agent are Codex App Server threads with our tools exposed as dynamic tools; the replay shows their tool calls next to the reader flow, as they happened.
   \item Every Codex task is logged with its outcome in \code{docs/codex-log.md}.
 \end{itemize}
 
 \section{Limits}
-Simulated readers are not a population sample: counts come from a designed mix of traits and are not national rates. The tool's job is to show which sentence to put in front of real people; the app includes a phone page for asking real buyers, coded on the same codebook. The checkout message is quoted as reported by salework.net and has not been verified in the app.
+Simulated readers are not a population sample: counts come from a designed mix of traits and are not national rates, which is why the cost calculator takes the misreading rate as an assumption rather than reusing a simulated share. Differences between reader groups, including the age and literacy comparison in \code{cod-demo}, are observed in a designed, adaptively sampled sample and do not establish effects. The tool's job is to show which sentence to put in front of real people; the app includes a phone page for asking real buyers, coded on the same codebook. The checkout message is quoted as reported by salework.net and has not been verified in the app.
 
 \begin{thebibliography}{9}
 \setlength{\itemsep}{0pt}\small\raggedright
