@@ -1,7 +1,7 @@
 import { Suspense, lazy, useMemo, useState, type ReactNode } from "react";
 import { CircleCheck, CircleDashed, FlaskConical, Loader2 } from "lucide-react";
 import type { FolkVersion, Interpretation, Scenario } from "@shared/schema";
-import { CLASS_LABEL, CLASS_MEANING, STAGES, cohortSize, misreadings, originalReadings, scenarioById, type Misreading } from "../model";
+import { CLASS_LABEL, CLASS_MEANING, STAGES, cohortSize, misreadings, originalReadings, quoted, scenarioById, type Misreading } from "../model";
 import type { RunContext } from "../pages/RunPage";
 import { Empty, Panel, Pill, TitleRow, Who, cx, hostOf } from "../ui";
 import { CLASS_TONE } from "./Findings";
@@ -47,8 +47,8 @@ export function Overview(props: { ctx: RunContext }): ReactNode {
     const nothing = top.heard.get(null) ?? 0;
     headline = (
       <>
-        <b style={{ fontWeight: 600 }}>{top.readers.length} of {total} readers</b> believe “{top.title}”.
-        {rumour && exposed * 2 > top.readers.length && <> {exposed} of the {told(rumour.id)} told “{shortClaim(rumour)}” first. {nothing === 0 ? "None" : nothing} of the {heardNothing} who heard nothing.</>}
+        <b style={{ fontWeight: 600 }}>{top.readers.length} of {total} readers</b> believe {quoted(top.title)}.
+        {rumour && exposed * 2 > top.readers.length && <> {exposed} of the {told(rumour.id)} told “{shortClaim(rumour)}” first do. {nothing === 0 ? "None" : nothing} of the {heardNothing} who heard nothing do.</>}
       </>
     );
   }

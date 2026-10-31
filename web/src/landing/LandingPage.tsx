@@ -2,7 +2,7 @@ import { Suspense, lazy, useEffect, useMemo, useState, type ReactNode } from "re
 import type { FolkVersion, Scenario } from "@shared/schema";
 import { api, type PolicyDetail } from "../api";
 import { useRun } from "../hooks";
-import { CLASS_LABEL, CLASS_MEANING, cohortSize, misreadings, originalReadings, type Misreading, type RunModel } from "../model";
+import { CLASS_LABEL, CLASS_MEANING, cohortSize, misreadings, originalReadings, quoted, type Misreading, type RunModel } from "../model";
 import { beyondNoise, effectiveBand } from "@shared/noise";
 import { pct } from "../ui";
 import { tunnelData, type TunnelData } from "./tunnel";
@@ -139,9 +139,9 @@ function Hero(props: { model: RunModel | null; data: TunnelData | null }): React
             pool.role === "none" ? <><b>{pool.readers} of {data.total}</b> share no wrong idea with another reader.</>
               : pool.role === "other" ? <><b>{pool.readers}</b> readers hold rarer wrong ideas.</>
                 : <>
-                  <b>{pool.holders} of {data.total}</b> believe “{pool.label}”.{" "}
+                  <b>{pool.holders} of {data.total}</b> believe {quoted(pool.label)}.{" "}
                   {!sentence && <>The text never says this. </>}
-                  {told && rumour && told[1] * 2 > pool.readers && <>{told[1]} were told “{shortClaim(rumour)}” first. {(pool.heard.get(null) ?? 0) === 0 ? "None" : pool.heard.get(null)} of the {heardNothingTotal} who heard nothing.</>}
+                  {told && rumour && told[1] * 2 > pool.readers && <>{told[1]} were told “{shortClaim(rumour)}” first. {(pool.heard.get(null) ?? 0) === 0 ? "None" : pool.heard.get(null)} of the {heardNothingTotal} who heard nothing believe it.</>}
                 </>
           )}
         </figcaption>

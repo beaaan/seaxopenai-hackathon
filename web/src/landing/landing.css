@@ -254,7 +254,7 @@
   .tunnel { height: 640px; }
   .tunnel-text div { color: transparent; padding: 0; }
   .tunnel-text div:nth-child(odd) { background: rgba(241, 241, 239, 0.05); }
-  .tunnel-text div.lit { background: rgba(227, 168, 87, 0.45); }
+  .tunnel-text div.lit { background: rgba(227, 168, 87, 0.45); color: transparent; }
   .tunnel-pools button { grid-template-columns: 1.8em 1fr; gap: 6px; padding: 2px 4px; }
   .tunnel-pools button b { font-size: 18px; }
   .tunnel-pools button span { font-size: 13px; -webkit-line-clamp: 3; }

@@ -257,6 +257,11 @@ export const CLASS_MEANING: Record<Finding["class"], string> = {
   unresolvable: "Readers need a fact the text does not give, such as a number, a deadline or a next step.",
 };
 
+/** Wrap text in quotation marks unless it already opens with one (some finding titles quote the text). */
+export function quoted(text: string): string {
+  return /^[“"]/.test(text) ? text : `“${text}”`;
+}
+
 export const STAGES = [
   { id: "sample", label: "Choose readers", done: (m: RunModel) => m.scenarios.length > 0 },
   { id: "read", label: "Readers read the text", done: (m: RunModel) => m.readings.length > 0 },

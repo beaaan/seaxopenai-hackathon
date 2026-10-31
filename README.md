@@ -2,25 +2,30 @@
 
 **Test how people will read a policy before you publish it.**
 
-A platform rule only works if people understand it the way it was meant. Policy Wind Tunnel gives the exact text of a policy to dozens of simulated Vietnamese readers. Each reader has their own situation, habits and attention span, and some have already heard a rumour about the rule from a friend or a website. Each one says what they think the text means and what they would do. The tool then answers five questions:
+A platform rule only works if people understand it the way it was meant. Policy Wind Tunnel gives the exact text of a policy to dozens of simulated Vietnamese readers. Each reader has a situation, payment habits and an attention level, and some have already heard a rumour about the rule. Each one says what they think the text means and what they would do. The tool then answers five questions:
 
 1. **Which sentences get misread, and by how many readers?** Every wrong belief that two or more readers share is traced to the sentence behind it.
-2. **Does the official text correct what people already believe?** Rules travel as rumours, so readers can be told one first, the way it happens in real life.
-3. **Does a rewrite actually fix it?** It rewrites what wording can fix, checks that the rewrite keeps every rule unchanged, and has the same readers read it again. A change only counts if it is bigger than the variation you get when the same readers read the same text twice.
-4. **What can wording not fix?** When every fix would have to change the rule or add information the text doesn't have, it says so. That is a decision for the policy owner, not the copywriter.
-5. **Does a later edit break anything?** Any edit can be re-tested on the same readers. It fails if it changes what the policy promises or makes a misreading worse.
+2. **Does the official text correct what people already believe?** Readers can be told a rumour before reading, as happens in real life.
+3. **Does a rewrite fix it?** A rewrite must keep every rule unchanged, and the same readers read it again. A change counts only if it is larger than the variation between two reads of the same text.
+4. **What can wording not fix?** When every fix would change the rule or need information the text lacks, the tool says so and the policy owner decides.
+5. **Does a later edit break anything?** Any edit can be re-tested on the same readers. It fails if it changes what the policy promises or makes a misreading more common.
+
+The web app has three views: a landing page with the result on Shopee's article, the report for each run, and a full-screen replay of a run (`#/live/<runId>`) that shows readers, sentences, graded beliefs and the agent's tool calls as the event log recorded them.
 
 ## What it found
 
-**Shopee VN, "Why can't I choose cash on delivery?"** (help article 79294, verbatim; 50 simulated shoppers, run `cod-main-noref`)
-- 24 readers had been told "3 failed deliveries in 90 days locks COD", a rule that circulates on coupon sites but appears on no Shopee page we could find. After reading the official article, 15 of them still believed it. None of the 13 readers who had heard no rumour came up with it.
-- Of 13 readers told "the lock lasts about 60 days", 8 still believed it after reading.
-- The article gives no number, no time window and no lock duration, so it cannot correct either rumour. Every finding on this text needs a rule decision or information Shopee hasn't published; none can be fixed by rewording.
+**Shopee VN, "Why can't I choose cash on delivery?"** (help article 79294, verbatim; 50 simulated shoppers, run `cod-main`)
+- 22 readers were told "3 failed COD orders within 90 consecutive days locks COD", a rule that circulates on coupon sites but appears on no Shopee page we could find. After reading the article, 16 of them believed a three-failure cutoff is policy. None of the 13 readers who heard no rumour came up with it.
+- 11 of the 15 readers told "the lock lasts about 60 days" still expected a 60-day lock after reading.
+- 11 readers found no retry time in the checkout message "temporarily unavailable".
+- The article gives no number, time window or lock duration, so it cannot correct either rumour. Every finding needs a rule decision or information Shopee has not published.
+- Edit tests on the same readers (`cod-main-rt1`, `cod-main-rt2`): a sentence spelling out the scope moved the three-failure belief from 85% to 82%, within variation, and made another misreading more common, so it fails. An edit telling cash-only buyers to pay at a convenience store fails because it promises something the original never did.
+- Against nine edge cases from research written before any run, scored blind, each single AI review found 8 and the wind tunnel 5. The wind tunnel also found 3 problems missing from that list, and it reports how many readers each problem affects and what they had heard.
 
 **Grab VN, scheduled-ride cancellation terms** (40 simulated riders, run `grab-main-noref`)
-- A rewrite of the rider clauses cut "Driver-support funding remains unresolved for riders" from 97% to 62% of the same readers, beyond the ±5-point variation of re-reading. The rewrite passed the check that no rule changed.
+- A rewrite of the rider clauses cut "Driver-support funding remains unresolved for riders" from 97% to 62% of the same readers, beyond the ±5-point variation between reads. The rewrite kept every rule unchanged.
 
-**Limits.** The simulated readers are chosen to cover combinations of traits, not to match the population, so the counts show which misreadings are common among plausible readers, not national rates. Whether real people read the text the same way is checked on the phone page in the app (Human check).
+**Limits.** The simulated readers cover combinations of traits; they are not a sample of the population, so the counts are not national rates. Whether real people read the text the same way is checked on the phone page in the app (Ask real people).
 
 Built at the Sea × OpenAI Codex Hackathon Vietnam, 31 Oct 2026. Policies: `policies/cod` (Shopee) and `policies/grab-scheduled` (Grab).
 
@@ -34,7 +39,7 @@ npm run pwt -- fixture               # synthetic run for the UI
 npm run pwt -- run cod               # full run on the COD policy (~15–20 min)
 npm run pwt -- test edit.json --suite <runId> --smoke   # policy CI on an edited text
 npm run server                       # http://localhost:8787
-npm run web                          # http://localhost:5173 → pick run "fixture"
+npm run web                          # http://localhost:5173 (landing); #/live/cod-main replays the canonical run
 npm run web -- --host                # same, reachable from phones on the venue Wi-Fi (human check: /#/check/<runId>)
 npm run check                        # typecheck + tests + holdout guard
 ```
