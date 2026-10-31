@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { Copy } from "lucide-react";
-import { humanRespondentKey, latestHumanAnswers } from "@shared/human";
+import { currentHumanResults, humanRespondentKey } from "@shared/human";
 import { api } from "../api";
 import type { RunContext } from "../pages/RunPage";
 import { Empty, Kpis, Panel, Pill, TitleRow, errorText } from "../ui";
@@ -11,9 +11,7 @@ export function HumanCheck(props: { ctx: RunContext }): ReactNode {
   const [copied, setCopied] = useState(false);
   const url = `${window.location.origin}/#/check/${encodeURIComponent(model.runId)}`;
   const titles = new Map(model.findings.map((f) => [f.id, f.title]));
-  const latest = latestHumanAnswers(model.answers);
-  const answerIds = new Set(latest.map((answer) => answer.id));
-  const mapped = new Map(model.mappings.filter((mapping) => answerIds.has(mapping.answerId)).map((m) => [m.answerId, m]));
+  const { answers: latest, mappingsByAnswerId: mapped } = currentHumanResults(model.answers, model.mappings);
   const respondents = new Set(latest.map(humanRespondentKey)).size;
   const unmapped = latest.filter((a) => !mapped.has(a.id)).length;
   const matched = [...mapped.values()].filter((m) => m.findingId !== null).length;

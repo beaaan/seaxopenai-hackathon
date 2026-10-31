@@ -63,6 +63,7 @@ A retest refuses to run if the reference or folk inputs changed since the suite 
 - Target: 6–8 people at the venue.
 - The result is qualitative only: whether a finding survives contact with real people.
 - New submissions carry a per-run participant UUID separately from the optional display name. The phone retains it across reloads and offers an explicit new-person action for shared devices. Corrections append new answers; only the latest answer per participant and question contributes to counts and coding, and an older mapping cannot suppress a correction. Legacy logs remain readable with a null participant ID; their name-based identity cannot be recovered retrospectively, and the report labels that limitation.
+- Finding badges count distinct participants per finding; human-check coding totals count answers. A correction immediately removes its superseded mapping from both reports, including while the correction is awaiting coding. Multiple current answers from one participant can support a finding only once in its people count.
 
 ## Limitations (say these before judges ask)
 

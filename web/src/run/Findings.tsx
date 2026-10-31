@@ -2,6 +2,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { Check, X } from "lucide-react";
 import type { Finding } from "@shared/schema";
 import { beyondNoise } from "@shared/noise";
+import { currentHumanResults } from "@shared/human";
 import { CLASS_LABEL, cohortSize, finalVersion } from "../model";
 import type { RunContext } from "../pages/RunPage";
 import { Empty, Panel, Pill, TitleRow, Track, band, pct, pp, type Tone } from "../ui";
@@ -24,8 +25,7 @@ export function Findings(props: { ctx: RunContext }): ReactNode {
   const selected = shown.find((f) => f.id === picked) ?? shown[0] ?? null;
   const count = (k: Finding["class"]): number => model.findings.filter((f) => f.class === k).length;
   const sentences = new Map(model.versions.find((v) => v.version === 0)?.sentences.map((s) => [s.id, s.text]) ?? []);
-  const humans = new Map<string, number>();
-  for (const m of model.mappings) if (m.findingId) humans.set(m.findingId, (humans.get(m.findingId) ?? 0) + 1);
+  const { peopleByFindingId: humans } = currentHumanResults(model.answers, model.mappings);
 
   return (
     <>

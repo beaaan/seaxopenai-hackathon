@@ -21,6 +21,28 @@ export function latestHumanAnswers(answers: readonly HumanAnswer[]): HumanAnswer
   return [...new Map(answers.map((answer) => [answerKey(answer), answer])).values()];
 }
 
+export interface CurrentHumanResults {
+  answers: HumanAnswer[];
+  mappingsByAnswerId: Map<string, HumanMapping>;
+  peopleByFindingId: Map<string, number>;
+}
+
+/** Report current evidence only; keep superseded answers and mappings in the event log for audit. */
+export function currentHumanResults(answers: readonly HumanAnswer[], mappings: readonly HumanMapping[]): CurrentHumanResults {
+  const latest = latestHumanAnswers(answers);
+  const answerIds = new Set(latest.map((answer) => answer.id));
+  const mappingsByAnswerId = new Map(mappings.filter((mapping) => answerIds.has(mapping.answerId)).map((mapping) => [mapping.answerId, mapping]));
+  const people = new Map<string, Set<string>>();
+  for (const answer of latest) {
+    const mapping = mappingsByAnswerId.get(answer.id);
+    if (!mapping || mapping.findingId === null) continue;
+    const respondents = people.get(mapping.findingId) ?? new Set<string>();
+    respondents.add(humanRespondentKey(answer));
+    people.set(mapping.findingId, respondents);
+  }
+  return { answers: latest, mappingsByAnswerId, peopleByFindingId: new Map([...people].map(([findingId, respondents]) => [findingId, respondents.size])) };
+}
+
 export function pendingHumanAnswers(answers: readonly HumanAnswer[], mappings: readonly HumanMapping[]): HumanAnswer[] {
   const mapped = new Set(mappings.map((mapping) => mapping.answerId));
   return latestHumanAnswers(answers).filter((answer) => !mapped.has(answer.id));

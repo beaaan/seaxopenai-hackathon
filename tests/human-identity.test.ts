@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { RunWriter, readEvents } from "../src/core/store";
 import { parseEvent } from "../src/shared/events";
-import { HumanAnswersRequest, canMapHumanAnswer, humanRespondentId, humanRespondentKey, latestHumanAnswers, pendingHumanAnswers, type HumanIdentityStorage } from "../src/shared/human";
+import { HumanAnswersRequest, canMapHumanAnswer, currentHumanResults, humanRespondentId, humanRespondentKey, latestHumanAnswers, pendingHumanAnswers, type HumanIdentityStorage } from "../src/shared/human";
 import type { HumanAnswer, HumanMapping } from "../src/shared/schema";
 
 const person1 = "781bdc4a-d44c-41a3-83ed-2bd2e8eeecda";
@@ -62,6 +62,28 @@ describe("participant identity and answer revisions", () => {
       expect(append(second, answer("new"))).toBeNull();
       expect(readEvents("check", dir).map((event) => event.seq)).toEqual([0, 1, 2]);
     } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+});
+
+describe("current human report evidence", () => {
+  it.each(["f2", null])("uses the last mapping of the current answer (%s), ignoring old and orphan mappings", (findingId) => {
+    const answers = Object.freeze([answer("old"), answer("new")]);
+    const mappings = Object.freeze([mapping("old"), mapping("missing"), mapping("new"), { ...mapping("new"), findingId }]);
+    const snapshot = JSON.stringify({ answers, mappings });
+    const current = currentHumanResults(answers, mappings);
+    expect(current.answers.map((a) => a.id)).toEqual(["new"]);
+    expect([...current.mappingsByAnswerId.keys()]).toEqual(["new"]);
+    expect(current.mappingsByAnswerId.get("new")?.findingId).toBe(findingId);
+    expect([...current.peopleByFindingId]).toEqual(findingId === null ? [] : [["f2", 1]]);
+    expect(JSON.stringify({ answers, mappings })).toBe(snapshot);
+  });
+
+  it("retains the legacy name fallback separately from modern participant IDs", () => {
+    const legacy = { ...answer("legacy-old", person1, "Minh"), respondentId: null };
+    const answers = [legacy, { ...legacy, id: "legacy-new" }, answer("modern", person1, "Minh")];
+    const current = currentHumanResults(answers, answers.map((a) => mapping(a.id)));
+    expect(current.answers.map((a) => a.id)).toEqual(["legacy-new", "modern"]);
+    expect(current.peopleByFindingId.get("f1")).toBe(2);
   });
 });
 
