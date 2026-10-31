@@ -10,6 +10,20 @@ const READING_LINE = 0.25;
 /** Wheel silence that separates one gesture from the next. */
 const GESTURE_GAP = 200;
 
+/** Channel shared with the presenter site (web/presenter, same origin). */
+const PRESENTER_CHANNEL = "pwt-presenter";
+type PresenterMessage =
+  | { type: "at"; chapter: string; index: number; chapters: string[] }
+  | { type: "goto"; chapter: string }
+  | { type: "hello" };
+
+function isPresenterMessage(m: unknown): m is PresenterMessage {
+  if (typeof m !== "object" || m === null || !("type" in m)) return false;
+  if (m.type === "hello") return true;
+  if (m.type === "goto") return "chapter" in m && typeof m.chapter === "string";
+  return false;
+}
+
 /**
  * Story progress at the right edge: one dot per `[data-chapter]` section; click to jump. The lit dot is the last
  * chapter whose top has passed the reading line, so short chapters light up too.
@@ -32,6 +46,37 @@ export function ChapterRail(): ReactNode {
     mo.observe(root, { childList: true });
     return () => mo.disconnect();
   }, []);
+
+  // A presenter window on the same origin can follow the talk and drive it: the page reports the chapter in view and
+  // scrolls to a chapter on request.
+  const latest = useRef<{ chapters: Chapter[]; active: HTMLElement | null }>({ chapters: [], active: null });
+  const channel = useRef<BroadcastChannel | null>(null);
+  const report = (): void => {
+    const { chapters: list, active: current } = latest.current;
+    const index = list.findIndex((c) => c.el === current);
+    if (index < 0) return;
+    const message: PresenterMessage = { type: "at", chapter: list[index]!.label, index, chapters: list.map((c) => c.label) };
+    channel.current?.postMessage(message);
+  };
+  useEffect(() => {
+    if (typeof BroadcastChannel === "undefined") return;
+    const ch = new BroadcastChannel(PRESENTER_CHANNEL);
+    channel.current = ch;
+    ch.onmessage = (e: MessageEvent<unknown>) => {
+      const m = e.data;
+      if (!isPresenterMessage(m)) return;
+      if (m.type === "hello") report();
+      else if (m.type === "goto") latest.current.chapters.find((c) => c.label === m.chapter)?.el.scrollIntoView({ behavior: "smooth" });
+    };
+    return () => {
+      ch.close();
+      channel.current = null;
+    };
+  }, []);
+  useEffect(() => {
+    latest.current = { chapters, active };
+    report();
+  }, [chapters, active]);
 
   useEffect(() => {
     let frame = 0;

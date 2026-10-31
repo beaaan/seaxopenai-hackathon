@@ -79,24 +79,15 @@ const LAYERS: Layer[] = [
     },
   },
   {
-    name: "Score it against one AI review",
+    name: "Score it blind",
     icon: <Scale />,
     stages: ["baseline", "score"],
-    ask: "Which known edge cases did each system find, scored blind?",
+    ask: "Which known edge cases did each system find, without knowing whose list it is?",
     gives: (m) => {
       const cases = new Set(m.score?.matches.map((x) => x.edgeCaseId)).size;
-      const hits = (id: string): number | null => {
-        const s = m.score?.systems.find((x) => x.id === id);
-        return s && cases ? Math.round(s.recall * cases) : null;
-      };
-      const tunnel = hits("wind-tunnel");
-      return tunnel === null ? { value: "–", unit: "" } : { value: `${tunnel}/${cases}`, unit: "known edge cases found" };
+      return cases ? { value: String(cases), unit: "known edge cases, hidden from every agent" } : { value: "–", unit: "" };
     },
-    proof: (m) => {
-      const cases = new Set(m.score?.matches.map((x) => x.edgeCaseId)).size;
-      const s = m.score?.systems.find((x) => x.id === "baseline-mean");
-      return s && cases ? `One AI review alone: ${Math.round(s.recall * cases)}/${cases}` : null;
-    },
+    proof: (m) => (m.score ? "Answer key committed to git before this run started" : null),
   },
   {
     name: "A persona lives with the rule",

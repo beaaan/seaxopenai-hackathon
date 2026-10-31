@@ -10,6 +10,7 @@ runs/dev-*/
 .vite/
 coverage/
 
-# team-internal plan, not shared in git
+# team-internal plan and presenter site, not shared in git
 PLAN.md
+web/presenter/
 .taste-skill/
