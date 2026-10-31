@@ -122,7 +122,11 @@
 .l-rumour { gap: 34px; }
 .l-claim { position: relative; max-width: 22ch; font-size: clamp(34px, 4.2vw, 64px); line-height: 1.12; font-weight: 400; color: #ffe2b8; }
 .l-stamp { position: absolute; right: -12px; bottom: -26px; transform: rotate(-6deg); padding: 4px 12px; border: 2px solid var(--n-red); border-radius: 6px; font-size: 14px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--n-red); background: var(--n-bg); white-space: nowrap; }
-.l-matrix { display: grid; gap: 18px; padding-top: 10px; }
+.l-lead { margin-top: 18px; font-size: 15px; color: var(--n-muted); }
+.l-matrix { display: grid; gap: 18px; }
+.m-row.calm { margin-top: 10px; padding-top: 22px; border-top: 1px solid rgba(143, 227, 255, 0.12); }
+.fix.failed .fix-mark { background: rgba(255, 107, 107, 0.14); color: var(--n-red); }
+.fix.failed .fix-verdict { color: #ff9a9a; }
 .m-row { display: grid; grid-template-columns: 28px minmax(150px, 230px) auto 64px; justify-content: start; align-items: center; gap: 16px; }
 .m-icon { display: grid; place-items: center; color: var(--n-muted); }
 .m-icon svg { width: 22px; height: 22px; }

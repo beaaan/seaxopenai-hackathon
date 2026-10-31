@@ -85,7 +85,7 @@ export function LandingPage(): ReactNode {
         </header>
         <div className="l-hero-copy">
           <span className="l-live"><i />Live replay of a real run</span>
-          <h1 id="hero-title">Watch 50 AI readers misread a policy</h1>
+          <h1 id="hero-title">Watch 50 AI readers form beliefs about a policy</h1>
           <div className="l-actions">
             <a className="l-button" href={LIVE}>Watch the full run</a>
             <a className="l-ghost" href={REPORT}>Report</a>
@@ -228,6 +228,7 @@ function Rumours(props: { folk: readonly FolkVersion[]; model: RunModel | null; 
     <section className="l-section l-rumour" id="rumours" aria-labelledby="rumours-title">
       <h2 id="rumours-title" className="l-kicker" data-rise>The rumour survives the official text</h2>
       <p className="l-claim" data-rise>“{shortClaim(rumour)}”<span className="l-stamp">Not in Shopee's text</span></p>
+      <p className="l-lead" data-rise>Readers told this rumour, then:</p>
       <div className="l-matrix" data-rise>
         {ordered.map(([key, g]) => (
           <div key={key} className="m-row">
@@ -239,7 +240,7 @@ function Rumours(props: { folk: readonly FolkVersion[]; model: RunModel | null; 
         ))}
         <div className="m-row calm">
           <span className="m-icon"><CircleSlash /></span>
-          <span className="m-label">Heard no rumour</span>
+          <span className="m-label">Readers told no rumour</span>
           <People total={none.length} lit={noneHold} tone="cyan" />
           <b>{noneHold}/{none.length}</b>
         </div>
@@ -262,6 +263,11 @@ function Numbers(props: { model: RunModel | null; top: Misreading | undefined })
   const scope = scopeTest?.comparison;
   const scopeBefore = scope?.before.findingReproduction.find((r) => r.findingId === top?.id);
   const scopeAfter = scope?.after.findingReproduction.find((r) => r.findingId === top?.id);
+  // The scope edit's verdict also counts every other misreading: the largest rise beyond noise, if any.
+  const scopeWorse = (scope?.after.findingReproduction ?? []).flatMap((a) => {
+    const b = scope?.before.findingReproduction.find((x) => x.findingId === a.findingId);
+    return b && b.noiseBand !== null && a.rate > b.rate && beyondNoise(a.rate - b.rate, b.noiseBand) ? [{ before: b.rate, after: a.rate }] : [];
+  }).sort((x, y) => (y.after - y.before) - (x.after - x.before))[0];
   const promise = storeTest?.comparison?.fidelity?.newCommitments[0];
 
   const systems = model?.score?.systems ?? [];
@@ -277,7 +283,7 @@ function Numbers(props: { model: RunModel | null; top: Misreading | undefined })
           <Fix who="Grab" what="Rider clauses rewritten" before={grabBefore.rate} after={grabAfter.rate} band={effectiveBand(grabBefore.noiseBand)} n={grabBefore.n} />
         )}
         {scopeBefore && scopeAfter && scopeBefore.noiseBand !== null && (
-          <Fix who="Shopee" what="Scope sentence added" before={scopeBefore.rate} after={scopeAfter.rate} band={effectiveBand(scopeBefore.noiseBand)} n={scopeBefore.n} />
+          <Fix who="Shopee" what="Scope sentence added" before={scopeBefore.rate} after={scopeAfter.rate} band={effectiveBand(scopeBefore.noiseBand)} n={scopeBefore.n} worse={scopeWorse} />
         )}
         {promise && (
           <figure className="fix bad" data-rise>
@@ -300,16 +306,23 @@ function Numbers(props: { model: RunModel | null; top: Misreading | undefined })
   );
 }
 
-/** A rewrite's effect on the same readers: mean belief score before → after, judged against normal variation. */
-function Fix(props: { who: string; what: string; before: number; after: number; band: number; n: number }): ReactNode {
-  const real = beyondNoise(props.after - props.before, props.band);
+/**
+ * A rewrite's effect on the same readers: mean belief score before → after, judged against normal variation.
+ * `worse` is another misreading that rose beyond noise, which fails the edit whatever this one did.
+ */
+function Fix(props: { who: string; what: string; before: number; after: number; band: number; n: number; worse?: { before: number; after: number } | undefined }): ReactNode {
+  const real = beyondNoise(props.after - props.before, props.band) && props.after < props.before;
   const score = (x: number): string => String(Math.round(x * 100));
+  const ok = real && !props.worse;
   return (
-    <figure className={real ? "fix good" : "fix flat"} data-rise>
-      <span className="fix-mark">{real ? <Check /> : <X />}</span>
+    <figure className={ok ? "fix good" : props.worse ? "fix failed" : "fix flat"} data-rise>
+      <span className="fix-mark">{ok ? <Check /> : <X />}</span>
       <figcaption><b>{props.who}</b> {props.what}</figcaption>
       <strong className="fix-num">{score(props.before)}<span>→</span>{score(props.after)}</strong>
-      <span className="fix-verdict">{real ? "Works" : "No real change"} · belief score, same {props.n} readers</span>
+      <span className="fix-verdict">
+        {props.worse ? `Failed: another misreading rose ${score(props.worse.before)} → ${score(props.worse.after)}` : real ? "Works" : "Within noise"}
+        {` · ±${Math.round(props.band * 100)} noise · same ${props.n} readers`}
+      </span>
     </figure>
   );
 }
