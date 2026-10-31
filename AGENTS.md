@@ -29,6 +29,9 @@ npm run pwt -- validate <runId>   # validate a run log
 npm run pwt -- policy <policyId>  # print sentence ids (reference.json cites these)
 npm run pwt -- fixture            # regenerate runs/fixture (synthetic UI data)
 npm run pwt -- smoke --backend appserver|responses|both   # live LLM check
+npm run pwt -- run <policyId> [--mode full|explore] [--budget 50] [--iterations 3] [--baselines 3] [--run-id id]
+npm run pwt -- test <surfaces.json> --suite <runId> [--smoke]   # policy CI: PASS / FAIL / INCONCLUSIVE
+npm run pwt -- map-human <runId>  # code new human-check answers on the frozen codebook
 npm run codex:types               # regenerate vendor/codex-app-server from the installed codex
 ```
 

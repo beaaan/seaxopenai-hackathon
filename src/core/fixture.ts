@@ -974,7 +974,7 @@ export function writeFixtureRetest(opts: { runId: string; suiteRunId: string; ru
   }
   const after: Iteration = { ...before, decision: "stop", reason: "[fixture] Synthetic unchanged-edit re-test: conflict rate stayed inside the paired noise band; no resolved finding reappeared." };
   append("iteration.completed", { iteration: after });
-  append("suite.compared", { comparison: { suiteRunId: opts.suiteRunId, baseVersion: finalPolicy.payload.policy.version, before, after, reasons: [], verdict: "pass" } });
+  append("suite.compared", { comparison: { suiteRunId: opts.suiteRunId, baseVersion: finalPolicy.payload.policy.version, before, after, fidelity: { passed: true, facts: [], newCommitments: [], requiresNewFact: null }, reasons: ["[fixture] conflict rate 17% → 17% within noise ±5.0 pp"], verdict: "pass" } });
   append("run.completed", { summary: "[fixture] Synthetic policy CI PASS; 17% → 17% conflict rate, paired test–retest noise ±5 pp, no regressions." });
   return { events: count };
 }

@@ -1,133 +1,114 @@
 import type { ReactNode } from "react";
-import type { EventType, RunEvent } from "@shared/events";
-import type { FindingClass } from "@shared/schema";
 
-export const EVENT_META: Record<EventType, { icon: string; label: string; tone: string }> = {
-  "run.started": { icon: "▶", label: "run started", tone: "text-sky-700" },
-  "policy.version": { icon: "📄", label: "policy version", tone: "text-indigo-700" },
-  "dims.extracted": { icon: "🧭", label: "dimensions", tone: "text-indigo-700" },
-  "scenario.created": { icon: "👤", label: "scenario", tone: "text-slate-600" },
-  "reading.completed": { icon: "📖", label: "reading", tone: "text-slate-700" },
-  "reading.failed": { icon: "⚠", label: "reading failed", tone: "text-red-700" },
-  "grades.added": { icon: "✔", label: "grades", tone: "text-emerald-700" },
-  "codings.added": { icon: "▦", label: "codings", tone: "text-sky-700" },
-  "clusters.updated": { icon: "◎", label: "clusters", tone: "text-amber-700" },
-  "codebook.fixed": { icon: "▦", label: "codebook fixed", tone: "text-sky-800" },
-  "allocation.decided": { icon: "⚖", label: "allocation", tone: "text-violet-700" },
-  "findings.updated": { icon: "🔎", label: "findings", tone: "text-rose-700" },
-  "rewrite.proposed": { icon: "✎", label: "rewrite", tone: "text-indigo-700" },
-  "rewrite.approved": { icon: "✅", label: "rewrite approved", tone: "text-emerald-700" },
-  "iteration.completed": { icon: "↻", label: "iteration", tone: "text-sky-700" },
-  "stop.decided": { icon: "■", label: "stop", tone: "text-sky-800" },
-  "thread.item": { icon: "💬", label: "thread item", tone: "text-slate-500" },
-  "baseline.completed": { icon: "📋", label: "baseline", tone: "text-slate-700" },
-  "score.completed": { icon: "🏁", label: "score", tone: "text-emerald-800" },
-  "human.question": { icon: "❓", label: "human question", tone: "text-orange-700" },
-  "human.answer": { icon: "🙋", label: "human answer", tone: "text-orange-700" },
-  "human.mapped": { icon: "🔗", label: "human mapped", tone: "text-orange-700" },
-  "probe.completed": { icon: "↗", label: "incentive probe", tone: "text-amber-800" },
-  "suite.compared": { icon: "=", label: "suite comparison", tone: "text-indigo-800" },
-  log: { icon: "·", label: "log", tone: "text-slate-500" },
-  "run.completed": { icon: "🏁", label: "run completed", tone: "text-emerald-800" },
-  "run.failed": { icon: "✖", label: "run failed", tone: "text-red-800" },
+export function cx(...parts: Array<string | false | null | undefined>): string {
+  return parts.filter(Boolean).join(" ");
+}
+
+export const pct = (rate: number, digits = 0): string => `${(rate * 100).toFixed(digits)}%`;
+export const pp = (delta: number): string => `${delta > 0 ? "+" : ""}${(delta * 100).toFixed(1)} pp`;
+
+export type Tone = "neutral" | "accent" | "good" | "warn" | "bad" | "info";
+
+const TONE: Record<Tone, string> = {
+  neutral: "bg-stone-100 text-stone-700 ring-stone-200",
+  accent: "bg-indigo-50 text-indigo-700 ring-indigo-200",
+  good: "bg-emerald-50 text-emerald-700 ring-emerald-200",
+  warn: "bg-amber-50 text-amber-800 ring-amber-200",
+  bad: "bg-rose-50 text-rose-700 ring-rose-200",
+  info: "bg-sky-50 text-sky-700 ring-sky-200",
 };
 
-export function pct(n: number): string {
-  return `${Math.round(n * 100)}%`;
-}
-
-export function eventSummary(event: RunEvent): string {
-  switch (event.type) {
-    case "run.started":
-      return `${event.payload.config.policyId} · budget ${event.payload.config.budget} · seed ${event.payload.config.seedSize}`;
-    case "policy.version":
-      return `v${event.payload.policy.version} · ${event.payload.policy.sentences.length} sentences`;
-    case "dims.extracted":
-      return event.payload.dimensions.map((d) => d.name).join(", ");
-    case "scenario.created":
-      return `${event.payload.scenario.id} · ${event.payload.scenario.persona.name} · batch ${event.payload.scenario.batch}`;
-    case "reading.completed":
-      return `${event.payload.reading.scenarioId} · ${event.payload.reading.interpretations.length} interpretations · ${event.payload.reading.paraphraseVi}`;
-    case "reading.failed":
-      return `${event.payload.scenarioId}: ${event.payload.error}`;
-    case "grades.added": {
-      let conflicts = 0;
-      let confidenceSum = 0;
-      let pConflictsSum = 0;
-      let pConflictsCount = 0;
-      for (const grade of event.payload.grades) {
-        if (grade.label === "conflicts") conflicts += 1;
-        confidenceSum += grade.confidence;
-        if (grade.pConflicts !== null) {
-          pConflictsSum += grade.pConflicts;
-          pConflictsCount += 1;
-        }
-      }
-      const confidence = event.payload.grades.length === 0 ? null : confidenceSum / event.payload.grades.length;
-      return `${event.payload.grades.length} grades · ${conflicts} conflicts · mean confidence ${confidence === null ? "—" : pct(confidence)}${pConflictsCount === 0 ? "" : ` · mean P(conflict)=${(pConflictsSum / pConflictsCount).toFixed(2)}`}`;
-    }
-    case "clusters.updated":
-      return `v${event.payload.policyVersion} · ${event.payload.clusters.length} clusters`;
-    case "codebook.fixed":
-      return `v${event.payload.codebookVersion} · ${event.payload.clusterIds.length} frozen beliefs`;
-    case "allocation.decided":
-      return `batch ${event.payload.decision.batch} · focus ${event.payload.decision.focusDimIds.join(", ") || "none"} · n=${event.payload.decision.n}`;
-    case "findings.updated":
-      return `${event.payload.findings.length} findings`;
-    case "rewrite.proposed":
-      return `v${event.payload.rewrite.fromVersion} → v${event.payload.rewrite.toVersion} · ${event.payload.rewrite.edits.length} edits · fidelity ${event.payload.rewrite.fidelity.passed ? "passed" : "failed"}`;
-    case "rewrite.approved":
-      return `v${event.payload.version} by ${event.payload.approvedBy}`;
-    case "iteration.completed":
-      return `v${event.payload.iteration.policyVersion} · conflict ${pct(event.payload.iteration.conflictRate)} · ${event.payload.iteration.decision}`;
-    case "stop.decided":
-      return `final v${event.payload.finalVersion} · ${event.payload.reason}`;
-    case "thread.item":
-      return `${event.payload.record.role} · ${event.payload.record.itemType} · ${event.payload.record.label}`;
-    case "baseline.completed":
-      return `${event.payload.run.id} · ${event.payload.run.issues.length} issues`;
-    case "score.completed":
-      return event.payload.score.systems.map((s) => `${s.label} ${pct(s.recall)}`).join(" · ");
-    case "human.question":
-      return event.payload.question.questionVi;
-    case "human.answer":
-      return `${event.payload.answer.respondent}: ${event.payload.answer.answerVi}`;
-    case "human.mapped":
-      return `${event.payload.mapping.answerId} → ${event.payload.mapping.findingId ?? "no finding"}`;
-    case "probe.completed":
-      return `${event.payload.result.assumptions.length} assumptions · ${event.payload.result.steps.length} steps · ${event.payload.result.summary}`;
-    case "suite.compared":
-      return `${event.payload.comparison.verdict.toUpperCase()} · ${pct(event.payload.comparison.before.conflictRate)} → ${pct(event.payload.comparison.after.conflictRate)} · suite ${event.payload.comparison.suiteRunId}`;
-    case "log":
-      return `[${event.payload.level}] ${event.payload.message}`;
-    case "run.completed":
-      return event.payload.summary;
-    case "run.failed":
-      return event.payload.error;
-    case "codings.added":
-      return `v${event.payload.policyVersion} × codebook v${event.payload.codebookVersion}: ${event.payload.codings.length} codings`;
-    default: {
-      const unreachable: never = event;
-      return unreachable;
-    }
-  }
-}
-
-export const FINDING_CLASS_META: Record<FindingClass, { label: string; className: string }> = {
-  wording_fix: { label: "wording fix", className: "bg-emerald-100 text-emerald-800 ring-emerald-300" },
-  design_gap: { label: "design gap", className: "bg-amber-100 text-amber-900 ring-amber-300" },
-  unresolvable: { label: "unresolvable", className: "bg-slate-200 text-slate-800 ring-slate-400" },
-};
-
-export function Badge(props: { className: string; children: ReactNode }): ReactNode {
-  return <span className={`inline-block rounded px-2 py-0.5 text-xs font-semibold ring-1 ${props.className}`}>{props.children}</span>;
-}
-
-export function SectionTitle(props: { children: ReactNode; right?: ReactNode }): ReactNode {
+export function Badge(props: { tone?: Tone; children: ReactNode; title?: string; className?: string }): ReactNode {
   return (
-    <div className="mb-2 flex items-center justify-between">
-      <h2 className="text-sm font-bold tracking-wide text-slate-500 uppercase">{props.children}</h2>
-      {props.right}
+    <span title={props.title} className={cx("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset", TONE[props.tone ?? "neutral"], props.className)}>
+      {props.children}
+    </span>
+  );
+}
+
+export function Card(props: { children: ReactNode; className?: string; onClick?: () => void; active?: boolean }): ReactNode {
+  const interactive = props.onClick !== undefined;
+  return (
+    <div
+      onClick={props.onClick}
+      role={interactive ? "button" : undefined}
+      tabIndex={interactive ? 0 : undefined}
+      onKeyDown={interactive ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); props.onClick?.(); } } : undefined}
+      className={cx(
+        "rounded-2xl border bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04)]",
+        props.active ? "border-indigo-400 ring-2 ring-indigo-100" : "border-stone-200",
+        interactive && "cursor-pointer transition hover:border-stone-300 hover:shadow-md",
+        props.className,
+      )}
+    >
+      {props.children}
+    </div>
+  );
+}
+
+export function Section(props: { id: string; title: string; kicker?: string; aside?: ReactNode; children: ReactNode }): ReactNode {
+  return (
+    <section id={props.id} className="scroll-mt-28">
+      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          {props.kicker && <div className="text-xs font-semibold tracking-[0.14em] text-indigo-600 uppercase">{props.kicker}</div>}
+          <h2 className="text-2xl font-semibold tracking-tight text-stone-900">{props.title}</h2>
+        </div>
+        {props.aside}
+      </div>
+      {props.children}
+    </section>
+  );
+}
+
+export function Stat(props: { label: string; value: ReactNode; hint?: ReactNode; tone?: Tone }): ReactNode {
+  const color = props.tone === "good" ? "text-emerald-700" : props.tone === "bad" ? "text-rose-700" : props.tone === "warn" ? "text-amber-700" : "text-stone-900";
+  return (
+    <div className="rounded-2xl border border-stone-200 bg-white px-5 py-4">
+      <div className="text-xs font-medium tracking-wide text-stone-500 uppercase">{props.label}</div>
+      <div className={cx("mt-1 text-3xl font-semibold tabular-nums tracking-tight", color)}>{props.value}</div>
+      {props.hint && <div className="mt-1 text-sm text-stone-500">{props.hint}</div>}
+    </div>
+  );
+}
+
+export function Button(props: { children: ReactNode; onClick?: () => void; kind?: "primary" | "ghost" | "subtle"; disabled?: boolean; type?: "button" | "submit"; className?: string }): ReactNode {
+  const kind = props.kind ?? "primary";
+  return (
+    <button
+      type={props.type ?? "button"}
+      onClick={props.onClick}
+      disabled={props.disabled}
+      className={cx(
+        "inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50",
+        kind === "primary" && "bg-stone-900 text-white hover:bg-stone-700",
+        kind === "subtle" && "bg-stone-100 text-stone-800 hover:bg-stone-200",
+        kind === "ghost" && "text-stone-600 hover:bg-stone-100 hover:text-stone-900",
+        props.className,
+      )}
+    >
+      {props.children}
+    </button>
+  );
+}
+
+export function Empty(props: { children: ReactNode }): ReactNode {
+  return <div className="rounded-2xl border border-dashed border-stone-300 bg-stone-50/60 px-6 py-10 text-center text-sm text-stone-500">{props.children}</div>;
+}
+
+/** Horizontal bar 0..1 with an optional ± band drawn around the value. */
+export function Meter(props: { value: number; band?: number | null; tone?: Tone; className?: string }): ReactNode {
+  const color = props.tone === "good" ? "bg-emerald-500" : props.tone === "bad" ? "bg-rose-500" : props.tone === "warn" ? "bg-amber-500" : "bg-indigo-500";
+  const band = props.band ?? null;
+  return (
+    <div className={cx("relative h-2 w-full rounded-full bg-stone-100", props.className)}>
+      {band !== null && band > 0 && (
+        <div
+          className="absolute top-[-3px] h-[14px] rounded bg-stone-300/60"
+          style={{ left: `${Math.max(0, props.value - band) * 100}%`, width: `${(Math.min(1, props.value + band) - Math.max(0, props.value - band)) * 100}%` }}
+        />
+      )}
+      <div className={cx("relative h-2 rounded-full", color)} style={{ width: `${Math.max(0.01, props.value) * 100}%` }} />
     </div>
   );
 }

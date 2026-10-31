@@ -502,6 +502,8 @@ export const SuiteComparison = z.strictObject({
   baseVersion: z.number().int().nonnegative(), // version of the suite run compared against
   before: Iteration,
   after: Iteration,
+  /** Blind fidelity check of the edited text against v0; a failure means the edit changes the rule, not just its wording. */
+  fidelity: FidelityResult.nullable(),
   // fail: conflict rate or a finding rose beyond its noise band. inconclusive: < 5 paired scenarios, a measured
   // finding lost its measurement, or (no reference) nothing moved beyond noise. pass: otherwise.
   verdict: z.enum(["pass", "fail", "inconclusive"]),

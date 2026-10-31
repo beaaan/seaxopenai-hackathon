@@ -2,9 +2,10 @@ import { Gateway } from "../core/llm/gateway";
 import { config as runtimeConfig } from "../core/env";
 import { makeVersion } from "../core/policy";
 import { readEvents } from "../core/store";
-import { Surface, type Iteration, type PolicyVersion, type Reading, type RunConfig, type Scenario, type SuiteComparison } from "../shared/schema";
+import { Surface, type Finding, type Iteration, type PolicyVersion, type Reading, type RunConfig, type Scenario, type SuiteComparison } from "../shared/schema";
 import { DEFAULT_CONFLICT_THRESHOLD, gradeReadings } from "../reviewer/grade";
 import { codeReadings } from "../reviewer/code";
+import { checkFidelity } from "../reviewer/fidelity";
 import { iterationMetrics, noiseBand, reproductionNoise } from "../reviewer/metrics";
 import { compareSuite } from "./suite";
 import { RunRecorder, cohort, createStageContext, inputFingerprints, logProvenance, pairedCohorts, readBatch, rebuildRunState, scenarioIdsByFinding, type RunState } from "./run";
@@ -45,20 +46,39 @@ export function preflightRetest(args: { suiteRunId: string; surfaces: Surface[];
   if (embeddings.payload.message !== `Embeddings: ${hasKey ? "yes" : "no"}`) throw new Error(`embeddings availability differs from suite ${args.suiteRunId}; create a new suite`);
   const config: RunConfig = { ...suite.config, inputs, mode: "retest", suiteRunId: args.suiteRunId, fresh: true };
   const findingScenarios = scenarioIdsByFinding(suite.findings, suite.readings);
-  const evidenceIds = new Set(Object.values(findingScenarios).flat());
-  const ordered = [...suite.scenarios].sort((a, b) => {
-    const evidenceOrder = Number(evidenceIds.has(b.id)) - Number(evidenceIds.has(a.id));
-    return (args.smoke ? evidenceOrder : 0) || a.id.localeCompare(b.id, "en", { numeric: true });
-  });
-  const scenarios = args.smoke ? ordered.slice(0, config.smokeSize) : ordered;
+  const version = makeVersion(config.policyId, Math.max(...suite.policies.map((policy) => policy.version)) + 1, baseVersion, surfaces);
+  const ordered = [...suite.scenarios].sort((a, b) => a.id.localeCompare(b.id, "en", { numeric: true }));
+  const scenarios = args.smoke ? smokeScenarios(ordered, suite.findings, findingScenarios, basePolicy, version, config.smokeSize) : ordered;
   if (!scenarios.length) throw new Error(`suite ${args.suiteRunId} has no scenarios`);
   const scenarioIds = new Set(scenarios.map((scenario) => scenario.id));
   const beforeReadings = cohort(suite.readings, baseVersion).filter((reading) => scenarioIds.has(reading.scenarioId));
   if (beforeReadings.length !== scenarios.length) throw new Error(`suite v${baseVersion} is missing readings for the selected scenarios`);
   const frozenIds = new Set(suite.codebook.map((cluster) => cluster.id));
   if (suite.findings.some((finding) => finding.evidence.clusterIds.some((id) => !frozenIds.has(id)))) throw new Error("suite findings do not match its frozen codebook");
-  const version = makeVersion(config.policyId, Math.max(...suite.policies.map((policy) => policy.version)) + 1, baseVersion, surfaces);
   return { suite, config, v0, basePolicy, version, scenarios, beforeReadings, findingScenarios };
+}
+
+/**
+ * Smoke subset: first the evidence scenarios of the findings the edit touches (anchored to a changed sentence, or
+ * "not in text" findings when the edit adds sentences), then the other findings' evidence round-robin, then the rest.
+ */
+function smokeScenarios(ordered: Scenario[], findings: Finding[], findingScenarios: Record<string, string[]>, base: PolicyVersion, edited: PolicyVersion, size: number): Scenario[] {
+  const editedTexts = new Set(edited.sentences.map((s) => s.text.trim()));
+  const baseTexts = new Set(base.sentences.map((s) => s.text.trim()));
+  const changed = new Set(base.sentences.filter((s) => !editedTexts.has(s.text.trim())).map((s) => s.id));
+  const inserted = edited.sentences.some((s) => !baseTexts.has(s.text.trim()));
+  const targeted = findings.filter((f) => f.sentenceIds.some((id) => changed.has(id)) || (inserted && f.sentenceIds.length === 0));
+  const others = findings.filter((f) => !targeted.includes(f));
+  const picked: string[] = [];
+  const add = (id: string): void => {
+    if (!picked.includes(id)) picked.push(id);
+  };
+  for (const f of targeted) for (const id of findingScenarios[f.id] ?? []) add(id);
+  const queues = others.map((f) => [...(findingScenarios[f.id] ?? [])]);
+  while (queues.some((q) => q.length > 0)) for (const q of queues) { const id = q.shift(); if (id !== undefined) add(id); }
+  for (const s of ordered) add(s.id);
+  const byId = new Map(ordered.map((s) => [s.id, s]));
+  return picked.slice(0, size).flatMap((id) => byId.get(id) ?? []);
 }
 
 export async function retestEdit(args: { runId: string; suiteRunId: string; surfaces: Surface[]; smoke: boolean }): Promise<SuiteComparison> {
@@ -93,7 +113,11 @@ export async function retestEdit(args: { runId: string; suiteRunId: string; surf
       recorder.emit("codings.added", { policyVersion, codebookVersion: 0, codings: suite.codings.filter((coding) => versionReadingIds.has(coding.readingId) && frozenIds.has(coding.clusterId)) });
     }
     recorder.emit("findings.updated", { findings: suite.findings });
-    const readings = await readBatch(ctx, recorder, version, scenarios, null, true);
+    // Wording-only CI: the edit must keep every rule of v0 and add none (same blind fidelity checker as the loop).
+    const [readings, fidelity] = await Promise.all([
+      readBatch(ctx, recorder, version, scenarios, null, true),
+      checkFidelity(ctx, { original: v0, candidate: version.surfaces }),
+    ]);
     const grades = await gradeReadings(ctx, version, readings);
     recorder.emit("grades.added", { grades });
     const codings = await codeReadings(ctx, { readings, codebook: suite.codebook });
@@ -114,9 +138,9 @@ export async function retestEdit(args: { runId: string; suiteRunId: string; surf
       ...iterationMetrics({ version: version.version, readings, grades, codings, findings: suite.findings, scenarioIdsByFinding: subsetFindingScenarios, noiseBand: noise.band, noiseBandScenarios: noise.pairedScenarios, reproductionNoise: findingNoise, threshold: DEFAULT_CONFLICT_THRESHOLD, seed: config.seed }),
       decision: "stop", reason: "Edited text tested against the frozen suite.",
     };
-    const result = compareSuite({ before, after, noiseBand: noise.band, conflictMeasured: ctx.reference !== null });
+    const result = compareSuite({ before, after, noiseBand: noise.band, conflictMeasured: ctx.reference !== null, fidelity });
     after.reason = result.verdict === "pass" ? "Frozen suite passed." : result.reasons.join("; ");
-    comparison = { suiteRunId: args.suiteRunId, baseVersion, before, after, ...result };
+    comparison = { suiteRunId: args.suiteRunId, baseVersion, before, after, fidelity, ...result };
     recorder.emit("iteration.completed", { iteration: after });
     recorder.emit("suite.compared", { comparison });
     recorder.emit("stop.decided", { finalVersion: comparison.verdict === "pass" ? version.version : baseVersion, reason: after.reason });

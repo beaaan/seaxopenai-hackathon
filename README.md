@@ -18,6 +18,8 @@ npm install
 cp .env.example .env                 # set OPENAI_API_KEY; `codex login` for App Server
 npm run pwt -- smoke                 # live check: Responses, Decisions, embeddings, App Server
 npm run pwt -- fixture               # synthetic run for the UI
+npm run pwt -- run cod               # full run on the COD policy (~15–20 min)
+npm run pwt -- test edit.json --suite <runId> --smoke   # policy CI on an edited text
 npm run server                       # http://localhost:8787
 npm run web                          # http://localhost:5173 → pick run "fixture"
 npm run check                        # typecheck + tests + holdout guard

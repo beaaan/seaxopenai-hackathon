@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { compareSuite } from "../src/pipeline/suite";
-import type { Iteration } from "../src/shared/schema";
+import { compareSuite as compareWithFidelity } from "../src/pipeline/suite";
+import type { FidelityResult, Iteration } from "../src/shared/schema";
 
 type Repro = { findingId: string; rate: number; n?: number; noiseBand?: number | null };
+type Args = { before: Iteration; after: Iteration; noiseBand: number; conflictMeasured: boolean };
+
+/** Wording-preserving edits: the fidelity check passed or was not run. */
+const compareSuite = (args: Args) => compareWithFidelity({ ...args, fidelity: null });
 
 function iteration(conflictRate: number, findingReproduction: Repro[] = [], overrides: Partial<Iteration> = {}): Iteration {
   return {
@@ -11,6 +15,19 @@ function iteration(conflictRate: number, findingReproduction: Repro[] = [], over
     noiseBand: 0.1, noiseBandScenarios: 10, decision: "stop", reason: "test", ...overrides,
   };
 }
+
+describe("compareSuite fidelity gate", () => {
+  it("fails an edit that adds a commitment even when every misreading fell", () => {
+    const fidelity: FidelityResult = { passed: false, facts: [{ factId: "help.4", entailed: true, why: "kept" }], newCommitments: ["cash buyers can pay at convenience stores"], requiresNewFact: null };
+    const result = compareWithFidelity({
+      before: iteration(0, [{ findingId: "f1", rate: 0.9 }]), after: iteration(0, [{ findingId: "f1", rate: 0.1 }]),
+      noiseBand: 0, conflictMeasured: false, fidelity,
+    });
+    expect(result.verdict).toBe("fail");
+    expect(result.reasons[0]).toBe("edit adds a commitment the original never made: cash buyers can pay at convenience stores");
+    expect(result.reasons).toContain("f1 90% → 10% fell beyond noise ±10.0 pp");
+  });
+});
 
 describe("compareSuite with a reference", () => {
   it("fails when the conflict rate rises beyond its band, and passes at or below it", () => {

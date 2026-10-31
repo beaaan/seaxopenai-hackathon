@@ -22,11 +22,11 @@ What we claim, how we measure it, and what we cannot claim.
 | Recall on holdout edge cases | Share of edge cases matched by at least one finding. A match means the same sentence and the same ambiguity, decided by a blind scorer. | Wind Tunnel vs single-pass baseline (mean of 3 runs, union of 3, plus 1 run on `gpt-6-astra`) |
 | Unmatched by holdout | Wind Tunnel findings that match no holdout edge case. These are not validated and not disproved. | Human-check survival (k of n people gave that reading) |
 | Conflict rate | Share of readings with ≥ 1 interpretation graded `conflicts` (Decisions; threshold calibrated on hand labels) | Bootstrap 95% CI and the test–retest noise band |
-| Finding reproduction | Per finding: mean codebook probability of its beliefs over its original scenarios, before vs after a rewrite | Before/after |
+| Finding reproduction | Per finding: mean codebook probability of its beliefs over its original scenarios, before vs after a rewrite | Before/after, n, and the finding's own test–retest noise band |
 | Split score | Normalised mutual information between a dimension's levels and the codebook probabilities, with a permutation z-score | Per batch, in the allocation panel |
 | Grader agreement | Cohen's κ between Decisions grades and P4's hand labels on a held-out half of ~20 hand-labelled interpretations; the other half sets the threshold | One number, shown once |
 | Discovery curve | New clusters with ≥ 2 distinct readers per batch; a cluster's identity across re-clustering is decided by member overlap | Exploration stopping signal |
-| Compute | Model calls per system (Wind Tunnel ≈ hundreds, a baseline = 1) | Shown next to recall, so the comparison is honest about cost |
+| Compute | Persona readings per system (cached readings included); a baseline = 1 call, the aggregates = the number of replicate runs | Shown next to recall, so the comparison is honest about cost |
 
 **Blind scoring.** For each edge case and each system, the scorer gets the edge case and that system's items, renumbered 1..k and shuffled, under a neutral label. It never sees system names, provenance or item ids. It answers match or no match, citing an item number. Baselines run three times with distinct replicate ids so they are independent samples, not one cached answer, and they get the same policy and reference evidence as the Wind Tunnel judge.
 
@@ -34,6 +34,14 @@ What we claim, how we measure it, and what we cannot claim.
 - A rewrite counts as an improvement only if the conflict rate falls by more than the band.
 - With fewer than 5 paired scenarios, the comparison is reported as inconclusive.
 - Cohorts (version × replicate) are never pooled.
+- Each finding gets its own band from the same two runs: d = reproduction(A) − reproduction(B) on that finding's scenarios coded in both. A finding with fewer than 5 such pairs has no noise estimate and is never judged as improved or regressed.
+
+**Policy CI verdict** (`npm run pwt -- test <surfaces.json> --suite <runId>`). The edited text is read on the suite's frozen scenarios and coded on its frozen codebook, then compared on identical scenarios:
+- **fail**: the conflict rate (when a reference exists) or any finding's reproduction rose beyond its band;
+- **inconclusive**: fewer than 5 test–retest pairs, a finding measured before but not after, or — without a reference, where conflicts cannot be measured — no finding fell beyond its band;
+- **pass** otherwise. The reasons list every regression, improvement and within-noise change.
+
+A retest refuses to run if the reference or folk inputs changed since the suite (hash check), or if Decisions or embeddings provenance differs.
 
 **One instrument.** All before/after comparisons go through the same fixed codebook, applied by the Decisions API. Clusters are only regenerated to discover new misreadings, never to measure change.
 
