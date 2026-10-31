@@ -85,7 +85,6 @@ function PolicyCard(props: { run: RunSummary }): ReactNode {
           )}
           {model.findings.length > 0 && (
             <div className="pills" style={{ marginTop: 12 }}>
-              {(["wording_fix", "design_gap", "unresolvable"] as const).filter((k) => count(k) > 0).map((k) => <Pill key={k}>{count(k)} {CLASS_LABEL[k].toLowerCase()}</Pill>)}
               {(["wording_fix", "design_gap", "unresolvable"] as const).filter((k) => count(k) > 0).map((k) => <Pill key={k}>{CLASS_LABEL[k]}: {count(k)}</Pill>)}
             </div>
           )}
