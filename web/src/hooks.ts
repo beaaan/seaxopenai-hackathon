@@ -64,21 +64,6 @@ export function useRun(runId: string, followFinished = true): LoadedRun {
   return state;
 }
 
-/** Progressive replay of a finished log over about `seconds`; `shown` is null when not replaying. */
-export function useReplay(total: number, seconds = 45): { shown: number | null; start: () => void; stop: () => void } {
-  const [shown, setShown] = useState<number | null>(null);
-  useEffect(() => {
-    if (shown === null) return;
-    if (shown >= total) {
-      const done = window.setTimeout(() => setShown(null), 800);
-      return () => clearTimeout(done);
-    }
-    const step = Math.max(1, Math.ceil(total / (seconds * 10)));
-    const timer = window.setTimeout(() => setShown((n) => (n === null ? null : Math.min(total, n + step))), 100);
-    return () => clearTimeout(timer);
-  }, [shown, total, seconds]);
-  return { shown, start: () => setShown(1), stop: () => setShown(null) };
-}
 export function useRuns(refreshMs = 4000): RunSummary[] | null {
   const [runs, setRuns] = useState<RunSummary[] | null>(null);
   useEffect(() => {

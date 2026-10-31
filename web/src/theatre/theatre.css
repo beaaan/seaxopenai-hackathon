@@ -1,0 +1,144 @@
+/* The pipeline theatre: a full-screen replay (or live view) of one run. */
+.theatre {
+  --t-ink: #e9eef4;
+  --t-muted: #9aa6b2;
+  --t-dim: #64707c;
+  --t-cyan: #8fe3ff;
+  --t-amber: #ffb347;
+  --t-green: #4fd1a5;
+  --t-red: #ff5d5d;
+  --t-panel: rgba(9, 13, 20, 0.74);
+  --t-edge: rgba(143, 227, 255, 0.16);
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: #05070b;
+  color: var(--t-ink);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.45;
+  color-scheme: dark;
+}
+.theatre h2 { margin: 0 0 8px; font-size: 13px; font-weight: 600; color: var(--t-ink); display: flex; align-items: baseline; gap: 10px; }
+.theatre h2 span { font-weight: 400; color: var(--t-dim); }
+.theatre ol { list-style: none; margin: 0; padding: 0; }
+.theatre button { font: inherit; color: inherit; cursor: pointer; }
+.theatre code { font-family: var(--mono); font-size: 12px; color: var(--t-dim); }
+
+.t-stage { position: absolute; inset: 0; }
+.t-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.t-overlay { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+
+/* Labels the scene projects onto the screen each frame. */
+.t-label { position: absolute; left: 0; top: 0; will-change: transform; font-size: 12px; line-height: 1.3; color: var(--t-muted); transition: color 300ms, opacity 400ms; }
+.t-label b { color: var(--t-ink); font-weight: 600; }
+.t-label.slab { width: 214px; margin: -8px 0 0 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: rgba(200, 214, 230, 0.55); font-size: 11.5px; }
+.t-label.slab b { color: rgba(200, 214, 230, 0.75); font-family: var(--mono); font-weight: 400; margin-right: 6px; }
+.t-label.slab.hot { color: #fff2d8; }
+.t-label.slab.hot b { color: var(--t-amber); }
+.t-label.slab.gap { color: rgba(255, 179, 71, 0.55); }
+.t-label.orb { max-width: 230px; margin: -9px 0 0 6px; color: #d7e4ee; text-shadow: 0 0 8px #05070b; }
+.t-label.orb b { color: var(--t-amber); margin-right: 4px; font-size: 13px; }
+.t-label.tag.persona { width: 200px; margin: -86px 0 0 -100px; padding: 8px 10px; display: grid; gap: 1px; border-radius: 8px; background: rgba(9, 13, 20, 0.86); border: 1px solid var(--t-edge); }
+.t-label.tag.persona em { font-style: normal; color: var(--t-amber); }
+
+.t-zone { position: absolute; top: 122px; transform: translateX(-50%); text-align: center; font-size: 15px; font-weight: 500; color: var(--t-ink); pointer-events: none; display: grid; gap: 2px; }
+.t-zone small { font-size: 12px; font-weight: 400; color: var(--t-dim); }
+.t-zone.readers { left: 17%; }
+.t-zone.text { left: 50%; }
+.t-zone.beliefs { left: 83%; }
+
+/* Top: name, run, pipeline stages. */
+.t-top { position: absolute; top: 0; left: 0; right: 0; display: flex; align-items: center; gap: 24px; padding: 16px 24px; }
+.t-brand { color: var(--t-ink); text-decoration: none; font-weight: 600; white-space: nowrap; }
+.t-title { display: grid; gap: 2px; min-width: 0; }
+.t-title b { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 34vw; }
+.t-title span { display: flex; gap: 10px; align-items: center; font-size: 12px; color: var(--t-muted); }
+.t-live, .t-replay { font-style: normal; font-weight: 600; }
+.t-live { color: var(--t-red); }
+.t-live::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; background: var(--t-red); animation: t-blink 1.2s infinite; }
+.t-replay { color: var(--t-cyan); }
+@keyframes t-blink { 50% { opacity: 0.25; } }
+.t-rail { margin-left: auto !important; display: flex; gap: 4px; }
+.t-rail li { padding: 6px 10px; border-radius: 99px; font-size: 12px; color: var(--t-dim); border: 1px solid transparent; transition: color 300ms, border-color 300ms, background-color 300ms; white-space: nowrap; }
+.t-rail li.done { color: var(--t-muted); }
+.t-rail li.now { color: #05070b; background: var(--t-cyan); border-color: var(--t-cyan); box-shadow: 0 0 18px rgba(143, 227, 255, 0.55); }
+
+.t-counters { position: absolute; top: 64px; right: 24px; margin: 0; display: flex; gap: 22px; }
+.t-counters div { display: grid; justify-items: end; }
+.t-counters dt { font-size: 11.5px; color: var(--t-dim); }
+.t-counters dd { margin: 0; font-family: var(--mono); font-size: 22px; font-variant-numeric: tabular-nums; color: var(--t-ink); }
+.t-counters dd small { font-size: 11px; color: var(--t-dim); margin-left: 4px; }
+
+/* Bottom-left: the agent; bottom-right: the raw event log. */
+.t-agent, .t-log, .t-findings { position: absolute; padding: 14px 16px; border-radius: 10px; background: var(--t-panel); border: 1px solid var(--t-edge); backdrop-filter: blur(6px); }
+.t-agent { left: 24px; bottom: 76px; width: min(520px, 36vw); max-height: 27vh; overflow: hidden; }
+.t-agent ol { display: grid; gap: 7px; }
+.t-agent li { font-size: 12.5px; color: var(--t-muted); animation: t-in 360ms ease-out both; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.t-agent li b { color: var(--t-dim); font-weight: 500; margin-right: 6px; }
+.t-agent li.tool { font-family: var(--mono); font-size: 12px; color: var(--t-cyan); }
+.t-agent li.tool::before { content: "▸ "; }
+.t-agent li.say { color: var(--t-ink); }
+.t-agent li.decide { color: #ffe0b0; }
+.t-agent li.decide b { color: var(--t-amber); }
+.t-agent li.think { color: var(--t-dim); font-style: italic; }
+.t-agent li.task { color: var(--t-muted); }
+.t-agent li.system { color: var(--t-muted); }
+@keyframes t-in { from { opacity: 0; transform: translateY(6px); } }
+
+.t-log { right: 24px; bottom: 76px; width: min(500px, 34vw); }
+.t-log.behind { display: none; }
+.t-zone small { display: flex; gap: 10px; justify-content: center; }
+.t-zone i { font-style: normal; }
+.c-amber { color: var(--t-amber); }
+.c-cyan { color: var(--t-cyan); }
+.c-green { color: var(--t-green); }
+.c-red { color: var(--t-red); }
+.t-score b { color: var(--t-ink); font-weight: 600; }
+.t-log ol { display: grid; gap: 2px; font-family: var(--mono); font-size: 11.5px; }
+.t-log li { display: grid; grid-template-columns: 44px 150px minmax(0, 1fr); gap: 8px; color: var(--t-dim); white-space: nowrap; }
+.t-log li span { overflow: hidden; text-overflow: ellipsis; }
+.t-log li b { font-weight: 400; color: var(--t-muted); }
+.t-log li:last-child, .t-log li:last-child b { color: var(--t-ink); }
+
+/* The finale: what the run found. */
+.t-findings { right: 24px; top: 128px; width: min(440px, 34vw); animation: t-slide 600ms cubic-bezier(0.2, 0.7, 0.2, 1) both; border-color: rgba(255, 179, 71, 0.35); }
+@keyframes t-slide { from { opacity: 0; transform: translateX(40px); } }
+.t-findings h2 { font-size: 16px; color: var(--t-amber); }
+.t-findings ol { display: grid; gap: 8px; }
+.t-findings li { display: grid; grid-template-columns: 54px minmax(0, 1fr); gap: 10px; align-items: baseline; animation: t-in 500ms ease-out both; }
+.t-findings li b { font-family: var(--mono); font-size: 20px; color: var(--t-ink); font-weight: 400; text-align: right; }
+.t-findings li b small { font-size: 11px; color: var(--t-dim); }
+.t-findings li span { display: grid; gap: 3px; color: var(--t-ink); }
+.t-findings em { justify-self: start; font-style: normal; font-size: 11px; padding: 1px 8px; border-radius: 99px; background: rgba(154, 166, 178, 0.18); color: var(--t-muted); }
+.t-findings em.k-design_gap { background: rgba(255, 179, 71, 0.18); color: var(--t-amber); }
+.t-findings em.k-wording_fix { background: rgba(79, 209, 165, 0.18); color: var(--t-green); }
+.t-score { margin: 12px 0 0; font-size: 12.5px; color: var(--t-muted); }
+.t-open { display: inline-block; margin-top: 12px; padding: 8px 14px; border-radius: 6px; background: var(--t-cyan); color: #05070b; font-weight: 600; text-decoration: none; }
+
+/* Controls. */
+.t-controls { position: absolute; left: 50%; bottom: 20px; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 99px; background: var(--t-panel); border: 1px solid var(--t-edge); }
+.t-controls button { display: inline-flex; align-items: center; gap: 4px; height: 32px; padding: 0 10px; border: 0; border-radius: 99px; background: transparent; color: var(--t-ink); font-size: 13px; }
+.t-controls button:hover { background: rgba(143, 227, 255, 0.12); }
+.t-controls svg { width: 16px; height: 16px; }
+.t-controls input { width: min(360px, 30vw); accent-color: var(--t-cyan); }
+.t-controls a { color: var(--t-cyan); font-size: 13px; padding: 0 8px; }
+
+@media (max-width: 1100px) {
+  .t-rail { display: none; }
+  .t-log { display: none; }
+  .t-findings { width: min(440px, 60vw); }
+}
+@media (max-width: 700px) {
+  .t-top { padding: 12px 14px; gap: 12px; }
+  .t-title b { max-width: 60vw; }
+  .t-counters { top: 58px; right: 14px; left: 14px; gap: 12px; justify-content: space-between; }
+  .t-counters div:nth-child(n + 4) { display: none; }
+  .t-zone { display: none; }
+  .t-agent { left: 12px; right: 12px; width: auto; bottom: 74px; max-height: 26vh; }
+  .t-findings { left: 12px; right: 12px; width: auto; top: 112px; }
+  .t-controls input { width: 34vw; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .theatre * { animation: none !important; transition: none !important; }
+}

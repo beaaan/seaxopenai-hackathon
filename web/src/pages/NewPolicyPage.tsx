@@ -17,7 +17,7 @@ export function NewPolicyPage(): ReactNode {
     try {
       const { id } = await api.createPolicy(title.trim(), text.trim());
       const { runId } = await api.startRun(id, "explore", 24);
-      window.location.hash = `#/run/${encodeURIComponent(runId)}`;
+      window.location.hash = `#/live/${encodeURIComponent(runId)}`;
     } catch (err) {
       setError(errorText(err));
       setBusy(false);
@@ -25,9 +25,9 @@ export function NewPolicyPage(): ReactNode {
   };
   return (
     <>
-      <TitleRow title="Test a new policy" sub="Paste the exact Vietnamese text people will see. About 24 simulated readers read it, and the misreadings form on the text as they finish." />
+      <TitleRow title="Test a policy" sub="Paste the exact text people will see." />
       <div className="grid">
-        <div className="c8">
+        <div className="c12">
           <Panel title="Policy">
             <div className="stack" style={{ gap: 16 }}>
               <label className="field">
@@ -44,16 +44,6 @@ export function NewPolicyPage(): ReactNode {
               <button className="btn primary" disabled={busy || !ready} onClick={() => void start()}>{busy ? <Loader2 className="spin" /> : <Play />} Start reading</button>
               {error && <span className="small bad">{error}</span>}
             </div>
-          </Panel>
-        </div>
-        <div className="c4">
-          <Panel title="What this run does">
-            <ol className="rows">
-              <li className="row" style={{ alignItems: "flex-start" }}><span className="id">1</span><span>Picks reader traits for this text and samples readers so every pair of traits meets.</span></li>
-              <li className="row" style={{ alignItems: "flex-start" }}><span className="id">2</span><span>Each reader reads the text in their situation and says what they understood and would do.</span></li>
-              <li className="row" style={{ alignItems: "flex-start" }}><span className="id">3</span><span>Beliefs shared by two or more readers are traced to the sentence that caused them.</span></li>
-              <li className="row" style={{ alignItems: "flex-start" }}><span className="id">4</span><span>The reviewer agent decides who reads next. The full loop with rewrites runs from the CLI.</span></li>
-            </ol>
           </Panel>
         </div>
       </div>

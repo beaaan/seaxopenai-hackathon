@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Bot, FileText, FlaskConical, GitCompareArrows, ListChecks, Play, Smartphone, Square, Target, Users } from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react";
+import { Bot, FileText, FlaskConical, GitCompareArrows, ListChecks, Play, Smartphone, Target, Users } from "lucide-react";
 import { api, type PolicyDetail } from "../api";
-import { useReplay, useRun, useRuns } from "../hooks";
-import { foldRun, type RunModel } from "../model";
+import { useRun, useRuns } from "../hooks";
+import type { RunModel } from "../model";
 import { Shell, type NavItem } from "../shell";
 import { Loading, Empty, cx } from "../ui";
 import { Overview } from "../run/Overview";
@@ -41,11 +41,7 @@ function screensFor(model: RunModel | null): ScreenId[] {
 
 export function RunPage(props: { runId: string; screen: string }): ReactNode {
   const loaded = useRun(props.runId);
-  const replay = useReplay(loaded.events.length);
-  const model = useMemo(
-    () => (replay.shown === null ? loaded.model : foldRun(props.runId, loaded.events.slice(0, replay.shown))),
-    [replay.shown, loaded, props.runId],
-  );
+  const model = loaded.model;
   const [policy, setPolicy] = useState<PolicyDetail | null>(null);
   const policyId = model?.config?.policyId ?? null;
   useEffect(() => {
@@ -68,16 +64,13 @@ export function RunPage(props: { runId: string; screen: string }): ReactNode {
     current: s.id === screen,
   }));
 
-  const finished = loaded.model?.status === "completed";
   const status = model?.status ?? "running";
   const topRight = (
     <>
       <span className={cx("live", status === "running" && "running", status === "failed" && "failed")}>
-        {replay.shown !== null ? `Replaying ${replay.shown}/${loaded.events.length}` : status === "running" ? `Running · ${model?.events ?? 0} events` : status === "failed" ? "Failed" : `Completed · ${model?.events ?? 0} events`}
+        {status === "running" ? `Running · ${model?.events ?? 0} events` : status === "failed" ? "Failed" : `Completed · ${model?.events ?? 0} events`}
       </span>
-      {finished && (replay.shown !== null
-        ? <button className="btn" onClick={replay.stop}><Square /> Stop</button>
-        : <button className="btn hide-phone" onClick={replay.start} title="Replay the run's log from the first event"><Play /> Replay</button>)}
+      <a className="btn hide-phone" href={`#/live/${encodeURIComponent(props.runId)}`}><Play /> {status === "running" ? "Watch live" : "Watch the run"}</a>
     </>
   );
 

@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { Suspense, lazy, type ReactNode } from "react";
 import { useHash } from "./hooks";
 import { Shell } from "./shell";
 import { RunsPage } from "./pages/RunsPage";
@@ -6,6 +6,10 @@ import { RunPage } from "./pages/RunPage";
 import { NewPolicyPage } from "./pages/NewPolicyPage";
 import { HumanCheckPage } from "./pages/HumanCheckPage";
 import { LandingPage } from "./landing/LandingPage";
+
+// three.js and the post-processing passes load only when the theatre opens.
+const TheatrePage = lazy(() => import("./theatre/TheatrePage").then((m) => ({ default: m.TheatrePage })));
+
 function decode(value: string): string | null {
   try {
     return decodeURIComponent(value);
@@ -19,6 +23,10 @@ export function App(): ReactNode {
   if (hash.startsWith("#/check/")) {
     const runId = decode(hash.slice("#/check/".length));
     return runId === null ? <NotFound /> : <HumanCheckPage key={runId} runId={runId} />;
+  }
+  if (hash.startsWith("#/live/")) {
+    const runId = decode(hash.slice("#/live/".length));
+    return runId === null ? <NotFound /> : <Suspense fallback={<div className="theatre-loading">Loading the run</div>}><TheatrePage key={runId} runId={runId} /></Suspense>;
   }
   if (hash.startsWith("#/run/")) {
     const [idPart = "", screen = "overview"] = hash.slice("#/run/".length).split("/");

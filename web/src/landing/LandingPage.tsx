@@ -14,6 +14,7 @@ const WindTunnel = lazy(() => import("./WindTunnel").then((m) => ({ default: m.W
 const FEATURED = "cod-main";
 const EDIT_TESTS = ["cod-main-rt1", "cod-main-rt2"] as const;
 const REPORT = `#/run/${FEATURED}`;
+const LIVE = `#/live/${FEATURED}`;
 
 function scrollTo(id: string): void {
   const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -69,10 +70,10 @@ export function LandingPage(): ReactNode {
         <a href="#/" className="l-word"><TunnelMark />Policy Wind Tunnel</a>
         <nav aria-label="On this page">
           <button type="button" onClick={() => scrollTo("how")}>How it works</button>
-          <button type="button" onClick={() => scrollTo("found")}>What it found</button>
-          <button type="button" onClick={() => scrollTo("limits")}>Limits</button>
+          <button type="button" onClick={() => scrollTo("found")}>Findings</button>
+          <button type="button" onClick={() => scrollTo("limits")}>Numbers</button>
         </nav>
-        <a className="l-action" href={REPORT}>Open the report</a>
+        <a className="l-action" href={LIVE}>Watch it run</a>
       </header>
 
       <Hero model={model} data={data} />
@@ -82,17 +83,17 @@ export function LandingPage(): ReactNode {
       <Measured model={model} rows={rows} folk={folk} />
 
       <section className="l-cta" aria-labelledby="cta-title">
-        <h2 id="cta-title" className="sr-only">Open the report</h2>
-        <p data-rise>Every misreading, the sentence behind it and the readers' own words are in the report.</p>
+        <h2 id="cta-title" className="sr-only">Watch the run</h2>
+        <p data-rise>Watch the whole run, from the first reader to the last finding.</p>
         <div className="l-cta-actions" data-rise>
-          <a className="l-button" href={REPORT}>Open the Shopee report</a>
-          <a className="l-link" href="#/policies">All policies tested</a>
+          <a className="l-button" href={LIVE}>Watch the run</a>
+          <a className="l-link" href={REPORT}>Open the report</a>
           <a className="l-link" href="#/new">Test your own policy</a>
         </div>
       </section>
       <footer className="l-foot">
-        <span>Policy Wind Tunnel · Sea × OpenAI Codex Hackathon, Hồ Chí Minh City, 31 October 2026</span>
-        <span>Policy text: help.shopee.vn, quoted exactly. Readers are simulated by a language model.</span>
+        <span>Policy Wind Tunnel · Sea × OpenAI Codex Hackathon Vietnam, 31 October 2026</span>
+        <span>Policy text quoted from help.shopee.vn. Readers are simulated.</span>
       </footer>
     </div>
   );
@@ -121,14 +122,10 @@ function Hero(props: { model: RunModel | null; data: TunnelData | null }): React
     <section className="l-hero" aria-labelledby="hero-title">
       <div className="l-hero-text">
         <h1 id="hero-title">See how readers misread a policy before it ships</h1>
-        <p className="l-lede">
-          {data ? data.total : 50} simulated Vietnamese readers read the exact text of Shopee's help article on cash-on-delivery.
-          Each line is one reader. It bends at the sentence that misled them and ends at what they came away believing.
-        </p>
+        <p className="l-lede">{data ? data.total : 50} simulated Vietnamese readers read Shopee's cash-on-delivery help article. Each line is one reader.</p>
         <ul className="l-legend" aria-label="Line colours">
-          <li><i className="dot rumour" />Had been told a rumour before reading</li>
-          <li><i className="dot nothing" />Had heard nothing about the rule</li>
-          <li className="l-legend-note">A reader with several wrong ideas is drawn to the most common one.</li>
+          <li><i className="dot rumour" />Told a rumour first</li>
+          <li><i className="dot nothing" />Heard nothing</li>
         </ul>
       </div>
       <figure className="l-hero-fig">
@@ -139,13 +136,12 @@ function Hero(props: { model: RunModel | null; data: TunnelData | null }): React
         ) : <div className="tunnel tunnel-loading">Loading the readers</div>}
         <figcaption aria-live="polite">
           {pool && data && (
-            pool.role === "none" ? <>{pool.readers} of {data.total} readers came away with no wrong idea that another reader shared.</>
-              : pool.role === "other" ? <>{pool.readers} readers hold one of the less common wrong ideas. The report lists every one.</>
+            pool.role === "none" ? <><b>{pool.readers} of {data.total}</b> share no wrong idea with another reader.</>
+              : pool.role === "other" ? <><b>{pool.readers}</b> readers hold rarer wrong ideas.</>
                 : <>
-                  <b>{pool.holders} of {data.total}</b> came away believing “{pool.label}”.{" "}
-                  {pool.holders > pool.readers && <>{pool.holders - pool.readers} of them also hold a more common wrong idea and are drawn there. </>}
-                  {sentence ? <>The lines bend at “{clip(sentence.text, 120)}”</> : <>The text never says this; readers filled the gap themselves.</>}{" "}
-                  {told && rumour && told[1] * 2 > pool.readers && <>{pool.holders === pool.readers ? `${told[1]} of them` : `Of the ${pool.readers} lines ending here, ${told[1]}`} had been told “{rumour.claimEn.replace(/\.$/, "")}”. {(pool.heard.get(null) ?? 0) === 0 ? "None" : pool.heard.get(null)} of the {heardNothingTotal} who had heard nothing ended here.</>}
+                  <b>{pool.holders} of {data.total}</b> believe “{pool.label}”.{" "}
+                  {!sentence && <>The text never says this. </>}
+                  {told && rumour && told[1] * 2 > pool.readers && <>{told[1]} were told “{shortClaim(rumour)}” first. {(pool.heard.get(null) ?? 0) === 0 ? "None" : pool.heard.get(null)} of the {heardNothingTotal} who heard nothing.</>}
                 </>
           )}
         </figcaption>
@@ -176,7 +172,7 @@ function How(props: { model: RunModel | null; rows: Misreading[]; folk: readonly
       <div className="l-how-fields">
         <div className="l-how-clause">
           <h2 id="how-title" data-rise key={step}>{current.clause}</h2>
-          <p data-rise>{HOW_TEXT[step]}</p>
+          <a className="l-how-link" href={LIVE}>Watch every stage in the real run</a>
         </div>
         <div className="l-how-ui">
           {props.model ? <Fragment step={step} model={props.model} rows={props.rows} folk={props.folk} /> : <p className="l-muted">Loading</p>}
@@ -204,13 +200,6 @@ function How(props: { model: RunModel | null; rows: Misreading[]; folk: readonly
     </section>
   );
 }
-
-const HOW_TEXT = [
-  "Each reader gets an age, a province, a job, a payment habit and a history with failed deliveries. Some are told a rumour first, as people are in real life.",
-  "They paraphrase the article in Vietnamese, say what each sentence means for them and what they would do next. Nothing is summarised for them.",
-  "Wrong ideas two or more readers share are grouped, traced to the sentence behind them, and sorted: fixable by rewording, needs a rule decision, or the text lacks the information.",
-  "A rewrite is read by the same readers. It fails if it changes a rule or makes any misreading more common than normal variation allows.",
-];
 
 function Fragment(props: { step: number; model: RunModel; rows: Misreading[]; folk: readonly FolkVersion[] }): ReactNode {
   const { step, model, rows, folk } = props;
@@ -289,7 +278,7 @@ function EditFragment(): ReactNode {
             <span className={`frag-verdict ${c.verdict}`}>{c.verdict === "pass" ? "Pass" : c.verdict === "fail" ? "Fail" : "Can't tell"}</span>
             <span>
               <b lang="vi">+ {clip(added.map((s) => changedPart(s.text, before?.sentences.map((x) => x.text) ?? [])).sort((a, b) => b.length - a.length)[0] ?? "edit", 90)}</b>
-              <span className="frag-muted">{promise ? `Promises something the original never did: ${clip(promise, 100)}` : c.reasons.find((r) => r.includes("beyond")) ? "A misreading became more common than normal variation allows; the rumour it targeted did not fall." : clip(c.reasons[0] ?? "", 110)}</span>
+              <span className="frag-muted">{promise ? `Adds a promise the original never made: ${clip(promise, 100)}` : c.reasons.find((r) => r.includes("beyond")) ? "Another misreading rose. The rumour stayed." : clip(c.reasons[0] ?? "", 110)}</span>
             </span>
           </li>
         );
@@ -326,7 +315,6 @@ function Board(props: { model: RunModel | null; rows: Misreading[] }): ReactNode
     <section className="l-board" id="found" aria-labelledby="found-title">
       <div className="l-section-head">
         <h2 id="found-title" data-rise>What {total || 50} readers got wrong</h2>
-        <p data-rise>Each row is a wrong idea at least two readers came away with, most common first. Select one to see what it means for the people who own the text.</p>
       </div>
       <ol className="board" data-ui>
         {rows.map((r, i) => {
@@ -344,7 +332,7 @@ function Board(props: { model: RunModel | null; rows: Misreading[] }): ReactNode
               </button>
               {i === open && (
                 <div className="b-detail">
-                  <p>{r.kind ? CLASS_MEANING[r.kind] : "A belief two or more readers share."} {pct(r.readers.length / Math.max(1, total))} of readers.</p>
+                  <p>{r.kind ? CLASS_MEANING[r.kind] : "A belief two or more readers share."}</p>
                   <p>
                     {sentence ? <>Traced to: <span lang="vi">“{clip(sentence.text, 160)}”</span></> : <>The text never addresses it.</>}
                     {quote && <> A reader: “{clip(quote.glossEn, 140)}”</>}
@@ -382,7 +370,7 @@ function Rumours(props: { folk: readonly FolkVersion[]; model: RunModel | null }
             <span key={f.id} className={i === lit ? "lit" : undefined}>“{shortClaim(f)}”{i < folk.length - 1 ? ", " : "."}</span>
           ))}
         </p>
-        <p className="l-note" data-rise>These versions circulate in Vietnamese forums and news coverage. Shopee's article states none of them.</p>
+        <p className="l-note" data-rise>Shopee's article states none of these.</p>
       </div>
       {model && (
         <dl className="l-told" data-rise aria-label="What readers were told before reading">
@@ -434,35 +422,35 @@ function Measured(props: { model: RunModel | null; rows: Misreading[]; folk: rea
   return (
     <section className="l-limits" id="limits" aria-labelledby="limits-title">
       <div className="l-section-head">
-        <h2 id="limits-title" data-rise>What it measured, and what it cannot</h2>
-        <p data-rise>Three questions a single read-through cannot answer, measured on the readers above. Simulated readers are not people; the report asks real readers the same questions, and until enough answer, every number here describes the simulation.</p>
+        <h2 id="limits-title" data-rise>The numbers</h2>
+        <p data-rise>All readers here are simulated. The report includes a check with real people.</p>
       </div>
       <div className="l-charts">
         <figure className="chart" data-ui data-rise>
-          <figcaption>Did the article correct the rumour?</figcaption>
+          <figcaption>Still believe a three-failure rule after reading</figcaption>
           {top && rumour && model ? (
             <>
               <Bar label={`Told “${shortClaim(rumour)}”`} value={holders.get(rumourId) ?? 0} of={everyone.get(rumourId) ?? 0} tone="rumour" />
               <Bar label="Heard nothing" value={holders.get(null) ?? 0} of={everyone.get(null) ?? 0} tone="nothing" />
-              <p>Share who came away believing “{top.title}”. The text never contradicts the rumour, so it survives reading.</p>
+              <p>The article never contradicts the rumour.</p>
             </>
           ) : <p>Loading</p>}
         </figure>
         <figure className="chart" data-ui data-rise>
-          <figcaption>Did the wording fix work?</figcaption>
+          <figcaption>Wording fixes, read by the same readers</figcaption>
           {scopeBefore && scopeAfter && scopeBefore.noiseBand !== null ? (
             <Shift label="Shopee: three-failure cutoff, after a scope sentence" before={scopeBefore.rate} after={scopeAfter.rate} band={effectiveBand(scopeBefore.noiseBand)} />
           ) : <p>Loading</p>}
           <Shift label="Grab: driver-support funding, after the rewrite" before={GRAB_FIX.before} after={GRAB_FIX.after} band={GRAB_FIX.band} />
-          <p>Same readers before and after. The shaded band is normal variation, measured by having readers read twice. Shopee's rumour did not move: the rule itself needs stating.</p>
+          <p>Shaded: normal variation between two reads.</p>
         </figure>
         <figure className="chart" data-ui data-rise>
-          <figcaption>Compared with one careful AI review</figcaption>
+          <figcaption>Known edge cases found, scored blind</figcaption>
           {tunnel && review && cases > 0 ? (
             <>
-              <Bar label="One careful AI review (mean of three)" value={Math.round(review.recall * cases)} of={cases} tone="plain" />
+              <Bar label="Single AI review (mean of three)" value={Math.round(review.recall * cases)} of={cases} tone="plain" />
               <Bar label="Wind tunnel" value={Math.round(tunnel.recall * cases)} of={cases} tone="accent" />
-              <p>Known edge cases found, from research written before any run. A single review lists more of what might confuse. The wind tunnel found {onlyUs} problems not on the list, and says how many readers each one catches.</p>
+              <p>The wind tunnel also found {onlyUs} problems missing from the list.</p>
             </>
           ) : <p>Loading</p>}
         </figure>

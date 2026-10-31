@@ -29,16 +29,9 @@ export function RunsPage(): ReactNode {
   return (
     <>
       <TitleRow
-        title="Policy Wind Tunnel"
-        sub="Test how people will read a policy before you publish it."
+        title="Policies tested"
         actions={<a className="btn primary" href="#/new"><FilePlus2 /> Test a policy</a>}
       />
-      <ol className="steps">
-        <li>Give it the <b>exact text</b> of a policy, help article or notice.</li>
-        <li><b>Dozens of simulated Vietnamese readers</b>, each in their own situation and some already holding a rumour, read it and say what it means and what they would do.</li>
-        <li>It lists the <b>wrong ideas they share</b>, with the sentence behind each.</li>
-        <li>It rewrites what wording can fix and has the <b>same readers read again</b> to prove the fix works; any later edit can be re-tested the same way.</li>
-      </ol>
       {runs === null ? <Loading>Loading</Loading> : latest.size === 0 ? <Empty>No policy has been tested yet.</Empty> : (
         <div className="grid">
           {[...latest.values()].map((run) => <div key={run.runId} className="c6"><PolicyCard run={run} /></div>)}

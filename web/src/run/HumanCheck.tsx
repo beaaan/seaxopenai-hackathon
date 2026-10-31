@@ -18,8 +18,8 @@ export function HumanCheck(props: { ctx: RunContext }): ReactNode {
   return (
     <>
       <TitleRow
-        title="Human check"
-        sub={model.answers.length === 0 ? "Do real people read it the same way? Send the link to people nearby; they read the original on their phone and answer three neutral questions." : <>{matched} of {model.mappings.length} coded answers match a simulated misreading.</>}
+        title="Ask real people"
+        sub={model.answers.length === 0 ? "Send the link to people nearby. They read the original on their phone and answer three questions." : <>{matched} of {model.mappings.length} coded answers match a simulated misreading.</>}
         actions={unmapped > 0 ? (
           <button
             className="btn primary"

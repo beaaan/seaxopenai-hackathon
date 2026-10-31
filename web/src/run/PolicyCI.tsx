@@ -26,7 +26,7 @@ export function PolicyCI(props: { ctx: RunContext }): ReactNode {
     <>
       <TitleRow
         title="Test an edit"
-        sub={<>Change the text and the same {model.scenarios.length} simulated readers read your version. The edit <b style={{ fontWeight: 500 }}>fails</b> if it changes what the policy promises or makes any misreading more common than normal variation allows; it <b style={{ fontWeight: 500 }}>passes</b> if a misreading becomes less common and nothing gets worse.</>}
+        sub="Edit the text. The same readers read your version."
       />
       <div className="grid">
         <div className="c7"><Editor model={model} onLaunched={(id) => setLaunched((prev) => [id, ...prev])} /></div>

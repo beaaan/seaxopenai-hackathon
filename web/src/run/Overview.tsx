@@ -33,7 +33,6 @@ export function Overview(props: { ctx: RunContext }): ReactNode {
   const selected = rows.find((r) => r.id === picked) ?? rows[0] ?? null;
   const told = (folkId: string): number => model.scenarios.filter((s) => s.exposure.folkVersionId === folkId).length;
   const heardNothing = model.scenarios.filter((s) => s.exposure.folkVersionId === null).length;
-  const rumourReaders = model.scenarios.length - heardNothing;
   const explore = model.config?.mode === "explore";
   const title = policy?.package.title ?? model.config?.policyId ?? model.runId;
   const tunnel = useMemo(() => (policy && model.status !== "running" && model.findings.length > 0 ? tunnelData(model, policy.folk.versions) : null), [model, policy]);
@@ -41,15 +40,15 @@ export function Overview(props: { ctx: RunContext }): ReactNode {
   // The headline: the most-held misreading and, as plain counts, what its holders had heard before reading. No claim
   // that the belief *is* the rumour: exposure is recorded per reader, a rumour↔misreading match is not.
   const top = rows[0];
-  let headline: ReactNode = model.status === "running" ? "Readers are still reading. What they got wrong appears here as they finish." : "No wrong idea was shared by two or more readers.";
+  let headline: ReactNode = model.status === "running" ? "Readers are still reading." : "No two readers share a wrong idea.";
   if (top) {
     const [rumourId, exposed] = [...top.heard.entries()].filter(([k]) => k !== null).sort((a, b) => b[1] - a[1])[0] ?? [null, 0];
     const rumour = rumourId === null ? undefined : folk.get(rumourId);
     const nothing = top.heard.get(null) ?? 0;
     headline = (
       <>
-        <b style={{ fontWeight: 600 }}>{top.readers.length} of {total} readers</b> came away believing: “{top.title}”.
-        {rumour && exposed * 2 > top.readers.length && <> {exposed} of them had been told “{rumour.claimEn.replace(/\.$/, "")}” before reading ({told(rumour.id)} readers were told it). {nothing === 0 ? "None" : nothing} of the {heardNothing} readers who had heard nothing came to believe it.</>}
+        <b style={{ fontWeight: 600 }}>{top.readers.length} of {total} readers</b> believe “{top.title}”.
+        {rumour && exposed * 2 > top.readers.length && <> {exposed} of the {told(rumour.id)} told “{shortClaim(rumour)}” first. {nothing === 0 ? "None" : nothing} of the {heardNothing} who heard nothing.</>}
       </>
     );
   }
@@ -67,18 +66,11 @@ export function Overview(props: { ctx: RunContext }): ReactNode {
         actions={!explore && model.versions.length > 0 ? <a className="btn primary" href={`#/run/${encodeURIComponent(model.runId)}/ci`}><FlaskConical /> Test an edit</a> : undefined}
       />
 
-      <ol className="steps">
-        <li><b>{total || model.scenarios.length || "…"} simulated Vietnamese readers</b>, each in a different situation. {rumourReaders} had already heard a rumour about the rule; {heardNothing} had heard nothing.</li>
-        <li>Each read the <b>exact text</b> and said what it means to them and what they would do.</li>
-        <li>Ideas shared by <b>two or more readers</b> are listed below, each with the sentence behind it.</li>
-        <li>Fixes are tested by having the <b>same readers read again</b> (see “Fixing the wording”).</li>
-      </ol>
-
       {tunnel && (
         <section className="tunnel-panel" aria-label="How readers moved through the text">
           <div className="tunnel-panel-head">
-            <b>How the {tunnel.total} readers moved through the text</b>
-            <span><i className="dot rumour" /> told a rumour first <i className="dot nothing" /> heard nothing · each line is one reader, drawn to the most common wrong idea they hold</span>
+            <b>{tunnel.total} readers through the text</b>
+            <span><i className="dot rumour" /> told a rumour first <i className="dot nothing" /> heard nothing</span>
           </div>
           <Suspense fallback={<div className="tunnel tunnel-loading">Loading</div>}>
             <WindTunnel data={tunnel} active={tunnel.pools.findIndex((p) => p.id === selected?.id)} onActive={(i) => {
@@ -93,8 +85,8 @@ export function Overview(props: { ctx: RunContext }): ReactNode {
 
       <div className="grid">
         <div className="c7">
-          <Panel flush title={named ? "What readers got wrong" : "What readers came away believing"} meta={rows.length ? "most common first" : undefined}>
-            {!named && rows.length > 0 && <p className="lede" style={{ padding: "0 var(--card-pad)", margin: "6px 0 0" }}>Not yet checked against the policy: {explore ? "a quick exploration groups what readers believe but does not judge it." : "misreadings are named once every reader has read the text."}</p>}
+          <Panel flush title={named ? "What readers got wrong" : "What readers came away believing"}>
+            {!named && rows.length > 0 && <p className="lede" style={{ padding: "0 var(--card-pad)", margin: "6px 0 0" }}>{explore ? "Grouped, not yet judged against the policy." : "Named once every reader has read the text."}</p>}
             {rows.length === 0 ? <div style={{ padding: 20 }}><Empty>Nothing yet: ideas appear once two readers share one.</Empty></div> : (
               <ul className="misreadings">
                 {rows.map((row) => (

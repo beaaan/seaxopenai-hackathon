@@ -23,8 +23,8 @@ export function Readers(props: { ctx: RunContext }): ReactNode {
   return (
     <>
       <TitleRow
-        title="Readers"
-        sub={<>{model.scenarios.length} simulated readers, chosen so every pair of traits appears together at least once{adaptive > 0 ? <>; {adaptive} added by the reviewer agent where readings split</> : null}.</>}
+        title="The simulated readers"
+        sub={<>{model.scenarios.length} readers. Every pair of traits appears at least once{adaptive > 0 ? <>; the agent added {adaptive} where readings split</> : null}.</>}
       />
       <div className="grid">
         <div className="c4">

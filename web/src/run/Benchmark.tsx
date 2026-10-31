@@ -22,16 +22,16 @@ export function Benchmark(props: { ctx: RunContext }): ReactNode {
   return (
     <>
       <TitleRow
-        title="Benchmark"
+        title="Compared with one AI review"
         sub={ours && single
-          ? <>The wind tunnel recalled {pct(ours.recall)} of the team's holdout edge cases; one careful model reading the same text recalled {pct(single.recall)} on average.</>
-          : "Recall on edge cases the team wrote by hand and never showed to the pipeline, against one careful model reading the same text."}
-        meta={<span>Scored blind: items are anonymised and shuffled before a separate model decides matches.</span>}
+          ? <>Known edge cases found: wind tunnel {pct(ours.recall)}, single AI review {pct(single.recall)} on average.</>
+          : "Scored against known edge cases from research written before any run."}
+        meta={<span>Scored blind</span>}
       />
       {!score ? (
         <>
           <Panel title="Holdout recall">
-            <Empty>Scoring needs the team's holdout edge cases, written by a person. Until then, the two systems' raw output is below.</Empty>
+            <Empty>No holdout edge cases for this policy. Raw output from both systems is below.</Empty>
           </Panel>
           {model.baselines.length > 0 && <SideBySide ctx={props.ctx} />}
         </>
@@ -99,7 +99,7 @@ function SideBySide(props: { ctx: RunContext }): ReactNode {
         </Panel>
       </div>
       <div className="c6">
-        <Panel title="One careful model" meta={`${first.model} · ${first.effort} · run 1 of ${replicates.length || 1}`}>
+        <Panel title="Single AI review" meta={`${first.model} · ${first.effort} · run 1 of ${replicates.length || 1}`}>
           <ul className="rows">
             {first.issues.map((issue) => (
               <li key={issue.id} className="row" style={{ alignItems: "flex-start", flexDirection: "column", gap: 2 }}>

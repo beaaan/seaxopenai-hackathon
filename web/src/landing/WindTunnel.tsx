@@ -258,7 +258,7 @@ export function WindTunnel(props: { data: TunnelData; active: number; onActive: 
                   onFocus={() => onActive(i)}
                   onClick={() => onActive(i)}
                 >
-                  <b>{pool.readers}</b>
+                  <b>{pool.role === "misreading" ? pool.holders : pool.readers}</b>
                   <span>{pool.label}</span>
                 </button>
               </li>

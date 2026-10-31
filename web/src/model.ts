@@ -252,9 +252,9 @@ export const CLASS_LABEL: Record<Finding["class"], string> = {
 
 /** What each kind means for the person who owns the text. */
 export const CLASS_MEANING: Record<Finding["class"], string> = {
-  wording_fix: "A rewrite that keeps every rule the same removed this misreading when the same readers read it again.",
-  design_gap: "Every fix would have to change what the policy says. The policy owner has to decide the rule.",
-  unresolvable: "Readers need a fact the text does not give (a number, a deadline, a next step). Rewording alone cannot supply it.",
+  wording_fix: "Rewording fixed it: the same readers stopped believing it, and no rule changed.",
+  design_gap: "Fixing it means changing or stating a rule. The policy owner has to decide.",
+  unresolvable: "Readers need a fact the text does not give, such as a number, a deadline or a next step.",
 };
 
 export const STAGES = [

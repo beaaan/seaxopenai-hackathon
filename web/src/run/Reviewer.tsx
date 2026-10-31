@@ -16,9 +16,9 @@ export function Reviewer(props: { ctx: RunContext }): ReactNode {
   return (
     <>
       <TitleRow
-        title="Reviewer agent"
-        sub={model.allocations.length === 0 ? "The reviewer decides who reads next once the first batch is in." : <>{model.allocations.length} {model.allocations.length === 1 ? "batch" : "batches"} allocated, {byReviewer} by the reviewer agent{byReviewer < model.allocations.length ? `, ${model.allocations.length - byReviewer} by the fallback rule` : ""}.</>}
-        meta={<span>A persistent Codex App Server thread reads which traits split the readings, inspects beliefs through its tools and allocates the next batch. Code enforces the budget, a 20% random share and the schema.</span>}
+        title="How readers were picked"
+        sub={model.allocations.length === 0 ? "The agent picks the next readers once the first batch is in." : <>{model.allocations.length} {model.allocations.length === 1 ? "batch" : "batches"}, {byReviewer} picked by the Codex agent{byReviewer < model.allocations.length ? `, ${model.allocations.length - byReviewer} by the fallback rule` : ""}.</>}
+        meta={<span>Code enforces the budget, a 20% random share and the output schema.</span>}
       />
       {model.allocations.length === 0 ? <Empty>No allocation decisions yet.</Empty> : (
         <div className="grid">

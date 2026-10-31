@@ -38,14 +38,14 @@ export function Rewrite(props: { ctx: RunContext }): ReactNode {
     <>
       <TitleRow
         title="Fixing the wording"
-        sub={final > 0 ? `A rewrite was kept: the same readers read it and fewer misread it, with no rule changed.` : model.findings.some((f) => f.class === "wording_fix") ? "No rewrite beat normal variation without changing a rule, so the original text stands." : "None of the misreadings can be fixed by rewording: each needs a rule decision or information the text does not give."}
+        sub={final > 0 ? "A rewrite was kept. Fewer of the same readers misread it, and no rule changed." : model.findings.some((f) => f.class === "wording_fix") ? "No rewrite beat normal variation without changing a rule." : "No misreading here can be fixed by rewording."}
         actions={<Approve ctx={props.ctx} />}
       />
       {its.length === 0 ? <Empty>Nothing measured yet.</Empty> : (
         <>
           <Kpis items={kpis} />
           <div className="grid">
-            <div className="c7">
+            <div className={reference ? "c7" : "c12"}>
               <Panel flush title="Share of readers holding each misreading" meta="same readers, each version">
                 <div className="table-wrap" style={{ marginTop: 4 }}>
                   <table>
@@ -71,26 +71,16 @@ export function Rewrite(props: { ctx: RunContext }): ReactNode {
                 </div>
               </Panel>
             </div>
-            <div className="c5">
-              {reference ? (
-                <Panel title="Readings that contradict the policy" meta="95% range · grey: normal variation of the original">
+            {reference && (
+              <div className="c5">
+                <Panel title="Readings that contradict the policy" meta="95% range · grey: normal variation">
                   <ConflictChart iterations={its} />
                 </Panel>
-              ) : (
-                <Panel title="How a change is judged">
-                  <ol className="rows">
-                    <li className="row" style={{ alignItems: "flex-start" }}><span className="id">1</span><span>The same readers read the original twice. How much their answers differ between the two reads is the normal variation for each misreading.</span></li>
-                    <li className="row" style={{ alignItems: "flex-start" }}><span className="id">2</span><span>A rewrite that drops a fact or promises something the original never did is rejected before anyone reads it.</span></li>
-                    <li className="row" style={{ alignItems: "flex-start" }}><span className="id">3</span><span>A misreading only counts as fixed when it falls by more than its normal variation. If too few readers read twice to measure that, it is not judged.</span></li>
-                  </ol>
-                </Panel>
-              )}
-            </div>
+              </div>
+            )}
           </div>
-          <div className="stack" style={{ marginTop: "var(--gap)" }}>
-            {versions.length === 0 ? (
-              <Panel title="No rewrite was kept"><p className="muted">{model.findings.some((f) => f.class === "wording_fix") ? "Every rewrite either changed a rule or did not reduce the misreading by more than normal variation." : "None of the misreadings can be fixed by rewording; they need a rule decision or information the text does not give."}</p></Panel>
-            ) : versions.map(({ version, rewrite, rejected }) => (
+          {versions.length > 0 && <div className="stack" style={{ marginTop: "var(--gap)" }}>
+            {versions.map(({ version, rewrite, rejected }) => (
               <Panel key={version} title={`${version === 1 ? "Original" : `Version ${version - 1}`} → version ${version}`} meta={<span className="pills" style={{ justifyContent: "flex-end" }}>
                 {rewrite && <Pill tone="pos">No rule changed</Pill>}
                 {rejected > 0 && <Pill tone="warn">{rejected} attempt{rejected > 1 ? "s" : ""} rejected</Pill>}
@@ -109,7 +99,7 @@ export function Rewrite(props: { ctx: RunContext }): ReactNode {
                 </div>
               </Panel>
             ))}
-          </div>
+          </div>}
         </>
       )}
     </>
