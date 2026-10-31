@@ -1,43 +1,51 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { AlertTriangle, CheckCircle2, Circle, Loader2, Megaphone, Play, Square } from "lucide-react";
+import { Bot, FileText, FlaskConical, GitCompareArrows, ListChecks, Play, Smartphone, Square, Target, Users } from "lucide-react";
 import { api, type PolicyDetail } from "../api";
-import { useReplay, useRun } from "../hooks";
-import { CLASS_LABEL, STAGES, codebook, finalVersion, foldRun, hasReference, originalReadings, sharedBeliefs, type RunModel } from "../model";
-import { Badge, Stat, cx, pct, pp } from "../ui";
-import { TextMap } from "../run/TextMap";
+import { useReplay, useRun, useRuns } from "../hooks";
+import { foldRun, type RunModel } from "../model";
+import { Shell, type NavItem } from "../shell";
+import { Loading, Empty, cx } from "../ui";
+import { Overview } from "../run/Overview";
 import { Findings } from "../run/Findings";
-import { Proof } from "../run/Proof";
+import { Rewrite } from "../run/Rewrite";
 import { PolicyCI, RetestResult } from "../run/PolicyCI";
 import { Readers } from "../run/Readers";
 import { Benchmark } from "../run/Benchmark";
-import { Agents } from "../run/Agents";
-import { HumanCheckSection } from "../run/HumanCheckSection";
+import { Reviewer } from "../run/Reviewer";
+import { HumanCheck } from "../run/HumanCheck";
 
 export interface RunContext {
   model: RunModel;
   policy: PolicyDetail | null;
 }
 
-const NAV = [
-  { id: "overview", label: "Overview" },
-  { id: "text", label: "Where it breaks" },
-  { id: "findings", label: "Findings" },
-  { id: "proof", label: "Rewrite & proof" },
-  { id: "ci", label: "Policy CI" },
-  { id: "benchmark", label: "Benchmark" },
-  { id: "readers", label: "Readers" },
-  { id: "agents", label: "Agents" },
-  { id: "human", label: "Human check" },
-] as const;
+type ScreenId = "overview" | "findings" | "rewrite" | "ci" | "benchmark" | "readers" | "reviewer" | "human";
 
-export function RunPage(props: { runId: string }): ReactNode {
+const SCREENS: Array<{ id: ScreenId; label: string; icon: ReactNode }> = [
+  { id: "overview", label: "Overview", icon: <FileText /> },
+  { id: "findings", label: "Findings", icon: <ListChecks /> },
+  { id: "rewrite", label: "Rewrite and re-read", icon: <GitCompareArrows /> },
+  { id: "ci", label: "Policy CI", icon: <FlaskConical /> },
+  { id: "benchmark", label: "Benchmark", icon: <Target /> },
+  { id: "readers", label: "Readers", icon: <Users /> },
+  { id: "reviewer", label: "Reviewer agent", icon: <Bot /> },
+  { id: "human", label: "Human check", icon: <Smartphone /> },
+];
+
+function screensFor(model: RunModel | null): ScreenId[] {
+  const mode = model?.config?.mode;
+  if (mode === "retest") return ["overview", "readers"];
+  if (mode === "explore") return ["overview", "readers", "reviewer"];
+  return SCREENS.map((s) => s.id);
+}
+
+export function RunPage(props: { runId: string; screen: string }): ReactNode {
   const loaded = useRun(props.runId);
   const replay = useReplay(loaded.events.length);
   const model = useMemo(
     () => (replay.shown === null ? loaded.model : foldRun(props.runId, loaded.events.slice(0, replay.shown))),
     [replay.shown, loaded, props.runId],
   );
-  const error = loaded.error;
   const [policy, setPolicy] = useState<PolicyDetail | null>(null);
   const policyId = model?.config?.policyId ?? null;
   useEffect(() => {
@@ -49,182 +57,84 @@ export function RunPage(props: { runId: string }): ReactNode {
     };
   }, [policyId]);
 
-  if (error) return <main className="mx-auto max-w-7xl px-6 py-16"><Badge tone="bad">Could not load run</Badge><p className="mt-3 text-stone-600">{error}</p></main>;
-  if (model === null) return <main className="mx-auto flex max-w-7xl items-center gap-2 px-6 py-16 text-stone-500"><Loader2 className="animate-spin" size={18} /> Loading {props.runId}…</main>;
+  const available = screensFor(model);
+  const screen: ScreenId = available.find((s) => s === props.screen) ?? "overview";
+  const isRetest = model?.config?.mode === "retest";
+  const base = `#/run/${encodeURIComponent(props.runId)}`;
+  const items: NavItem[] = SCREENS.filter((s) => available.includes(s.id)).map((s) => ({
+    href: s.id === "overview" ? base : `${base}/${s.id}`,
+    label: isRetest && s.id === "overview" ? "Test result" : s.label,
+    icon: s.icon,
+    current: s.id === screen,
+    count: s.id === "findings" && model && model.findings.length > 0 ? model.findings.length : undefined,
+  }));
 
-  const ctx: RunContext = { model, policy };
-  const isRetest = model.config?.mode === "retest";
-  const explore = model.config?.mode === "explore";
-  const nav = NAV.filter((item) => {
-    if (isRetest) return ["overview", "readers"].includes(item.id);
-    if (explore) return ["overview", "text", "readers", "agents"].includes(item.id);
-    return true;
-  });
+  const p = model?.provenance;
+  const footer = p && (p.decisions || p.backends) ? (
+    <>
+      {p.decisions && <div>Decisions API: {p.decisions}</div>}
+      {p.embeddings !== null && <div>Embeddings: {p.embeddings ? "on" : "off"}</div>}
+      {p.backends && <div>{p.backends}</div>}
+    </>
+  ) : undefined;
+
+  const finished = loaded.model?.status === "completed";
+  const status = model?.status ?? "running";
+  const topRight = (
+    <>
+      <span className={cx("live", status === "running" && "running", status === "failed" && "failed")}>
+        {replay.shown !== null ? `Replaying ${replay.shown}/${loaded.events.length}` : status === "running" ? `Running · ${model?.events ?? 0} events` : status === "failed" ? "Failed" : `Completed · ${model?.events ?? 0} events`}
+      </span>
+      {finished && (replay.shown !== null
+        ? <button className="btn" onClick={replay.stop}><Square /> Stop</button>
+        : <button className="btn hide-phone" onClick={replay.start} title="Replay the run's log from the first event"><Play /> Replay</button>)}
+    </>
+  );
+
+  const crumb = (
+    <>
+      <span className="hide-phone">{policy?.package.title ?? policyId ?? "Run"}</span>
+      <span className="hide-phone" aria-hidden>/</span>
+      <RunSwitcher runId={props.runId} policyId={policyId} />
+    </>
+  );
+
+  let body: ReactNode;
+  if (loaded.error) body = <Empty>Could not load {props.runId}: {loaded.error}</Empty>;
+  else if (model === null) body = <Loading>Loading {props.runId}</Loading>;
+  else {
+    const ctx: RunContext = { model, policy };
+    body = (
+      <>
+        {model.error && <div className="notice bad">{model.error}</div>}
+        {screen === "overview" && (isRetest ? <RetestResult ctx={ctx} /> : <Overview ctx={ctx} />)}
+        {screen === "findings" && <Findings ctx={ctx} />}
+        {screen === "rewrite" && <Rewrite ctx={ctx} />}
+        {screen === "ci" && <PolicyCI ctx={ctx} />}
+        {screen === "benchmark" && <Benchmark ctx={ctx} />}
+        {screen === "readers" && <Readers ctx={ctx} />}
+        {screen === "reviewer" && <Reviewer ctx={ctx} />}
+        {screen === "human" && <HumanCheck ctx={ctx} />}
+      </>
+    );
+  }
 
   return (
-    <main className="pb-32">
-      <RunHeader ctx={ctx} replay={loaded.model?.status === "completed" ? { active: replay.shown !== null, progress: replay.shown === null ? 0 : replay.shown / loaded.events.length, start: replay.start, stop: replay.stop } : null} />
-      <nav className="sticky top-14 z-20 border-b border-stone-200/80 bg-[#f7f6f3]/90 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl gap-1 overflow-x-auto px-6 py-2">
-          {nav.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => document.getElementById(item.id)?.scrollIntoView({ behavior: "smooth", block: "start" })}
-              className="rounded-lg px-3 py-1.5 text-sm whitespace-nowrap text-stone-600 hover:bg-stone-200/60 hover:text-stone-900"
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-      </nav>
-      <div className="mx-auto max-w-7xl space-y-20 px-6 pt-10">
-        {isRetest ? <RetestResult ctx={ctx} /> : <Overview ctx={ctx} />}
-        {!isRetest && <TextMap ctx={ctx} />}
-        {!isRetest && !explore && <Findings ctx={ctx} />}
-        {!isRetest && !explore && <Proof ctx={ctx} />}
-        {!isRetest && !explore && <PolicyCI ctx={ctx} />}
-        {!isRetest && !explore && <Benchmark ctx={ctx} />}
-        <Readers ctx={ctx} />
-        {!isRetest && <Agents ctx={ctx} />}
-        {!isRetest && !explore && <HumanCheckSection ctx={ctx} />}
-      </div>
-    </main>
+    <Shell runNav={{ label: isRetest ? "Edit test" : "This run", items }} home={false} newPolicy={false} crumb={crumb} topRight={topRight} footer={footer}>
+      {body}
+    </Shell>
   );
 }
 
-function RunHeader(props: { ctx: RunContext; replay: { active: boolean; progress: number; start: () => void; stop: () => void } | null }): ReactNode {
-  const { model, policy } = props.ctx;
-  const replay = props.replay;
-  const p = model.provenance;
-  const warnings = model.logs.filter((l) => l.level !== "info");
+/** The scope switcher: every run of this policy, re-tests included. */
+function RunSwitcher(props: { runId: string; policyId: string | null }): ReactNode {
+  const runs = useRuns(5000);
+  const options = (runs ?? []).filter((r) => r.runId === props.runId || (props.policyId !== null && r.policyId === props.policyId));
+  if (options.length <= 1) return <b className="id" style={{ color: "var(--text)" }}>{props.runId}</b>;
+  const sorted = [...options].sort((a, b) => (b.startedAt ?? "").localeCompare(a.startedAt ?? ""));
   return (
-    <div className="border-b border-stone-200 bg-white">
-      <div className="mx-auto max-w-7xl px-6 py-8">
-        <div className="flex flex-wrap items-center gap-2 text-sm text-stone-500">
-          <span className="font-mono">{model.runId}</span>
-          <span>·</span>
-          <span>{model.config?.mode ?? "?"} run</span>
-          {model.startedAt && <><span>·</span><span>{new Date(model.startedAt).toLocaleString()}</span></>}
-        </div>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight text-stone-900 md:text-4xl">{policy?.package.title ?? model.config?.policyId ?? "Run"}</h1>
-        <div className="mt-4 flex flex-wrap items-center gap-2">
-          {model.status === "running" && <Badge tone="info"><Loader2 size={12} className="animate-spin" /> {replay?.active ? "replaying" : "running"} · {model.events} events</Badge>}
-          {model.status === "completed" && <Badge tone="good"><CheckCircle2 size={12} /> completed</Badge>}
-          {model.status === "failed" && <Badge tone="bad"><AlertTriangle size={12} /> failed</Badge>}
-          {p.decisions && <Badge tone={p.decisions === "real" ? "accent" : "warn"} title="Grades and codings come from the Decisions API (gpt-6-luna)">Decisions API: {p.decisions}</Badge>}
-          {p.embeddings !== null && <Badge tone={p.embeddings ? "accent" : "warn"}>embeddings {p.embeddings ? "on" : "off"}</Badge>}
-          {p.backends && <Badge title="Bulk calls / agent threads">{p.backends}</Badge>}
-          {model.config && <Badge tone={hasReference(model) ? "good" : "warn"}>{hasReference(model) ? "reference facts loaded" : "no reference: conflicts not graded"}</Badge>}
-          {model.runId.startsWith("fixture") && <Badge tone="warn">synthetic fixture</Badge>}
-          {replay && (replay.active ? (
-            <button onClick={replay.stop} className="ml-auto flex items-center gap-2 rounded-full bg-stone-900 px-3 py-1 text-xs font-semibold text-white">
-              <Square size={12} /> Stop replay
-              <span className="h-1 w-24 overflow-hidden rounded-full bg-stone-600"><span className="block h-1 bg-white" style={{ width: `${replay.progress * 100}%` }} /></span>
-            </button>
-          ) : (
-            <button onClick={replay.start} className="ml-auto flex items-center gap-1 rounded-full bg-stone-100 px-3 py-1 text-xs font-semibold text-stone-800 hover:bg-stone-200"><Play size={12} /> Replay run</button>
-          ))}
-        </div>
-        {model.error && <div className="mt-4 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-800">{model.error}</div>}
-        {warnings.length > 0 && (
-          <details className="mt-4 text-sm text-amber-800">
-            <summary className="cursor-pointer">{warnings.length} warning{warnings.length > 1 ? "s" : ""}</summary>
-            <ul className="mt-2 list-disc pl-5">{warnings.map((w, i) => <li key={i}>{w.message}</li>)}</ul>
-          </details>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function Overview(props: { ctx: RunContext }): ReactNode {
-  const { model, policy } = props.ctx;
-  const readers = originalReadings(model).length;
-  const beliefs = codebook(model);
-  const shared = sharedBeliefs(beliefs);
-  const notInText = shared.filter((c) => c.sentenceId === null);
-  const byClass = useMemo(() => {
-    const counts: Record<string, number> = { wording_fix: 0, design_gap: 0, unresolvable: 0 };
-    for (const f of model.findings) counts[f.class] = (counts[f.class] ?? 0) + 1;
-    return counts;
-  }, [model.findings]);
-  const first = model.iterations[0] ?? null;
-  const last = model.iterations.findLast((it) => it.policyVersion === finalVersion(model)) ?? model.iterations.at(-1) ?? null;
-  const reference = hasReference(model);
-  const windTunnel = model.score?.systems.find((s) => s.id === "wind-tunnel") ?? null;
-  const baselineMean = model.score?.systems.find((s) => s.id === "baseline-mean") ?? null;
-  const title = policy?.package.title ?? model.config?.policyId ?? "the policy";
-
-  return (
-    <section id="overview" className="scroll-mt-28">
-      <p className="max-w-4xl text-2xl leading-snug text-stone-800">
-        <b className="font-semibold text-stone-900">{readers} simulated readers</b> read “{title}”.
-        {beliefs.length > 0 && <> They formed <b className="font-semibold text-stone-900">{beliefs.length} distinct beliefs</b>, {shared.length} shared by two or more readers{notInText.length > 0 && <>, and <b className="font-semibold text-rose-700">{notInText.length} about rules the text never states</b></>}.</>}
-        {model.findings.length > 0 && <> The judge raised <b className="font-semibold text-stone-900">{model.findings.length} findings</b>: {byClass.wording_fix} fixable by wording, {byClass.design_gap} needing a rule change, {byClass.unresolvable} needing information the text does not have.</>}
-      </p>
-
-      <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat label="Readers" value={readers} hint={`${model.scenarios.length} scenarios · ${model.dimensions.length} dimensions`} />
-        <Stat label="Shared beliefs" value={shared.length} hint={model.codebookIds === null ? `of ${beliefs.length} so far · codebook not frozen yet` : `of ${beliefs.length} in the frozen codebook`} />
-        <Stat
-          label="Findings"
-          value={model.findings.length}
-          hint={model.findings.length ? `${byClass.wording_fix} ${CLASS_LABEL.wording_fix.toLowerCase()} · ${byClass.design_gap} rule gap · ${byClass.unresolvable} missing info` : "after the codebook is frozen"}
-        />
-        {windTunnel ? (
-          <Stat label="Holdout recall" value={pct(windTunnel.recall)} tone="good" hint={baselineMean ? `single-pass baseline ${pct(baselineMean.recall)}` : undefined} />
-        ) : reference && first && last ? (
-          <Stat
-            label="Conflict rate"
-            value={<>{pct(first.conflictRate)} → {pct(last.conflictRate)}</>}
-            tone={last.conflictRate < first.conflictRate - (first.noiseBand ?? 0) ? "good" : undefined}
-            hint={first.noiseBand !== null ? `noise ±${pp(first.noiseBand).replace("+", "")} on ${first.noiseBandScenarios} re-read pairs` : "noise not measured"}
-          />
-        ) : (
-          <Stat label="Re-read pairs" value={first?.noiseBandScenarios ?? "—"} hint="v0 read twice to measure noise" />
-        )}
-      </div>
-
-      <ol className="mt-8 flex flex-wrap items-center gap-x-2 gap-y-3 text-sm">
-        {STAGES.map((stage, i) => {
-          const done = stage.done(model);
-          const active = !done && (i === 0 || STAGES[i - 1]!.done(model)) && model.status === "running";
-          return (
-            <li key={stage.id} className="flex items-center gap-2">
-              <span className={cx("flex items-center gap-1.5 rounded-full px-3 py-1", done ? "bg-stone-900 text-white" : active ? "bg-indigo-100 text-indigo-800" : "bg-stone-100 text-stone-400")}>
-                {done ? <CheckCircle2 size={14} /> : active ? <Loader2 size={14} className="animate-spin" /> : <Circle size={14} />}
-                {stage.label}
-              </span>
-              {i < STAGES.length - 1 && <span className="h-px w-4 bg-stone-300" />}
-            </li>
-          );
-        })}
-      </ol>
-      {model.stop && <p className="mt-6 max-w-4xl text-stone-600"><span className="font-medium text-stone-900">Loop stopped:</span> {model.stop.reason}</p>}
-      {policy && policy.folk.versions.length > 0 && (
-        <div className="mt-10">
-          <div className="flex items-center gap-2 text-sm font-semibold text-stone-900"><Megaphone size={16} /> What people hear instead</div>
-          <p className="mt-1 max-w-3xl text-sm text-stone-500">Versions of the rule circulating online. None is in the official text; some readers were given one as a prior belief or as what a friend told them.</p>
-          <div className="mt-3 grid gap-3 md:grid-cols-2">
-            {policy.folk.versions.map((f) => {
-              const exposed = model.scenarios.filter((s) => s.exposure.folkVersionId === f.id).length;
-              let host = f.source;
-              try {
-                host = new URL(f.source).hostname.replace(/^www\./, "");
-              } catch {
-                // not a URL; show the source as written
-              }
-              return (
-                <div key={f.id} className="rounded-2xl border border-amber-200 bg-amber-50/60 px-4 py-3">
-                  <div className="text-sm text-stone-900">“{f.textVi}”</div>
-                  <div className="mt-1 text-xs text-stone-500">{f.claimEn}</div>
-                  <div className="mt-2 flex flex-wrap gap-2 text-xs text-stone-500"><span>{host}{f.date ? ` · ${f.date}` : ""}</span>{exposed > 0 && <Badge tone="warn">{exposed} readers had heard it</Badge>}</div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-    </section>
+    <select className="scope" aria-label="Run" value={props.runId} onChange={(e) => { window.location.hash = `#/run/${encodeURIComponent(e.target.value)}`; }}>
+      {sorted.map((r) => <option key={r.runId} value={r.runId}>{r.runId}</option>)}
+    </select>
   );
 }

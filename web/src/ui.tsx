@@ -1,114 +1,120 @@
 import type { ReactNode } from "react";
+import { Loader2 } from "lucide-react";
+import { effectiveBand } from "@shared/noise";
 
 export function cx(...parts: Array<string | false | null | undefined>): string {
   return parts.filter(Boolean).join(" ");
 }
 
-export const pct = (rate: number, digits = 0): string => `${(rate * 100).toFixed(digits)}%`;
-export const pp = (delta: number): string => `${delta > 0 ? "+" : ""}${(delta * 100).toFixed(1)} pp`;
+export const pct = (rate: number): string => `${Math.round(rate * 100)}%`;
+/** A signed change in percentage points, one decimal. */
+export const pp = (delta: number): string => `${delta > 0 ? "+" : delta < 0 ? "−" : ""}${Math.abs(delta * 100).toFixed(1)} pp`;
+/** A noise band as "±n pp", floored the way CI judges a change. */
+export const band = (b: number): string => `±${Math.round(effectiveBand(b) * 100)} pp`;
 
-export type Tone = "neutral" | "accent" | "good" | "warn" | "bad" | "info";
+export type Tone = "neutral" | "accent" | "pos" | "neg" | "warn";
 
-const TONE: Record<Tone, string> = {
-  neutral: "bg-stone-100 text-stone-700 ring-stone-200",
-  accent: "bg-indigo-50 text-indigo-700 ring-indigo-200",
-  good: "bg-emerald-50 text-emerald-700 ring-emerald-200",
-  warn: "bg-amber-50 text-amber-800 ring-amber-200",
-  bad: "bg-rose-50 text-rose-700 ring-rose-200",
-  info: "bg-sky-50 text-sky-700 ring-sky-200",
-};
-
-export function Badge(props: { tone?: Tone; children: ReactNode; title?: string; className?: string }): ReactNode {
-  return (
-    <span title={props.title} className={cx("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset", TONE[props.tone ?? "neutral"], props.className)}>
-      {props.children}
-    </span>
-  );
+export function Pill(props: { tone?: Tone; children: ReactNode; title?: string }): ReactNode {
+  const tone = props.tone ?? "neutral";
+  return <span title={props.title} className={cx("pill", tone === "accent" ? "acc" : tone !== "neutral" && tone)}>{props.children}</span>;
 }
 
-export function Card(props: { children: ReactNode; className?: string; onClick?: () => void; active?: boolean }): ReactNode {
-  const interactive = props.onClick !== undefined;
+export function Panel(props: { title?: ReactNode; meta?: ReactNode; lede?: ReactNode; className?: string; flush?: boolean; children: ReactNode }): ReactNode {
   return (
-    <div
-      onClick={props.onClick}
-      role={interactive ? "button" : undefined}
-      tabIndex={interactive ? 0 : undefined}
-      onKeyDown={interactive ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); props.onClick?.(); } } : undefined}
-      className={cx(
-        "rounded-2xl border bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04)]",
-        props.active ? "border-indigo-400 ring-2 ring-indigo-100" : "border-stone-200",
-        interactive && "cursor-pointer transition hover:border-stone-300 hover:shadow-md",
-        props.className,
+    <section className={cx("panel", props.flush && "flush", props.className)}>
+      {(props.title !== undefined || props.meta !== undefined) && (
+        <header>
+          {props.title !== undefined && <h2>{props.title}</h2>}
+          {props.meta !== undefined && <div className="meta">{props.meta}</div>}
+        </header>
       )}
-    >
-      {props.children}
-    </div>
-  );
-}
-
-export function Section(props: { id: string; title: string; kicker?: string; aside?: ReactNode; children: ReactNode }): ReactNode {
-  return (
-    <section id={props.id} className="scroll-mt-28">
-      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          {props.kicker && <div className="text-xs font-semibold tracking-[0.14em] text-indigo-600 uppercase">{props.kicker}</div>}
-          <h2 className="text-2xl font-semibold tracking-tight text-stone-900">{props.title}</h2>
-        </div>
-        {props.aside}
-      </div>
+      {props.lede !== undefined && <p className="lede">{props.lede}</p>}
       {props.children}
     </section>
   );
 }
 
-export function Stat(props: { label: string; value: ReactNode; hint?: ReactNode; tone?: Tone }): ReactNode {
-  const color = props.tone === "good" ? "text-emerald-700" : props.tone === "bad" ? "text-rose-700" : props.tone === "warn" ? "text-amber-700" : "text-stone-900";
+export function TitleRow(props: { title: ReactNode; sub?: ReactNode; meta?: ReactNode; actions?: ReactNode }): ReactNode {
   return (
-    <div className="rounded-2xl border border-stone-200 bg-white px-5 py-4">
-      <div className="text-xs font-medium tracking-wide text-stone-500 uppercase">{props.label}</div>
-      <div className={cx("mt-1 text-3xl font-semibold tabular-nums tracking-tight", color)}>{props.value}</div>
-      {props.hint && <div className="mt-1 text-sm text-stone-500">{props.hint}</div>}
+    <div className="title-row">
+      <div>
+        <h1>{props.title}</h1>
+        {props.sub !== undefined && <p className="sub">{props.sub}</p>}
+        {props.meta !== undefined && <div className="meta">{props.meta}</div>}
+      </div>
+      {props.actions !== undefined && <div className="actions">{props.actions}</div>}
     </div>
   );
 }
 
-export function Button(props: { children: ReactNode; onClick?: () => void; kind?: "primary" | "ghost" | "subtle"; disabled?: boolean; type?: "button" | "submit"; className?: string }): ReactNode {
-  const kind = props.kind ?? "primary";
+export interface KpiItem {
+  label: string;
+  value: ReactNode;
+  unit?: string;
+  delta?: ReactNode;
+}
+
+export function Kpis(props: { items: KpiItem[] }): ReactNode {
   return (
-    <button
-      type={props.type ?? "button"}
-      onClick={props.onClick}
-      disabled={props.disabled}
-      className={cx(
-        "inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50",
-        kind === "primary" && "bg-stone-900 text-white hover:bg-stone-700",
-        kind === "subtle" && "bg-stone-100 text-stone-800 hover:bg-stone-200",
-        kind === "ghost" && "text-stone-600 hover:bg-stone-100 hover:text-stone-900",
-        props.className,
-      )}
-    >
-      {props.children}
-    </button>
+    <div className="kpis">
+      {props.items.map((k) => (
+        <div key={k.label} className="kpi">
+          <div className="kpi-label">{k.label}</div>
+          <div className="kpi-value">{k.value}{k.unit && <small>{k.unit}</small>}</div>
+          {k.delta !== undefined && <div className="delta">{k.delta}</div>}
+        </div>
+      ))}
+    </div>
   );
 }
 
 export function Empty(props: { children: ReactNode }): ReactNode {
-  return <div className="rounded-2xl border border-dashed border-stone-300 bg-stone-50/60 px-6 py-10 text-center text-sm text-stone-500">{props.children}</div>;
+  return <div className="empty">{props.children}</div>;
 }
 
-/** Horizontal bar 0..1 with an optional ± band drawn around the value. */
-export function Meter(props: { value: number; band?: number | null; tone?: Tone; className?: string }): ReactNode {
-  const color = props.tone === "good" ? "bg-emerald-500" : props.tone === "bad" ? "bg-rose-500" : props.tone === "warn" ? "bg-amber-500" : "bg-indigo-500";
-  const band = props.band ?? null;
+export function Loading(props: { children: ReactNode }): ReactNode {
+  return <div className="empty"><span style={{ display: "inline-flex", gap: 8, alignItems: "center" }}><Loader2 size={15} className="spin" /> {props.children}</span></div>;
+}
+
+/** A 0..1 track: the true ratio filled in the data hue, an optional ± band and a tick at a comparison value. */
+export function Track(props: { value: number; noise?: number | null; tick?: number | null; muted?: boolean; label?: string }): ReactNode {
+  const v = Math.max(0, Math.min(1, props.value));
+  const noise = props.noise ?? null;
   return (
-    <div className={cx("relative h-2 w-full rounded-full bg-stone-100", props.className)}>
-      {band !== null && band > 0 && (
-        <div
-          className="absolute top-[-3px] h-[14px] rounded bg-stone-300/60"
-          style={{ left: `${Math.max(0, props.value - band) * 100}%`, width: `${(Math.min(1, props.value + band) - Math.max(0, props.value - band)) * 100}%` }}
-        />
-      )}
-      <div className={cx("relative h-2 rounded-full", color)} style={{ width: `${Math.max(0.01, props.value) * 100}%` }} />
+    <div className="track" role="img" aria-label={props.label ?? pct(v)}>
+      {noise !== null && noise > 0 && <span className="band" style={{ left: `${Math.max(0, v - noise) * 100}%`, width: `${(Math.min(1, v + noise) - Math.max(0, v - noise)) * 100}%` }} />}
+      <span className="fill" style={{ width: `${v * 100}%`, background: props.muted ? "var(--chart-band)" : undefined }} />
+      {props.tick !== undefined && props.tick !== null && <span className="tick" style={{ left: `${Math.max(0, Math.min(1, props.tick)) * 100}%` }} />}
     </div>
   );
+}
+
+const TINTS = [
+  ["#e4f0ec", "#1d4f40"], ["#f3e8dc", "#5c3b17"], ["#e3ebf6", "#1f3f6b"], ["#f4e3e6", "#6a2333"],
+  ["#ecf0dc", "#45501a"], ["#e9e4f1", "#3f2f63"], ["#e0eef1", "#174a55"], ["#f4ecd8", "#5e4512"],
+] as const;
+
+function hash(text: string): number {
+  let h = 0;
+  for (const ch of text) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return h;
+}
+
+/** A persona's initial on a pale tint of their own hue: identity, not data. */
+export function Who(props: { name: string; seed: string }): ReactNode {
+  const [bg, ink] = TINTS[hash(props.seed) % TINTS.length]!;
+  const initial = props.name.trim().split(/\s+/).at(-1)?.[0] ?? "?";
+  return <span className="who-chip" style={{ background: bg, color: ink }} aria-hidden>{initial}</span>;
+}
+
+export function hostOf(source: string): string {
+  try {
+    return new URL(source).hostname.replace(/^www\./, "");
+  } catch {
+    return source;
+  }
+}
+
+export function errorText(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
 }

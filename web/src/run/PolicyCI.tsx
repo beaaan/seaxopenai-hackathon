@@ -1,41 +1,44 @@
 import { useMemo, useState, type ReactNode } from "react";
-import { CircleAlert, CircleCheck, CircleX, Loader2, Play } from "lucide-react";
+import { Loader2, Play } from "lucide-react";
 import type { SuiteComparison, Surface } from "@shared/schema";
+import { beyondNoise } from "@shared/noise";
 import { api } from "../api";
 import { useRun, useRuns } from "../hooks";
-import { finalVersion, type RunModel } from "../model";
+import { codebook, finalVersion, type RunModel } from "../model";
 import type { RunContext } from "../pages/RunPage";
-import { Badge, Button, Card, Section, cx, pct } from "../ui";
+import { Empty, Kpis, Panel, Pill, TitleRow, band, cx, errorText, pct, type Tone } from "../ui";
 
-const VERDICT = {
-  pass: { label: "PASS", tone: "border-emerald-300 bg-emerald-50 text-emerald-900", icon: <CircleCheck size={28} className="text-emerald-600" /> },
-  fail: { label: "FAIL", tone: "border-rose-300 bg-rose-50 text-rose-900", icon: <CircleX size={28} className="text-rose-600" /> },
-  inconclusive: { label: "INCONCLUSIVE", tone: "border-amber-300 bg-amber-50 text-amber-900", icon: <CircleAlert size={28} className="text-amber-600" /> },
-} as const;
+const VERDICT: Record<SuiteComparison["verdict"], { label: string; tone: Tone }> = {
+  pass: { label: "Pass", tone: "pos" },
+  fail: { label: "Fail", tone: "neg" },
+  inconclusive: { label: "Inconclusive", tone: "warn" },
+};
 
 export function PolicyCI(props: { ctx: RunContext }): ReactNode {
   const { model } = props.ctx;
   const runs = useRuns(3000);
   const [launched, setLaunched] = useState<string[]>([]);
-  const retests = useMemo(() => {
+  const tests = useMemo(() => {
     const ids = new Set([...(runs ?? []).filter((r) => r.runId.startsWith(`${model.runId}-rt`)).map((r) => r.runId), ...launched]);
     return [...ids].sort().reverse();
   }, [runs, launched, model.runId]);
-
   return (
-    <Section id="ci" kicker="Policy CI" title="Re-test any future edit against the same frozen suite">
-      <p className="mb-6 max-w-3xl text-stone-600">
-        The suite is this run's scenarios and frozen belief codebook. An edit is read by the same personas and judged per finding
-        against its own test–retest noise: it <b>fails</b> if any misreading rises beyond noise, and is <b>inconclusive</b> when the
-        evidence is too thin to tell.
-      </p>
-      <div className="grid gap-6 lg:grid-cols-[1.1fr_1fr]">
-        <Editor model={model} onLaunched={(id) => setLaunched((prev) => [id, ...prev])} />
-        <div className="space-y-3">
-          {retests.length === 0 ? <Card className="p-6 text-sm text-stone-500">No re-tests yet. Edit the text and run it.</Card> : retests.map((id) => <RetestCard key={id} runId={id} />)}
+    <>
+      <TitleRow
+        title="Policy CI"
+        sub={<>Re-test any edit on this run's frozen suite: the same {model.scenarios.length} readers and {codebook(model).length} beliefs. An edit fails if it changes a rule or makes any misreading rise beyond its own noise.</>}
+      />
+      <div className="grid">
+        <div className="c7"><Editor model={model} onLaunched={(id) => setLaunched((prev) => [id, ...prev])} /></div>
+        <div className="c5">
+          <Panel flush title="Tests on this suite" meta={tests.length ? `${tests.length} run` : undefined}>
+            {tests.length === 0 ? <div style={{ padding: 20 }}><Empty>No edit tested yet.</Empty></div> : (
+              <ul className="rows" style={{ padding: "4px var(--card-pad) 8px" }}>{tests.map((id) => <TestRow key={id} runId={id} />)}</ul>
+            )}
+          </Panel>
         </div>
       </div>
-    </Section>
+    </>
   );
 }
 
@@ -45,8 +48,9 @@ function Editor(props: { model: RunModel; onLaunched: (runId: string) => void })
   const [surfaces, setSurfaces] = useState<Surface[]>(() => base?.surfaces.map((s) => ({ ...s })) ?? []);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const changed = base ? surfaces.some((s, i) => s.text !== base.surfaces[i]?.text) : false;
-  const smokeSize = model.config?.smokeSize ?? 10;
+  if (!base) return <Panel title="Edit"><Empty>Waiting for the policy text.</Empty></Panel>;
+  const changed = surfaces.some((s, i) => s.text !== base.surfaces[i]?.text);
+  const smokeSize = Math.min(model.config?.smokeSize ?? 10, model.scenarios.length);
   const run = (smoke: boolean): void => {
     setBusy(true);
     setError(null);
@@ -57,64 +61,58 @@ function Editor(props: { model: RunModel; onLaunched: (runId: string) => void })
       },
       (err: unknown) => {
         setBusy(false);
-        setError(err instanceof Error ? err.message : String(err));
+        setError(errorText(err));
       },
     );
   };
-  if (!base) return null;
   return (
-    <Card className="p-6">
-      <div className="text-sm font-semibold text-stone-900">Edit v{base.version}</div>
-      <div className="mt-4 space-y-4">
+    <Panel title={`Edit v${base.version}`} meta={changed ? "Edited" : "Unchanged"}>
+      <div className="stack" style={{ gap: 16 }}>
         {surfaces.map((surface, i) => (
-          <label key={surface.id} className="block">
-            <span className="text-xs font-semibold tracking-wide text-stone-400 uppercase">{surface.label}</span>
+          <label key={surface.id} className="field">
+            <span>{surface.label}</span>
             <textarea
+              className="input"
+              lang="vi"
               value={surface.text}
               onChange={(e) => setSurfaces((prev) => prev.map((s, j) => (j === i ? { ...s, text: e.target.value } : s)))}
-              rows={Math.min(14, Math.max(3, Math.ceil(surface.text.length / 90)))}
-              className="mt-1 w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm leading-relaxed text-stone-900 focus:border-indigo-400 focus:bg-white focus:outline-none"
+              rows={Math.min(16, Math.max(3, Math.ceil(surface.text.length / 80)))}
             />
           </label>
         ))}
       </div>
-      <div className="mt-4 flex flex-wrap items-center gap-2">
-        <Button disabled={!changed || busy} onClick={() => run(true)}>{busy ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />} Run on {smokeSize} scenarios</Button>
-        <Button kind="subtle" disabled={!changed || busy} onClick={() => run(false)}>Full suite ({model.scenarios.length})</Button>
-        {!changed && <span className="text-sm text-stone-400">Change the text to run a test.</span>}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", marginTop: 16 }}>
+        <button className="btn primary" disabled={!changed || busy} onClick={() => run(true)}>{busy ? <Loader2 className="spin" /> : <Play />} Test on {smokeSize} readers</button>
+        <button className="btn" disabled={!changed || busy} onClick={() => run(false)}>Full suite, {model.scenarios.length} readers</button>
+        {!changed && <span className="small muted">Change the text to run a test.</span>}
+        {error && <span className="small bad">{error}</span>}
       </div>
-      {error && <div className="mt-3 rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-800">{error}</div>}
-    </Card>
+    </Panel>
   );
 }
 
-function RetestCard(props: { runId: string }): ReactNode {
+function TestRow(props: { runId: string }): ReactNode {
   const { model } = useRun(props.runId);
-  if (!model) return <Card className="p-4 text-sm text-stone-500"><Loader2 size={14} className="mr-2 inline animate-spin" />{props.runId}</Card>;
-  const c = model.comparison;
-  const total = model.config?.smokeSize ?? 0;
-  const read = model.readings.filter((r) => r.policyVersion === model.versions.at(-1)?.version).length;
+  const c = model?.comparison ?? null;
+  const edited = model?.versions.at(-1);
+  const read = model && edited ? model.readings.filter((r) => r.policyVersion === edited.version).length : 0;
   return (
-    <a href={`#/run/${encodeURIComponent(props.runId)}`} className="block">
-      <Card className="p-4">
-        <div className="flex items-center justify-between gap-2">
-          <span className="font-mono text-xs text-stone-500">{props.runId}</span>
-          {c ? <Verdict verdict={c.verdict} small /> : model.status === "failed" ? <Badge tone="bad">failed</Badge> : <Badge tone="info"><Loader2 size={12} className="animate-spin" /> reading {read}/{total || "…"}</Badge>}
-        </div>
-        {c && <ul className="mt-2 space-y-0.5 text-sm text-stone-700">{c.reasons.slice(0, 3).map((r, i) => <li key={i}>• {r}</li>)}</ul>}
-        {model.error && <div className="mt-2 text-sm text-rose-700">{model.error}</div>}
-      </Card>
-    </a>
+    <li className="row" style={{ alignItems: "flex-start" }}>
+      <a href={`#/run/${encodeURIComponent(props.runId)}`} style={{ display: "grid", gap: 4, width: "100%" }}>
+        <span style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
+          <span className="id">{props.runId}</span>
+          {c ? <Pill tone={VERDICT[c.verdict].tone}>{VERDICT[c.verdict].label}</Pill>
+            : model?.status === "failed" ? <Pill tone="neg">Error</Pill>
+            : <span className="live running">Reading {read}/{model?.scenarios.length || "…"}</span>}
+        </span>
+        {c && c.reasons[0] && <span className="small muted">{c.reasons[0]}</span>}
+        {model?.error && <span className="small bad">{model.error}</span>}
+      </a>
+    </li>
   );
 }
 
-function Verdict(props: { verdict: SuiteComparison["verdict"]; small?: boolean }): ReactNode {
-  const v = VERDICT[props.verdict];
-  if (props.small) return <span className={cx("rounded-full border px-2 py-0.5 text-xs font-bold tracking-wide", v.tone)}>{v.label}</span>;
-  return <div className={cx("flex items-center gap-3 rounded-2xl border px-5 py-4", v.tone)}>{v.icon}<span className="text-2xl font-bold tracking-wide">{v.label}</span></div>;
-}
-
-/** The page body of a retest run. */
+/** The result screen of an edit test. */
 export function RetestResult(props: { ctx: RunContext }): ReactNode {
   const { model } = props.ctx;
   const c = model.comparison;
@@ -125,61 +123,73 @@ export function RetestResult(props: { ctx: RunContext }): ReactNode {
   const editedTexts = new Set(edited?.sentences.map((s) => s.text.trim()) ?? []);
   const removed = base?.sentences.filter((s) => !editedTexts.has(s.text.trim())) ?? [];
   const added = edited?.sentences.filter((s) => !baseTexts.has(s.text.trim())) ?? [];
-  const total = model.scenarios.length;
   const read = edited ? model.readings.filter((r) => r.policyVersion === edited.version).length : 0;
-  return (
-    <section id="overview" className="scroll-mt-28 space-y-6">
-      <div className="flex flex-wrap items-center gap-4">
-        {c ? <Verdict verdict={c.verdict} /> : model.status === "failed" ? <Badge tone="bad">failed</Badge> : (
-          <div className="flex items-center gap-3 rounded-2xl border border-sky-200 bg-sky-50 px-5 py-4 text-sky-900"><Loader2 className="animate-spin" /> Reading the edit: {read}/{total} personas</div>
-        )}
-        {c?.fidelity && (c.fidelity.passed
-          ? <Badge tone="good">same rules as the original (fidelity passed)</Badge>
-          : <Badge tone="bad">changes the rule, not just the wording</Badge>)}
-        {model.config?.suiteRunId && <a className="text-sm text-indigo-700 underline" href={`#/run/${encodeURIComponent(model.config.suiteRunId)}`}>suite: {model.config.suiteRunId}</a>}
-      </div>
-      {c && <ul className="space-y-1 text-stone-800">{c.reasons.map((r, i) => <li key={i}>• {r}</li>)}</ul>}
+  const suite = model.config?.suiteRunId ?? null;
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card className="p-6">
-          <div className="text-sm font-semibold text-stone-900">The edit</div>
-          <div className="mt-3 space-y-2 text-sm">
-            {removed.map((s) => <div key={`-${s.id}`} className="rounded-lg bg-rose-50 px-3 py-2 text-stone-700 line-through decoration-rose-300">{s.text}</div>)}
-            {added.map((s) => <div key={`+${s.id}`} className="rounded-lg bg-emerald-50 px-3 py-2 text-stone-900">{s.text}</div>)}
-            {removed.length === 0 && added.length === 0 && <div className="text-stone-500">No sentence changed.</div>}
-          </div>
-        </Card>
-        {c && (
-          <Card className="overflow-x-auto p-6">
-            <div className="text-sm font-semibold text-stone-900">Per finding, same {c.after.readings} scenarios</div>
-            <table className="mt-3 w-full text-sm">
-              <thead><tr className="border-b border-stone-200 text-left text-xs text-stone-500"><th className="py-2 font-medium">Finding</th><th className="text-right font-medium">before</th><th className="text-right font-medium">after</th><th className="text-right font-medium">noise</th></tr></thead>
-              <tbody>
-                <tr className="border-b border-stone-100">
-                  <td className="py-2 text-stone-800">Conflict rate</td>
-                  <td className="text-right tabular-nums">{pct(c.before.conflictRate)}</td>
-                  <td className="text-right tabular-nums">{pct(c.after.conflictRate)}</td>
-                  <td className="text-right text-stone-500 tabular-nums">{c.after.noiseBand === null ? "—" : `±${(c.after.noiseBand * 100).toFixed(0)}`}</td>
-                </tr>
-                {c.before.findingReproduction.map((row) => {
-                  const after = c.after.findingReproduction.find((r) => r.findingId === row.findingId);
-                  const delta = after && after.n > 0 && row.n > 0 ? after.rate - row.rate : null;
-                  const beyond = delta !== null && row.noiseBand !== null && Math.abs(delta) > row.noiseBand;
-                  return (
-                    <tr key={row.findingId} className="border-b border-stone-100 last:border-0">
-                      <td className="py-2 pr-3 text-stone-800">{titles.get(row.findingId) ?? row.findingId}</td>
-                      <td className="text-right tabular-nums">{row.n === 0 ? "—" : pct(row.rate)}</td>
-                      <td className={cx("text-right tabular-nums", beyond && delta !== null && (delta < 0 ? "font-semibold text-emerald-700" : "font-semibold text-rose-700"))}>{after && after.n > 0 ? pct(after.rate) : "—"}</td>
-                      <td className="text-right text-stone-500 tabular-nums">{row.noiseBand === null ? "n/a" : `±${(row.noiseBand * 100).toFixed(0)}`}</td>
+  return (
+    <>
+      <TitleRow
+        title="Edit test"
+        sub={c ? c.reasons[0] : model.status === "failed" ? "The test stopped with an error." : `Reading the edit: ${read} of ${model.scenarios.length || "…"} readers so far.`}
+        meta={<>
+          <span className="id">{model.runId}</span>
+          {suite && <a className="link" href={`#/run/${encodeURIComponent(suite)}/ci`}>Suite {suite}</a>}
+        </>}
+      />
+      <Kpis items={[
+        { label: "Verdict", value: c ? <span className={cx("verdict", c.verdict)}>{VERDICT[c.verdict].label}</span> : model.status === "failed" ? <span className="verdict fail">Error</span> : <span className="muted">Reading</span> },
+        { label: "Same rules as the base", value: c?.fidelity ? (c.fidelity.passed ? "Yes" : <span className="bad">No</span>) : <span className="dash">–</span>, delta: c?.fidelity ? (c.fidelity.passed ? "no fact lost, no commitment added" : "the edit changes what the policy says") : "checked against v0" },
+        { label: "Readers", value: <>{c?.after.readings ?? read}<small>/ {model.scenarios.length}</small></>, delta: "the suite's own personas" },
+        { label: "Noise pairs", value: c?.after.noiseBandScenarios ?? <span className="dash">–</span>, delta: "a change counts only beyond its noise" },
+      ]} />
+      {c && c.reasons.length > 1 && (
+        <Panel className="" title="Why">
+          <ul className="rows">{c.reasons.map((r, i) => <li key={i} className="row">{r}</li>)}</ul>
+        </Panel>
+      )}
+      <div className="grid">
+        <div className="c5">
+          <Panel title="The edit" meta={`${removed.length} removed · ${added.length} added`}>
+            <div className="stack" style={{ gap: 8 }}>
+              {removed.map((s) => <div key={`-${s.id}`} className="diff" style={{ gridTemplateColumns: "1fr" }}><div className="before">{s.text}</div></div>)}
+              {added.map((s) => <div key={`+${s.id}`} className="diff" style={{ gridTemplateColumns: "1fr" }}><div className="after">{s.text}</div></div>)}
+              {removed.length === 0 && added.length === 0 && <p className="muted">No sentence changed.</p>}
+            </div>
+          </Panel>
+        </div>
+        <div className="c7">
+          <Panel flush title="Per misreading, same readers" meta={c ? `${c.after.readings} readings` : undefined}>
+            {!c ? <div style={{ padding: 20 }}><Empty>The comparison appears when every reader has read the edit.</Empty></div> : (
+              <div className="table-wrap" style={{ marginTop: 4 }}>
+                <table>
+                  <thead><tr><th>Misreading</th><th className="n">Before</th><th className="n">After</th><th className="n">Noise</th></tr></thead>
+                  <tbody>
+                    <tr>
+                      <td>Conflict rate</td>
+                      <td className="n">{pct(c.before.conflictRate)}</td>
+                      <td className="n">{pct(c.after.conflictRate)}</td>
+                      <td className="n muted">{c.after.noiseBand === null ? "–" : band(c.after.noiseBand)}</td>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-            <div className="mt-3 text-xs text-stone-500">{c.after.noiseBandScenarios ?? 0} test–retest pairs. Green/red only when a change exceeds that finding's noise.</div>
-          </Card>
-        )}
+                    {c.before.findingReproduction.map((row) => {
+                      const after = c.after.findingReproduction.find((r) => r.findingId === row.findingId);
+                      const delta = after && after.n > 0 && row.n > 0 ? after.rate - row.rate : null;
+                      const beyond = delta !== null && row.noiseBand !== null && beyondNoise(delta, row.noiseBand);
+                      return (
+                        <tr key={row.findingId}>
+                          <td>{titles.get(row.findingId) ?? row.findingId}</td>
+                          <td className="n">{row.n === 0 ? <span className="dash">–</span> : pct(row.rate)}</td>
+                          <td className={cx("n", beyond && delta !== null && (delta < 0 ? "good" : "bad"))}>{after && after.n > 0 ? pct(after.rate) : <span className="dash">–</span>}</td>
+                          <td className="n muted">{row.noiseBand === null ? "not measured" : band(row.noiseBand)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Panel>
+        </div>
       </div>
-    </section>
+    </>
   );
 }

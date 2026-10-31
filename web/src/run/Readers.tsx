@@ -1,11 +1,11 @@
-import { useMemo, useState, type ReactNode } from "react";
-import { Eye, EyeOff, MessageCircleQuestion, Users } from "lucide-react";
+import { Fragment, useMemo, useState, type ReactNode } from "react";
 import type { Grade, Reading, Scenario } from "@shared/schema";
 import { originalReadings } from "../model";
 import type { RunContext } from "../pages/RunPage";
-import { Badge, Card, Empty, Section, cx, type Tone } from "../ui";
+import { Empty, Panel, Pill, TitleRow, Who, cx, type Tone } from "../ui";
 
-const GRADE_TONE: Record<Grade["label"], Tone> = { consistent: "good", conflicts: "bad", outside: "warn", unclear: "neutral" };
+const GRADE_TONE: Record<Grade["label"], Tone> = { consistent: "pos", conflicts: "neg", outside: "warn", unclear: "neutral" };
+const GRADE_LABEL: Record<Grade["label"], string> = { consistent: "Consistent", conflicts: "Contradicts", outside: "Not in the text", unclear: "Unclear" };
 
 export function Readers(props: { ctx: RunContext }): ReactNode {
   const { model, policy } = props.ctx;
@@ -17,117 +17,136 @@ export function Readers(props: { ctx: RunContext }): ReactNode {
   const surfaceLabel = new Map(model.versions[0]?.surfaces.map((s) => [s.id, s.label]) ?? []);
   const folk = new Map(policy?.folk.versions.map((f) => [f.id, f]) ?? []);
   const shown = model.scenarios.filter((s) => filter === null || s.levels.some((l) => l.dimId === filter.dimId && l.levelId === filter.levelId));
+  const adaptive = model.scenarios.filter((s) => s.origin === "adaptive").length;
+  const level = filter ? model.dimensions.find((d) => d.id === filter.dimId)?.levels.find((l) => l.id === filter.levelId) : undefined;
 
   return (
-    <Section id="readers" kicker="Readers" title={`${model.scenarios.length} simulated readers`} aside={<span className="flex items-center gap-1 text-sm text-stone-500"><Users size={16} /> pairwise coverage of every dimension</span>}>
-      {model.dimensions.length > 0 && (
-        <div className="mb-6 space-y-2">
-          {model.dimensions.map((dim) => (
-            <div key={dim.id} className="flex flex-wrap items-center gap-2 text-sm">
-              <span className="w-56 shrink-0 truncate text-stone-500" title={dim.description}>{dim.name}</span>
-              {dim.levels.map((level) => {
-                const count = model.scenarios.filter((s) => s.levels.some((l) => l.dimId === dim.id && l.levelId === level.id)).length;
-                const active = filter?.dimId === dim.id && filter.levelId === level.id;
-                return (
-                  <button
-                    key={level.id}
-                    title={level.description}
-                    onClick={() => setFilter(active ? null : { dimId: dim.id, levelId: level.id })}
-                    className={cx("rounded-full px-3 py-1 text-xs ring-1 ring-inset", active ? "bg-stone-900 text-white ring-stone-900" : "bg-white text-stone-700 ring-stone-200 hover:ring-stone-400")}
-                  >
-                    <span className="inline-block max-w-[22rem] truncate align-bottom">{level.label}</span> <span className={active ? "text-stone-300" : "text-stone-400"}>{count}</span>
-                  </button>
-                );
-              })}
-            </div>
-          ))}
+    <>
+      <TitleRow
+        title="Readers"
+        sub={<>{model.scenarios.length} simulated readers, chosen so every pair of traits appears together at least once{adaptive > 0 ? <>; {adaptive} added by the reviewer agent where readings split</> : null}.</>}
+      />
+      <div className="grid">
+        <div className="c4">
+          <Panel title="Traits" meta={filter ? <button className="btn ghost" style={{ height: 22, padding: 0 }} onClick={() => setFilter(null)}>Clear filter</button> : `${model.dimensions.length} dimensions`}>
+            {model.dimensions.length === 0 ? <p className="muted">Traits appear once the sampler has run.</p> : (
+              <div className="stack" style={{ gap: 14 }}>
+                {model.dimensions.map((dim) => (
+                  <div key={dim.id}>
+                    <div style={{ fontWeight: 500 }} title={dim.description}>{dim.name}</div>
+                    <ul style={{ marginTop: 4 }}>
+                      {dim.levels.map((lv) => {
+                        const count = model.scenarios.filter((s) => s.levels.some((l) => l.dimId === dim.id && l.levelId === lv.id)).length;
+                        const active = filter?.dimId === dim.id && filter.levelId === lv.id;
+                        return (
+                          <li key={lv.id}>
+                            <button
+                              className={cx("nav-item")}
+                              aria-current={active ? "true" : undefined}
+                              style={{ width: "100%", border: 0, background: active ? "var(--active)" : "transparent", textAlign: "left", minHeight: 28, padding: "4px 8px", marginLeft: -8, alignItems: "flex-start" }}
+                              title={lv.description}
+                              onClick={() => setFilter(active ? null : { dimId: dim.id, levelId: lv.id })}
+                            >
+                              <span style={{ flex: 1 }}>{lv.label}</span>
+                              <span className="count">{count}</span>
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Panel>
         </div>
-      )}
-      {shown.length === 0 ? <Empty>No readers yet.</Empty> : (
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {shown.map((scenario) => (
-            <ReaderCard
-              key={scenario.id}
-              scenario={scenario}
-              reading={readings.get(scenario.id) ?? null}
-              grades={grades}
-              open={open === scenario.id}
-              onToggle={() => setOpen(open === scenario.id ? null : scenario.id)}
-              surfaceLabel={(id) => surfaceLabel.get(id) ?? id}
-              folkText={(id) => folk.get(id)?.textVi ?? id}
-            />
-          ))}
+        <div className="c8">
+          <Panel flush title={level ? level.label : "Every reader"} meta={`${shown.length} readers`}>
+            {shown.length === 0 ? <div style={{ padding: 20 }}><Empty>No readers yet.</Empty></div> : (
+              <div className="table-wrap" style={{ marginTop: 4 }}>
+                <table>
+                  <thead><tr><th>Reader</th><th>In their words</th><th className="hide-phone">Read</th></tr></thead>
+                  <tbody>
+                    {shown.map((s) => {
+                      const r = readings.get(s.id) ?? null;
+                      const isOpen = open === s.id;
+                      return (
+                        <Fragment key={s.id}>
+                          <tr className="pick" aria-selected={isOpen} onClick={() => setOpen(isOpen ? null : s.id)}>
+                            <td style={{ width: 230 }}>
+                              <span style={{ display: "flex", gap: 10 }}>
+                                <Who name={s.persona.name} seed={s.id} />
+                                <span>{s.persona.name}, {s.persona.age}<span className="sub">{s.persona.occupation} · {s.persona.province}</span></span>
+                              </span>
+                            </td>
+                            <td lang="vi">{r ? <span style={{ display: "-webkit-box", WebkitLineClamp: isOpen ? "unset" : 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{r.paraphraseVi}</span> : <span className="muted">Reading</span>}</td>
+                            <td className="hide-phone" style={{ width: 150 }}>
+                              <div className="pills">
+                                <Pill tone={s.exposure.attention === "skim" ? "warn" : "neutral"}>{s.exposure.attention === "skim" ? "Skimmed" : "Careful"}</Pill>
+                                {s.exposure.folkVersionId && <Pill tone="warn" title={folk.get(s.exposure.folkVersionId)?.textVi}>Heard a rumour</Pill>}
+                                {s.origin === "adaptive" && <Pill tone="accent" title={s.allocationReason ?? undefined}>Targeted</Pill>}
+                              </div>
+                            </td>
+                          </tr>
+                          {isOpen && r && (
+                            <tr>
+                              <td colSpan={3} style={{ background: "var(--raised)", padding: 20 }}>
+                                <ReaderDetail scenario={s} reading={r} grades={grades} surfaceLabel={(id) => surfaceLabel.get(id) ?? id} folkText={(id) => folk.get(id)?.textVi ?? id} />
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Panel>
         </div>
-      )}
-    </Section>
+      </div>
+    </>
   );
 }
 
-function ReaderCard(props: {
-  scenario: Scenario; reading: Reading | null; grades: Map<string, Grade>; open: boolean; onToggle: () => void;
-  surfaceLabel: (id: string) => string; folkText: (id: string) => string;
-}): ReactNode {
+function ReaderDetail(props: { scenario: Scenario; reading: Reading; grades: Map<string, Grade>; surfaceLabel: (id: string) => string; folkText: (id: string) => string }): ReactNode {
   const { scenario: s, reading: r } = props;
-  const p = s.persona;
   return (
-    <Card className={cx("p-4", props.open && "md:col-span-2 xl:col-span-3")} onClick={props.onToggle} active={props.open}>
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="font-semibold text-stone-900">{p.name}, {p.age}</div>
-          <div className="text-sm text-stone-500">{p.occupation} · {p.province}</div>
-        </div>
-        <div className="flex flex-wrap justify-end gap-1">
-          <Badge tone={s.exposure.attention === "skim" ? "warn" : "neutral"}>{s.exposure.attention === "skim" ? <EyeOff size={11} /> : <Eye size={11} />}{s.exposure.attention}</Badge>
-          {s.origin === "adaptive" && <Badge tone="accent" title={s.allocationReason ?? undefined}>targeted</Badge>}
-        </div>
+    <div className="grid" style={{ gap: 20 }}>
+      <div className="c5" lang="vi">
+        <h3>Situation</h3>
+        <p style={{ marginTop: 4 }}>{s.situationVi}</p>
+        <p className="small muted" style={{ marginTop: 6 }}>Read: {s.exposure.surfaceIds.map(props.surfaceLabel).join(", ")}</p>
+        {s.exposure.folkVersionId && <p className="cite" style={{ marginTop: 10 }}>Heard: “{props.folkText(s.exposure.folkVersionId)}”</p>}
+        <h3 style={{ marginTop: 14 }}>Would do</h3>
+        <ul style={{ marginTop: 4, display: "grid", gap: 4 }}>{r.actions.map((a, i) => <li key={i}><span className="id">{a.action}</span> {a.detailVi}</li>)}</ul>
+        <h3 style={{ marginTop: 14 }}>Feels</h3>
+        <p style={{ marginTop: 4 }}>{r.feelingVi}</p>
       </div>
-      <div className="mt-2 flex flex-wrap gap-1 text-xs">
-        {s.exposure.surfaceIds.map((id) => <Badge key={id}>read: {props.surfaceLabel(id)}</Badge>)}
-        {s.exposure.folkVersionId && <Badge tone="warn" title={props.folkText(s.exposure.folkVersionId)}>heard a rumour</Badge>}
+      <div className="c7">
+        <h3>Interpretations</h3>
+        <ul className="rows" style={{ marginTop: 4 }}>
+          {r.interpretations.map((i) => {
+            const g = props.grades.get(i.id);
+            return (
+              <li key={i.id} className="row" style={{ alignItems: "flex-start", flexDirection: "column", gap: 2 }}>
+                <span style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <span className="id">{i.sentenceId ?? "not in text"}</span>
+                  {g && g.label !== "unclear" && <Pill tone={GRADE_TONE[g.label]}>{GRADE_LABEL[g.label]}</Pill>}
+                </span>
+                <span lang="vi">{i.meaningVi}</span>
+                <span className="small muted">{i.glossEn}</span>
+              </li>
+            );
+          })}
+        </ul>
+        {r.questions.length > 0 && (
+          <>
+            <h3 style={{ marginTop: 14 }}>Still asks</h3>
+            <ul style={{ marginTop: 4, display: "grid", gap: 4 }}>{r.questions.map((q) => <li key={q.id} lang="vi">{q.questionVi} <span className="small muted">({q.glossEn})</span></li>)}</ul>
+          </>
+        )}
       </div>
-      {r ? (
-        <>
-          <p className="mt-3 text-sm leading-relaxed text-stone-800">“{r.paraphraseVi}”</p>
-          {!props.open && r.questions.length > 0 && <div className="mt-2 flex items-center gap-1 text-xs text-stone-500"><MessageCircleQuestion size={12} /> {r.questions.length} open question{r.questions.length > 1 ? "s" : ""}</div>}
-        </>
-      ) : <p className="mt-3 text-sm text-stone-400">Reading…</p>}
-      {props.open && r && (
-        <div className="mt-4 grid gap-6 border-t border-stone-100 pt-4 lg:grid-cols-2" onClick={(e) => e.stopPropagation()}>
-          <div>
-            <div className="text-xs font-semibold tracking-wide text-stone-400 uppercase">Situation</div>
-            <p className="mt-1 text-sm text-stone-700">{s.situationVi}</p>
-            {s.exposure.folkVersionId && <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">Heard: “{props.folkText(s.exposure.folkVersionId)}”</p>}
-            <div className="mt-3 text-xs font-semibold tracking-wide text-stone-400 uppercase">Would do</div>
-            <ul className="mt-1 space-y-1 text-sm text-stone-700">{r.actions.map((a, i) => <li key={i}><Badge>{a.action}</Badge> {a.detailVi}</li>)}</ul>
-            <div className="mt-3 text-xs font-semibold tracking-wide text-stone-400 uppercase">Feels</div>
-            <p className="mt-1 text-sm text-stone-700">{r.feelingVi}</p>
-          </div>
-          <div>
-            <div className="text-xs font-semibold tracking-wide text-stone-400 uppercase">Interpretations</div>
-            <ul className="mt-2 space-y-3">
-              {r.interpretations.map((i) => {
-                const g = props.grades.get(i.id);
-                return (
-                  <li key={i.id} className="text-sm">
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-[11px] text-stone-400">{i.sentenceId ?? "not in text"}</span>
-                      {g && g.label !== "unclear" && <Badge tone={GRADE_TONE[g.label]}>{g.label}</Badge>}
-                    </div>
-                    <div className="mt-0.5 text-stone-800">{i.meaningVi}</div>
-                    <div className="text-xs text-stone-500">{i.glossEn}</div>
-                  </li>
-                );
-              })}
-            </ul>
-            {r.questions.length > 0 && (
-              <>
-                <div className="mt-4 text-xs font-semibold tracking-wide text-stone-400 uppercase">Still asks</div>
-                <ul className="mt-1 space-y-1 text-sm text-stone-700">{r.questions.map((q) => <li key={q.id}>{q.questionVi} <span className="text-xs text-stone-500">({q.glossEn})</span></li>)}</ul>
-              </>
-            )}
-          </div>
-        </div>
-      )}
-    </Card>
+    </div>
   );
 }

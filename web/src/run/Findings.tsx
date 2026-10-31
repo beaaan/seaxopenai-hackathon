@@ -1,145 +1,165 @@
-import { useMemo, type ReactNode } from "react";
-import { ArrowDown, Check, CircleHelp, Scale, Wrench, X } from "lucide-react";
-import type { Finding, Iteration } from "@shared/schema";
+import { useMemo, useState, type ReactNode } from "react";
+import { Check, X } from "lucide-react";
+import type { Finding } from "@shared/schema";
+import { beyondNoise } from "@shared/noise";
 import { CLASS_LABEL, finalVersion } from "../model";
 import type { RunContext } from "../pages/RunPage";
-import { Badge, Card, Empty, Meter, Section, cx, pct, pp, type Tone } from "../ui";
+import { Empty, Panel, Pill, TitleRow, Track, band, pct, pp, type Tone } from "../ui";
+import { cohortSize } from "./TextMap";
 
-const CLASS_TONE: Record<Finding["class"], Tone> = { wording_fix: "good", design_gap: "warn", unresolvable: "bad" };
-const CLASS_ICON: Record<Finding["class"], ReactNode> = { wording_fix: <Wrench size={12} />, design_gap: <Scale size={12} />, unresolvable: <CircleHelp size={12} /> };
+export const CLASS_TONE: Record<Finding["class"], Tone> = { wording_fix: "accent", design_gap: "warn", unresolvable: "neutral" };
 const ORDER: Record<Finding["class"], number> = { wording_fix: 0, design_gap: 1, unresolvable: 2 };
+type Filter = Finding["class"] | "all";
 
 export function Findings(props: { ctx: RunContext }): ReactNode {
   const { model } = props.ctx;
+  const total = cohortSize(props.ctx);
   const first = model.iterations[0] ?? null;
-  const last = model.iterations.findLast((it) => it.policyVersion === finalVersion(model)) ?? null;
-  const sorted = useMemo(() => {
-    const rate = (f: Finding): number => first?.findingReproduction.find((r) => r.findingId === f.id)?.rate ?? 0;
-    return [...model.findings].sort((a, b) => ORDER[a.class] - ORDER[b.class] || rate(b) - rate(a));
-  }, [model.findings, first]);
+  const last = model.iterations.findLast((it) => it.policyVersion === finalVersion(model) && it !== first) ?? null;
+  const scenarioOf = useMemo(() => new Map(model.readings.map((r) => [r.id, r.scenarioId])), [model.readings]);
+  const readersOf = (f: Finding): number => new Set(f.evidence.readingIds.map((id) => scenarioOf.get(id) ?? id)).size;
+  const sorted = [...model.findings].sort((a, b) => ORDER[a.class] - ORDER[b.class] || readersOf(b) - readersOf(a));
+  const [filter, setFilter] = useState<Filter>("all");
+  const [picked, setPicked] = useState<string | null>(null);
+  const shown = sorted.filter((f) => filter === "all" || f.class === filter);
+  const selected = shown.find((f) => f.id === picked) ?? shown[0] ?? null;
+  const count = (k: Finding["class"]): number => model.findings.filter((f) => f.class === k).length;
   const sentences = new Map(model.versions.find((v) => v.version === 0)?.sentences.map((s) => [s.id, s.text]) ?? []);
-  const mapped = new Map<string, number>();
-  for (const m of model.mappings) if (m.findingId) mapped.set(m.findingId, (mapped.get(m.findingId) ?? 0) + 1);
+  const humans = new Map<string, number>();
+  for (const m of model.mappings) if (m.findingId) humans.set(m.findingId, (humans.get(m.findingId) ?? 0) + 1);
 
   return (
-    <Section id="findings" kicker="Findings" title="What readers get wrong, and whether wording can fix it">
-      <p className="mb-6 max-w-3xl text-stone-600">
-        Every finding is classified by <b>attempting</b> a repair: if a rewrite that adds no new facts passes the fidelity check and the
-        misreading disappears when re-read, it is a wording fix. Otherwise the text needs a rule change or information it does not have.
-      </p>
-      {sorted.length === 0 ? <Empty>No findings yet.</Empty> : (
-        <div className="space-y-4">
-          {sorted.map((finding) => (
-            <FindingCard key={finding.id} finding={finding} first={first} last={last !== first ? last : null} sentences={sentences} humans={mapped.get(finding.id) ?? 0} />
-          ))}
-        </div>
+    <>
+      <TitleRow
+        title="Findings"
+        sub={model.findings.length === 0 ? "Findings are written once the belief codebook is frozen." : <>{count("wording_fix")} can be fixed by wording, {count("design_gap")} need a rule change, {count("unresolvable")} need information the text does not have.</>}
+        meta={<span>Each finding is classified by attempting a repair: a rewrite that adds no new fact, passes the fidelity check and removes the misreading on re-read is a wording fix.</span>}
+      />
+      {model.findings.length === 0 ? <Empty>No findings yet.</Empty> : (
+        <>
+          <div className="segmented" role="group" aria-label="Kind" style={{ marginBottom: 16 }}>
+            {(["all", "wording_fix", "design_gap", "unresolvable"] as const).map((k) => (
+              <button key={k} aria-pressed={filter === k} onClick={() => setFilter(k)}>
+                {k === "all" ? "All" : CLASS_LABEL[k]}<span className="num">{k === "all" ? model.findings.length : count(k)}</span>
+              </button>
+            ))}
+          </div>
+          <div className="grid">
+            <div className="c7">
+              <Panel flush>
+                {shown.length === 0 ? <div style={{ padding: 20 }}><Empty>No finding of this kind.</Empty></div> : (
+                  <div className="table-wrap">
+                    <table>
+                      <thead><tr><th>Misreading</th><th>Kind</th><th className="n">Readers</th><th className="n hide-phone">Persists on re-read</th></tr></thead>
+                      <tbody>
+                        {shown.map((f) => {
+                          const before = first?.findingReproduction.find((r) => r.findingId === f.id) ?? null;
+                          const k = readersOf(f);
+                          return (
+                            <tr key={f.id} className="pick" aria-selected={selected?.id === f.id} onClick={() => {
+                              setPicked(f.id);
+                              // Below 1100px the detail stacks under the list: bring it into view.
+                              if (window.matchMedia("(max-width: 1100px)").matches) requestAnimationFrame(() => document.getElementById("finding-detail")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+                            }}>
+                              <td>{f.title}<span className="sub"><span className="id">{f.sentenceIds.length ? f.sentenceIds.join(", ") : "not in text"}</span></span></td>
+                              <td><Pill tone={CLASS_TONE[f.class]}>{CLASS_LABEL[f.class]}</Pill></td>
+                              <td className="n" style={{ width: 150 }}>
+                                <div style={{ display: "grid", gridTemplateColumns: "1fr 44px", gap: 8, alignItems: "center", paddingTop: 4 }}>
+                                  <Track value={total ? k / total : 0} label={`${k} of ${total}`} />
+                                  <span>{k}<span className="muted">/{total}</span></span>
+                                </div>
+                              </td>
+                              <td className="n hide-phone">{before && before.n > 0 ? <>{pct(before.rate)}<span className="sub">{before.noiseBand === null ? "noise not measured" : band(before.noiseBand)}</span></> : <span className="dash">–</span>}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </Panel>
+            </div>
+            <div className="c5" id="finding-detail">{selected && <FindingDetail ctx={props.ctx} finding={selected} sentences={sentences} humans={humans.get(selected.id) ?? 0} lastVersion={last?.policyVersion ?? null} />}</div>
+          </div>
+        </>
       )}
-    </Section>
+    </>
   );
 }
 
-function FindingCard(props: { finding: Finding; first: Iteration | null; last: Iteration | null; sentences: Map<string, string>; humans: number }): ReactNode {
-  const { finding: f } = props;
-  const before = props.first?.findingReproduction.find((r) => r.findingId === f.id) ?? null;
-  const after = props.last?.findingReproduction.find((r) => r.findingId === f.id) ?? null;
-  const provisional = f.classRationale.startsWith("Provisional");
+function FindingDetail(props: { ctx: RunContext; finding: Finding; sentences: Map<string, string>; humans: number; lastVersion: number | null }): ReactNode {
+  const { model } = props.ctx;
+  const f = props.finding;
+  const first = model.iterations[0] ?? null;
+  const last = props.lastVersion === null ? null : model.iterations.findLast((it) => it.policyVersion === props.lastVersion) ?? null;
+  const before = first?.findingReproduction.find((r) => r.findingId === f.id) ?? null;
+  const after = last?.findingReproduction.find((r) => r.findingId === f.id) ?? null;
   const repair = f.repair;
+  const provisional = f.classRationale.startsWith("Provisional");
   return (
-    <Card className="overflow-hidden">
-      <div className="grid gap-6 p-6 lg:grid-cols-[1.4fr_1fr]">
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge tone={CLASS_TONE[f.class]}>{CLASS_ICON[f.class]} {CLASS_LABEL[f.class]}</Badge>
-            {provisional && <Badge tone="neutral" title={f.classRationale}>provisional</Badge>}
-            {f.conflictsReference && <Badge tone="bad">contradicts the reference</Badge>}
-            {props.humans > 0 && <Badge tone="info">{props.humans} real {props.humans === 1 ? "person" : "people"} gave this reading</Badge>}
-            <span className="font-mono text-xs text-stone-400">{f.id}</span>
-          </div>
-          <h3 className="mt-3 text-xl font-semibold tracking-tight text-stone-900">{f.title}</h3>
-          <p className="mt-2 text-stone-700">{f.readingSummary}</p>
-          {f.plausibility && <p className="mt-2 text-sm text-stone-500">Why a real reader would: {f.plausibility}</p>}
-          {f.sentenceIds.length > 0 ? (
-            <div className="mt-4 space-y-1">
-              {f.sentenceIds.map((id) => (
-                <div key={id} className="flex gap-3 rounded-lg bg-orange-50 px-3 py-2 text-sm">
-                  <span className="w-16 shrink-0 font-mono text-[11px] text-orange-700">{id}</span>
-                  <span className="text-stone-800">{props.sentences.get(id) ?? ""}</span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="mt-4 rounded-lg border border-dashed border-rose-300 px-3 py-2 text-sm text-rose-800">About a rule the text never states.</div>
-          )}
-          {f.dimsAssociated.length > 0 && (
-            <div className="mt-3 flex flex-wrap gap-1">{f.dimsAssociated.map((d) => <Badge key={d}>{d}</Badge>)}</div>
-          )}
-        </div>
-        <div className="space-y-4">
-          <div>
-            <div className="text-xs font-semibold tracking-wide text-stone-400 uppercase">Readers holding it</div>
-            {before && before.n > 0 ? (
-              <div className="mt-2 space-y-2">
-                <ReproRow label="Original" rate={before.rate} n={before.n} band={before.noiseBand} />
-                {after && after.n > 0 && <ReproRow label={`v${props.last?.policyVersion}`} rate={after.rate} n={after.n} band={before.noiseBand} compare={before.rate} />}
-              </div>
-            ) : <div className="mt-2 text-sm text-stone-500">Measured once the codebook is frozen.</div>}
-            <div className="mt-1 text-xs text-stone-400">{f.evidence.readingIds.length} supporting readings · {f.evidence.clusterIds.length} beliefs</div>
-          </div>
-          <div className="text-sm text-stone-600">{f.classRationale}</div>
-        </div>
+    <Panel className="sticky" title={f.title} meta={<span className="id">{f.id}</span>}>
+      <div className="pills">
+        <Pill tone={CLASS_TONE[f.class]}>{CLASS_LABEL[f.class]}</Pill>
+        {provisional && <Pill title={f.classRationale}>Provisional</Pill>}
+        {f.conflictsReference && <Pill tone="neg">Contradicts the reference</Pill>}
+        {props.humans > 0 && <Pill tone="accent">{props.humans} real {props.humans === 1 ? "person" : "people"} read it this way</Pill>}
       </div>
+      <p style={{ marginTop: 12 }}>{f.readingSummary}</p>
+      {f.plausibility && <p className="muted" style={{ marginTop: 8 }}>Why a real reader would: {f.plausibility}</p>}
+      <div style={{ display: "grid", gap: 8, marginTop: 14 }}>
+        {f.sentenceIds.length > 0
+          ? f.sentenceIds.map((id) => <p key={id} className="cite"><span className="id" style={{ marginRight: 8 }}>{id}</span>{props.sentences.get(id) ?? ""}</p>)
+          : <p className="empty" style={{ minHeight: 0, placeItems: "start" }}>About a rule the text never states.</p>}
+      </div>
+
+      {before && before.n > 0 && (
+        <div style={{ marginTop: 18 }}>
+          <h3>Persists when the same readers read again</h3>
+          <Repro label="Original" rate={before.rate} n={before.n} noise={before.noiseBand} />
+          {after && after.n > 0 && <Repro label={`v${props.lastVersion}`} rate={after.rate} n={after.n} noise={null} compare={before} />}
+        </div>
+      )}
+
       {repair && (repair.rewriteVi || repair.fidelity.requiresNewFact) && (
-        <div className="border-t border-stone-100 bg-stone-50/70 px-6 py-5">
+        <div style={{ marginTop: 18 }}>
+          <h3>Repair attempt</h3>
           {repair.rewriteVi && (
-            <div className="grid gap-3 md:grid-cols-2">
-              <div>
-                <div className="mb-1 text-xs font-semibold tracking-wide text-stone-400 uppercase">Before</div>
-                <div className="rounded-xl bg-rose-50 px-3 py-2 text-sm text-stone-800 line-through decoration-rose-300">
-                  {repair.targetSentenceIds.map((id) => props.sentences.get(id)).filter(Boolean).join(" ") || "(insertion)"}
-                </div>
-              </div>
-              <div>
-                <div className="mb-1 text-xs font-semibold tracking-wide text-stone-400 uppercase">Attempted repair</div>
-                <div className="rounded-xl bg-emerald-50 px-3 py-2 text-sm text-stone-900">{repair.rewriteVi}</div>
-              </div>
+            <div className="diff" style={{ marginTop: 8 }}>
+              <div className="before"><span className="label">Before</span>{repair.targetSentenceIds.map((id) => props.sentences.get(id)).filter(Boolean).join(" ") || "(new sentence)"}</div>
+              <div className="after"><span className="label">Attempted</span>{repair.rewriteVi}</div>
             </div>
           )}
           {repair.rewriteVi && (
-            <div className="mt-3 flex flex-wrap gap-2 text-xs">
-              <Badge tone={repair.fidelity.passed ? "good" : "bad"}>{repair.fidelity.passed ? <Check size={12} /> : <X size={12} />} fidelity {repair.fidelity.passed ? "passed" : "failed"}</Badge>
-              {repair.fidelity.facts.map((fact) => (
-                <Badge key={fact.factId} tone={fact.entailed ? "neutral" : "bad"} title={fact.why}>{fact.entailed ? <Check size={12} /> : <X size={12} />} {fact.factId}</Badge>
-              ))}
-              {repair.fidelity.newCommitments.map((c, i) => <Badge key={i} tone="bad" title={c}>new commitment</Badge>)}
-            </div>
+            <ul className="rows" style={{ marginTop: 8 }}>
+              <li className="row small">{repair.fidelity.passed ? <Check size={14} className="good" /> : <X size={14} className="bad" />} Fidelity {repair.fidelity.passed ? "passed: same rules as the original" : "failed"}</li>
+              {repair.fidelity.facts.filter((fact) => !fact.entailed).map((fact) => <li key={fact.factId} className="row small"><X size={14} className="bad" /> Loses fact <span className="id">{fact.factId}</span>: {fact.why}</li>)}
+              {repair.fidelity.newCommitments.map((c, i) => <li key={i} className="row small"><X size={14} className="bad" /> Adds a commitment: {c}</li>)}
+            </ul>
           )}
           {repair.fidelity.requiresNewFact && (
-            <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-              <span className="font-semibold">{repair.fidelity.requiresNewFact.kind === "changes_rule" ? "Needs a rule change: " : "Needs information the text does not have: "}</span>
-              {repair.fidelity.requiresNewFact.text}
+            <div className="notice" style={{ marginTop: 10, marginBottom: 0 }}>
+              {repair.fidelity.requiresNewFact.kind === "changes_rule" ? "Needs a rule change: " : "Needs information the text does not have: "}{repair.fidelity.requiresNewFact.text}
             </div>
           )}
         </div>
       )}
-    </Card>
+      <p className="small muted" style={{ marginTop: 16 }}>{f.classRationale}</p>
+    </Panel>
   );
 }
 
-function ReproRow(props: { label: string; rate: number; n: number; band: number | null; compare?: number }): ReactNode {
-  const delta = props.compare === undefined ? null : props.rate - props.compare;
-  const beyond = delta !== null && props.band !== null && Math.abs(delta) > props.band;
+function Repro(props: { label: string; rate: number; n: number; noise: number | null; compare?: { rate: number; noiseBand: number | null } }): ReactNode {
+  const delta = props.compare ? props.rate - props.compare.rate : null;
+  const noise = props.compare ? props.compare.noiseBand : props.noise;
+  const beyond = delta !== null && noise !== null && beyondNoise(delta, noise);
   return (
-    <div className="grid grid-cols-[4.5rem_1fr_auto] items-center gap-3 text-sm">
-      <span className="text-stone-500">{props.label}</span>
-      <Meter value={props.rate} band={props.band} tone={delta !== null && beyond ? (delta < 0 ? "good" : "bad") : undefined} />
-      <span className="w-40 text-right tabular-nums text-stone-700">
-        {pct(props.rate)} <span className="text-stone-400">n={props.n}</span>
-        {delta !== null && (
-          <span className={cx("ml-2", beyond ? (delta < 0 ? "text-emerald-700" : "text-rose-700") : "text-stone-400")}>
-            {delta < 0 && <ArrowDown size={12} className="inline" />}{pp(delta)}
-          </span>
-        )}
-        {delta === null && props.band !== null && <span className="ml-2 text-stone-400">±{(props.band * 100).toFixed(0)}</span>}
+    <div style={{ display: "grid", gridTemplateColumns: "64px 1fr 120px", gap: 12, alignItems: "center", marginTop: 10 }}>
+      <span className="muted">{props.label}</span>
+      <Track value={props.rate} noise={props.compare ? null : props.noise} tick={props.compare?.rate ?? null} />
+      <span className="num" style={{ textAlign: "right" }}>
+        {pct(props.rate)} <span className="muted small">n={props.n}</span>
+        {delta !== null && <span className={beyond ? (delta < 0 ? "good" : "bad") : "muted"} style={{ display: "block" }} >{pp(delta)}{beyond ? "" : " (within noise)"}</span>}
+        {delta === null && props.noise !== null && <span className="muted small" style={{ display: "block" }}>{band(props.noise)} noise</span>}
       </span>
     </div>
   );
