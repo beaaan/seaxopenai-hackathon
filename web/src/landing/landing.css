@@ -27,6 +27,17 @@
 .landing button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
 .landing a { color: inherit; }
 .landing :focus-visible { outline: 2px solid var(--n-cyan); outline-offset: 3px; border-radius: 4px; }
+.l-flow { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
+.landing > section, .landing > footer { position: relative; z-index: 1; }
+.l-rail { position: fixed; right: clamp(10px, 1.4vw, 24px); top: 50%; z-index: 4; transform: translateY(-50%); display: grid; gap: 4px; }
+.l-rail button { display: flex; align-items: center; justify-content: flex-end; gap: 10px; height: 22px; color: var(--n-dim); font-size: 12px; }
+.l-rail span { opacity: 0; transform: translateX(6px); transition: opacity 200ms, transform 200ms; white-space: nowrap; }
+.l-rail i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; transition: transform 200ms, background-color 200ms; }
+.l-rail button:hover span, .l-rail button:focus-visible span { opacity: 1; transform: none; }
+.l-rail span { padding: 2px 8px; border-radius: 999px; background: var(--n-bg-2); }
+.l-rail button.on { color: var(--n-cyan); }
+.l-rail button.on i { transform: scale(1.6); }
+@media (max-width: 1100px) { .l-rail { display: none; } }
 
 /* Buttons: one solid cyan, one outlined. */
 .l-button, .l-ghost {
@@ -81,16 +92,55 @@
 .l-bubbles li { justify-self: start; max-width: 100%; display: grid; gap: 4px; padding: 12px 16px; border-radius: 16px 16px 16px 4px; background: rgba(233, 238, 244, 0.07); font-size: clamp(16px, min(1.5vw, 2.8vh), 21px); line-height: 1.35; }
 .l-bubbles li:nth-child(even) { justify-self: end; border-radius: 16px 16px 4px 16px; }
 .l-bubbles small { font-size: 12.5px; color: var(--n-dim); }
-.l-stake { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 22px; margin-top: clamp(8px, 2vh, 24px); }
-.l-stake strong { font-size: clamp(56px, min(7vw, 12vh), 120px); line-height: 1; font-weight: 300; letter-spacing: -0.03em; }
-.l-stake span { display: grid; gap: 4px; max-width: 26ch; font-size: clamp(18px, min(1.8vw, 3.2vh), 26px); line-height: 1.25; }
-.l-stake small { font-size: 12.5px; color: var(--n-dim); }
+.l-gaps { font-size: clamp(18px, min(1.8vw, 3.2vh), 26px); line-height: 1.3; color: var(--n-amber); max-width: 40ch; }
+.s-facts { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr)); gap: clamp(12px, 1.6vw, 24px); }
+.s-facts li { display: grid; align-content: start; gap: 10px; padding: clamp(16px, 1.6vw, 24px); border-radius: 14px; border: 1px solid rgba(255, 255, 255, 0.08); background: rgba(255, 255, 255, 0.025); }
+.s-facts strong { font-size: clamp(38px, min(4.2vw, 7.4vh), 72px); line-height: 1; font-weight: 300; letter-spacing: -0.03em; color: var(--n-amber); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.s-facts.precedent strong { color: var(--n-cyan); }
+.s-facts p { margin: 0; font-size: clamp(14px, 1.15vw, 17px); line-height: 1.4; color: var(--n-ink); }
+.s-facts a { font-size: 12px; line-height: 1.35; color: var(--n-dim); text-decoration: none; border-bottom: 1px dotted currentColor; justify-self: start; }
+.s-facts a:hover { color: var(--n-cyan); }
+.s-sub { margin: clamp(8px, 2vh, 20px) 0 0; font-size: clamp(20px, min(2vw, 3.6vh), 30px); font-weight: 400; }
+.s-gap { margin: clamp(8px, 2vh, 24px) 0 0; font-size: clamp(22px, min(2.4vw, 4.2vh), 38px); line-height: 1.2; color: var(--n-amber); }
 
 /* 4. The run itself, full-bleed. */
-.l-stage { position: relative; height: 100svh; min-height: 600px; overflow: hidden; background: var(--n-bg); }
-.l-stage .theatre.embedded { position: absolute; inset: 0; }
-.l-stage-copy { position: absolute; z-index: 3; left: var(--n-m); bottom: 112px; width: min(34vw, 470px); display: grid; gap: 10px; padding: 18px 20px; border-radius: 16px; background: rgba(5, 7, 11, 0.78); border: 1px solid var(--n-edge); backdrop-filter: blur(8px); }
-.l-stage-copy h2 { font-size: clamp(24px, min(2.4vw, 4.4vh), 38px); line-height: 1.1; }
+/* Chapter kicker: what part of the story this is. */
+.l-kick { font-size: 13px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--n-cyan); }
+
+/* 4. The run as five beats, one dot per reader. */
+.l-run { align-content: start; padding-top: clamp(56px, 8vh, 96px); }
+.story { display: grid; gap: clamp(10px, 2vh, 20px); }
+.story-cap { display: grid; gap: 10px; min-height: clamp(120px, 18vh, 170px); align-content: start; }
+.story-cap h2 { font-size: clamp(30px, min(3.6vw, 6.4vh), 60px); line-height: 1.06; animation: l-fade 600ms both; }
+.story-cap p { font-size: clamp(16px, min(1.6vw, 2.8vh), 22px); color: var(--n-muted); animation: l-fade 600ms 250ms both; }
+.story-steps { list-style: none; margin: 0 0 6px; padding: 0; display: flex; gap: 6px; width: min(420px, 100%); }
+.story-steps li { flex: 1; height: 4px; border-radius: 99px; background: rgba(233, 238, 244, 0.12); overflow: hidden; }
+.story-steps li.done i { display: block; height: 100%; width: 100%; background: var(--n-cyan); }
+.story-steps li.now i { display: block; height: 100%; background: var(--n-cyan); animation: l-step linear both; }
+@keyframes l-step { from { width: 0; } to { width: 100%; } }
+.story-field { position: relative; height: clamp(340px, 52vh, 620px); border-radius: 20px; background: radial-gradient(ellipse at 50% 60%, rgba(143, 227, 255, 0.06), transparent 70%); }
+.story-dot { position: absolute; width: clamp(14px, 1.3vw, 22px); height: clamp(14px, 1.3vw, 22px); margin: calc(clamp(14px, 1.3vw, 22px) / -2) 0 0 calc(clamp(14px, 1.3vw, 22px) / -2); border-radius: 50%; transition: left 1100ms cubic-bezier(0.6, 0, 0.2, 1), top 1100ms cubic-bezier(0.6, 0, 0.2, 1), background-color 600ms, opacity 600ms, transform 400ms; }
+.story-dot.told { background: var(--n-amber); }
+.story-dot.clean { background: var(--n-cyan); }
+.story-dot.dim { opacity: 0.22; }
+.story-dot.holds { background: var(--n-red); transform: scale(1.15); }
+.story-dot.steered { animation: l-steer 900ms ease-in-out infinite; }
+@keyframes l-steer { 50% { transform: scale(1.6); box-shadow: 0 0 0 6px rgba(143, 227, 255, 0.25); } }
+.story-col { position: absolute; top: 0; transform: translateX(-50%); display: grid; justify-items: center; gap: 4px; text-align: center; color: var(--n-muted); font-size: clamp(13px, 1.1vw, 16px); animation: l-fade 500ms both; }
+.story-col svg { width: 22px; height: 22px; color: var(--n-ink); }
+.story-col b { font-size: clamp(22px, 2vw, 32px); font-weight: 400; color: var(--n-ink); font-variant-numeric: tabular-nums; }
+.story-col.hold b { font-size: clamp(36px, 3.4vw, 56px); color: var(--n-red); }
+.story-bubble { position: absolute; z-index: 2; width: min(300px, 27vw); transform: translate(-50%, 0); padding: 12px 16px; border-radius: 16px; background: #f4f7fa; color: #0b0f15; font-size: clamp(13px, 1.1vw, 16px); line-height: 1.35; quotes: "“" "”"; animation: l-pop 500ms cubic-bezier(0.2, 0.9, 0.3, 1.2) both; }
+.story-bubble::before { content: ""; position: absolute; left: 50%; top: -6px; width: 12px; height: 12px; margin-left: -6px; background: #f4f7fa; transform: rotate(45deg); border-radius: 2px; }
+.story-dot.speaking { transform: scale(1.5); box-shadow: 0 0 0 5px rgba(244, 247, 250, 0.35); }
+.story-bubble:nth-of-type(2) { animation-delay: 700ms; }
+.story-bubble:nth-of-type(3) { animation-delay: 1400ms; }
+.story-agent { position: absolute; left: 50%; bottom: 4%; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; padding: 12px 18px; border-radius: 999px; background: #0f1824; border: 1px solid rgba(143, 227, 255, 0.4); font-size: 16px; animation: l-fade 500ms both; }
+.story-agent svg { width: 22px; height: 22px; color: var(--n-cyan); }
+.story-agent span { padding: 4px 12px; border-radius: 999px; background: var(--n-cyan); color: #05070b; font-weight: 600; }
+.story-legend { display: flex; gap: 20px; font-size: 14px; color: var(--n-muted); }
+.story-legend span { display: inline-flex; align-items: center; gap: 8px; }
+.story-legend .story-dot { position: static; margin: 0; width: 12px; height: 12px; }
 
 /* Sections share one frame. */
 .l-section { padding: 140px var(--n-m) 0; display: grid; gap: 28px; }
@@ -198,7 +248,7 @@
 .m-row .people i { width: 26px; height: 26px; }
 
 /* Fix tests: one card per edit, verdict first. */
-.l-fixes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.l-fixes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .fix { margin: 0; display: grid; gap: 10px; align-content: start; padding: 24px; border-radius: 16px; background: var(--n-panel); border: 1px solid var(--n-edge); }
 .fix-mark { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: rgba(154, 166, 178, 0.14); color: var(--n-muted); }
 .fix-mark svg { width: 22px; height: 22px; stroke-width: 2.5; }
@@ -211,19 +261,6 @@
 .fix.good .fix-num { color: var(--n-green); }
 .fix.bad .fix-mark { background: rgba(255, 107, 107, 0.14); color: var(--n-red); }
 .fix.bad .fix-num { color: var(--n-red); }
-
-/* Against one AI review: one dot per known edge case. */
-.l-versus { display: grid; gap: 14px; padding: 24px; border-radius: 16px; border: 1px solid var(--n-edge); }
-.l-versus h3 { font-size: 17px; color: var(--n-muted); font-weight: 500; }
-.l-versus p { color: var(--n-muted); font-size: 15px; }
-.dots { display: grid; grid-template-columns: minmax(120px, 180px) auto 56px; align-items: center; gap: 16px; justify-content: start; }
-.dots > span:first-child { font-size: 16px; }
-.dots-row { display: flex; gap: 8px; }
-.dots-row i { width: 22px; height: 22px; border-radius: 50%; background: rgba(233, 238, 244, 0.1); }
-.dots.plain .dots-row i.on { background: #8b97a3; }
-.dots.green .dots-row i.on { background: var(--n-green); }
-.dots b { font-family: var(--mono); font-size: 20px; font-weight: 400; }
-.dots.green b { color: var(--n-green); }
 
 /* The ending. */
 .l-cta { min-height: 80svh; padding: 120px var(--n-m); display: grid; align-content: center; gap: 26px; justify-items: start; }
@@ -259,7 +296,12 @@
 .p-econ { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 12px; }
 .p-econ div { display: grid; gap: 6px; align-content: start; padding: 22px; border-radius: 16px; border: 1px solid var(--n-edge); }
 .p-econ strong { font-size: clamp(40px, min(4vw, 7vh), 64px); line-height: 1; font-weight: 300; color: var(--n-cyan); }
-.p-econ span { font-size: 15px; color: var(--n-muted); }
+.p-econ div > span { font-size: 15px; color: var(--n-muted); }
+.p-econ.versus { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.p-econ.versus strong { color: var(--n-amber); }
+.p-econ a { font-size: 12px; color: var(--n-dim); text-decoration: none; border-bottom: 1px dotted currentColor; justify-self: start; }
+.p-econ a:hover { color: var(--n-cyan); }
+.count { font-variant-numeric: tabular-nums; }
 .p-note { font-size: 13px; color: var(--n-dim); }
 .p-econ-title { margin-top: 28px; font-size: clamp(24px, min(2.4vw, 4.4vh), 36px); }
 .p-worth { max-width: 62ch; font-size: clamp(17px, min(1.5vw, 2.8vh), 21px); line-height: 1.45; color: var(--n-ink); }
@@ -279,8 +321,11 @@
   .l-why { font-size: 56px; margin-top: 8px; }
   .l-bubbles { grid-template-columns: 1fr; }
   .l-bubbles li:nth-child(even) { justify-self: end; }
-  .l-stage-copy { left: 12px; right: 12px; width: auto; top: 12px; bottom: auto; padding: 14px 16px; }
-  .l-stage-copy h2 { font-size: 22px; }
+  .story-bubble:not(:first-of-type) { display: none; }
+  .story-bubble { width: 78vw; left: 50% !important; }
+  .story-bubble::before { display: none; }
+  .p-econ.versus { grid-template-columns: 1fr; }
+  .story-col span { display: none; }
   .l-section { padding-top: 90px; }
   .l-big { grid-template-columns: 1fr; }
   .people { gap: 6px; }
@@ -290,9 +335,6 @@
   .m-row .people { grid-column: 1 / -1; grid-row: 2; }
   .m-row b { grid-row: 1; grid-column: 3; }
   .m-row .people i { width: 18px; height: 18px; }
-  .dots { grid-template-columns: 1fr auto; }
-  .dots-row { grid-column: 1 / -1; grid-row: 2; }
-  .dots-row i { width: 16px; height: 16px; }
   .tunnel { height: 620px; }
   .tunnel-text div { color: transparent; padding: 0; }
   .tunnel-text div.lit { color: transparent; background: rgba(255, 179, 71, 0.5); }

@@ -4,14 +4,17 @@ import type { FolkVersion, GradeLabel, Scenario } from "@shared/schema";
 import { beyondNoise, effectiveBand } from "@shared/noise";
 import { api, type PolicyDetail } from "../api";
 import { useRun } from "../hooks";
-import { CLASS_LABEL, cohortSize, misreadings, originalReadings, scenarioById, type Misreading, type RunModel } from "../model";
+import { cohortSize, misreadings, originalReadings, scenarioById, type Misreading, type RunModel } from "../model";
 import { Pipeline } from "./Pipeline";
+import { RunStory } from "./RunStory";
+import { ChapterRail } from "./ChapterRail";
+import { Stakes } from "./Stakes";
+import { Streamlines } from "./Streamlines";
 import { tunnelData, type TunnelData } from "./tunnel";
 import "./landing.css";
 
-// three.js is large; only the views that draw with it load it.
+// three.js is large; only the view that draws with it loads it.
 const WindTunnel = lazy(() => import("./WindTunnel").then((m) => ({ default: m.WindTunnel })));
-const TheatrePage = lazy(() => import("../theatre/TheatrePage").then((m) => ({ default: m.TheatrePage })));
 
 /** The run the page is built from, and the two edit tests run on its readers. */
 const FEATURED = "cod-main";
@@ -74,31 +77,29 @@ export function LandingPage(): ReactNode {
 
   return (
     <div className="landing">
+      <Streamlines />
+      <ChapterRail />
       <header className="l-nav">
         <a href="#/" className="l-word"><TunnelMark />Policy Wind Tunnel</a>
       </header>
       <Hook message={[sentence("checkout.1"), sentence("checkout.2")].filter((s): s is string => s !== null)} />
       <Answer text={sentence("help.4")} />
       <Blanks folk={folk} />
+      <Stakes />
 
-      <section className="l-stage" id="run" aria-labelledby="run-title">
-        <Suspense fallback={null}>
-          <TheatrePage runId={FEATURED} embedded />
-        </Suspense>
-        <div className="l-stage-copy">
-          <span className="l-live"><i />Replay of a real run</span>
-          <h2 id="run-title">So we gave the real text to 50 AI readers</h2>
-        </div>
+      <section className="l-ch l-run" id="run" aria-label="What happened in the run" data-chapter="The tunnel">
+        <span className="l-kick" data-rise>So we built a wind tunnel for policy text</span>
+        <RunStory model={model} top={rows[0]} folk={folk} />
       </section>
 
       <Found model={model} data={data} rows={rows} />
       <Voices model={model} top={rows[0]} folk={folk} />
       <Rumours folk={folk} model={model} top={rows[0]} />
-      <Repair model={model} top={rows[0]} />
-      <Numbers model={model} top={rows[0]} />
+      <Repair top={rows[0]} />
+      <Numbers />
       <Pipeline model={model} wallSeconds={wallSeconds} />
 
-      <section className="l-cta" id="demo" aria-labelledby="cta-title">
+      <section className="l-cta" id="demo" aria-labelledby="cta-title" data-chapter="Demo">
         <h2 id="cta-title" data-rise>Now watch the whole run</h2>
         <div className="l-actions" data-rise>
           <a className="l-button l-big-button" href={LIVE}>Watch the full run</a>
@@ -119,7 +120,7 @@ export function LandingPage(): ReactNode {
 
 function Hook(props: { message: string[] }): ReactNode {
   return (
-    <section className="l-ch l-hook" aria-labelledby="hook-title">
+    <section className="l-ch l-hook" aria-labelledby="hook-title" data-chapter="Why?">
       <div className="l-hook-copy">
         <h1 id="hook-title">Cash on delivery is gone from your checkout.</h1>
         <p className="l-why">Why?</p>
@@ -147,7 +148,7 @@ function Answer(props: { text: string | null }): ReactNode {
   const text = props.text?.replace(/^-\s*/, "") ?? null;
   const at = text ? text.indexOf(VAGUE) : -1;
   return (
-    <section className="l-ch l-answer" id="answer" aria-labelledby="answer-title">
+    <section className="l-ch l-answer" id="answer" aria-labelledby="answer-title" data-chapter="The rule">
       <h2 id="answer-title" data-rise>Shopee's help page gives a reason</h2>
       {text && (
         <blockquote lang="vi" data-rise>
@@ -160,7 +161,7 @@ function Answer(props: { text: string | null }): ReactNode {
         <li data-rise>Over how long?</li>
         <li data-rise>Locked for how long?</li>
       </ul>
-      <p className="l-never" data-rise>The page never says.</p>
+      <p className="l-never" data-rise>For the failed-delivery lock, the page never says.</p>
     </section>
   );
 }
@@ -175,17 +176,14 @@ function host(url: string): string {
 
 function Blanks(props: { folk: readonly FolkVersion[] }): ReactNode {
   return (
-    <section className="l-ch l-blanks" aria-labelledby="blanks-title">
+    <section className="l-ch l-blanks" aria-labelledby="blanks-title" data-turbulent data-chapter="Rumours">
       <h2 id="blanks-title" data-rise>So people fill in the blanks</h2>
       <ol className="l-bubbles">
         {props.folk.map((f) => (
           <li key={f.id} data-rise><span>{shortClaim(f)}</span><small>{host(f.source)}</small></li>
         ))}
       </ol>
-      <p className="l-stake" data-rise>
-        <strong>8–12%</strong>
-        <span>of online orders in Vietnam are refused on delivery<small>VECOM, via Người Lao Động 19/07/2025</small></span>
-      </p>
+      <p className="l-gaps" data-rise>Each one states a rule the help article never gives.</p>
     </section>
   );
 }
@@ -216,7 +214,7 @@ function Found(props: { model: RunModel | null; data: TunnelData | null; rows: M
   const total = model ? cohortSize(model) : 0;
   const top = rows[0];
   return (
-    <section className="l-section" id="found" aria-labelledby="found-title">
+    <section className="l-section" id="found" aria-labelledby="found-title" data-turbulent data-chapter="Finding">
       {top && total > 0 && (
         <div className="l-big" data-rise>
           <strong className="l-num"><span>{top.readers.length}</span><small>/{total}</small></strong>
@@ -276,7 +274,7 @@ function Voices(props: { model: RunModel | null; top: Misreading | undefined; fo
   const voices = voicesOf(model, top);
   if (voices.length === 0) return null;
   return (
-    <section className="l-section" id="voices" aria-labelledby="voices-title">
+    <section className="l-section" id="voices" aria-labelledby="voices-title" data-turbulent data-chapter="Voices">
       <h2 id="voices-title" data-rise>Three of them, in their own words</h2>
       <ol className="l-voices">
         {voices.map(({ scenario: s, said, label }) => {
@@ -304,50 +302,63 @@ function Voices(props: { model: RunModel | null; top: Misreading | undefined; fo
 }
 
 // ---------------------------------------------------------------------------
-// Can wording fix it? The logged repair attempt on the top misreading.
+// Can wording fix it? The scope-sentence edit, reread by the same suite readers.
 
-/** Mean belief before/after the targeted re-read, as written into the classification rationale. */
-function repairScores(rationale: string): { before: number; after: number } | null {
-  const m = /before\/after mean maximum belief probability ([\d.]+)\/([\d.]+)/.exec(rationale);
-  return m ? { before: Number(m[1]), after: Number(m[2]) } : null;
-}
+/** English for the sentence the scope edit added (a translation of the logged Vietnamese). */
+const SCOPE_GLOSS = "“This article does not state how many failed deliveries count, or over what period.”";
 
-function Repair(props: { model: RunModel | null; top: Misreading | undefined }): ReactNode {
-  const { model, top } = props;
-  const finding = model?.findings.find((f) => f.id === top?.id);
-  const repair = finding?.repair;
-  const scores = finding ? repairScores(finding.classRationale) : null;
-  if (!finding || !repair || !scores) return null;
+const norm = (s: string): string => s.trim().replace(/[.。]+$/, "");
+
+function Repair(props: { top: Misreading | undefined }): ReactNode {
+  const { top } = props;
+  const suite = useRun(SCOPE_TEST, false).model;
+  const cmp = suite?.comparison;
+  const v0 = suite?.versions.find((v) => v.version === 0);
+  const v1 = suite?.versions.at(-1);
+  const before = cmp?.before.findingReproduction.find((r) => r.findingId === top?.id);
+  const after = cmp?.after.findingReproduction.find((r) => r.findingId === top?.id);
+  if (!suite || !cmp || !v0 || !v1 || v1 === v0 || !before || !after || !cmp.fidelity) return null;
+  const old = new Set(v0.sentences.map((s) => norm(s.text)));
+  const added = v1.sentences.filter((s) => !old.has(norm(s.text)));
+  const worse = cmp.after.findingReproduction.flatMap((a) => {
+    const b = cmp.before.findingReproduction.find((x) => x.findingId === a.findingId);
+    return b && b.noiseBand !== null && a.rate > b.rate && beyondNoise(a.rate - b.rate, b.noiseBand) ? [{ before: b.rate, after: a.rate }] : [];
+  })[0];
+  const surface = added[0]?.id.split(".")[0] ?? null;
+  const reached = surface ? suite.scenarios.filter((s) => s.exposure.surfaceIds.includes(surface)).length : 0;
   const pct = (x: number): string => `${Math.round(x * 100)}%`;
+  const band = before.noiseBand === null ? null : Math.round(effectiveBand(before.noiseBand) * 100);
   return (
-    <section className="l-ch l-repair" id="repair" aria-labelledby="repair-title">
-      <h2 id="repair-title" data-rise>Can better wording fix it?</h2>
+    <section className="l-ch l-repair" id="repair" aria-labelledby="repair-title" data-chapter="The fix">
+      <span className="l-kick" data-rise>Can it be fixed?</span>
+      <h2 id="repair-title" data-rise>We tried the obvious fix</h2>
       <ol className="r-steps">
         <li data-rise>
           <span className="r-icon"><PenLine /></span>
-          <b>The AI rewrites the sentence</b>
-          <p lang="vi">{clip(repair.rewriteVi, 150)}</p>
-          <p className="r-gloss">It now says outright that the article sets no “3 in 90 days” cutoff.</p>
+          <b>Add one sentence to the help article</b>
+          {added.map((s) => <p key={s.id} lang="vi">{s.text}</p>)}
+          <p className="r-gloss">{SCOPE_GLOSS}</p>
         </li>
         <li data-rise>
-          <span className={repair.fidelity.passed ? "r-icon ok" : "r-icon bad"}>{repair.fidelity.passed ? <ShieldCheck /> : <X />}</span>
-          <b>A fact check confirms no rule changed</b>
-          <p>{repair.fidelity.facts.filter((f) => f.entailed).length} of {repair.fidelity.facts.length} facts kept, {repair.fidelity.newCommitments.length} new promises</p>
+          <span className={cmp.fidelity.passed ? "r-icon ok" : "r-icon bad"}>{cmp.fidelity.passed ? <ShieldCheck /> : <X />}</span>
+          <b>A fact check: no rule changed</b>
+          <p>{cmp.fidelity.facts.filter((f) => f.entailed).length} of {cmp.fidelity.facts.length} facts kept, {cmp.fidelity.newCommitments.length} new promises.</p>
         </li>
         <li data-rise>
           <span className="r-icon"><RotateCcw /></span>
-          <b>The same readers read it again</b>
-          <div className="r-bars" role="img" aria-label={`Belief ${pct(scores.before)} before, ${pct(scores.after)} after`}>
-            <span>Before</span><i style={{ width: pct(scores.before) }} /><em>{pct(scores.before)}</em>
-            <span>After</span><i style={{ width: pct(scores.after) }} /><em>{pct(scores.after)}</em>
+          <b>The same {suite.scenarios.length} readers read it again</b>
+          <div className="r-bars" role="img" aria-label={`Three-failure belief ${pct(before.rate)} before, ${pct(after.rate)} after`}>
+            <span>Before</span><i style={{ width: pct(before.rate) }} /><em>{pct(before.rate)}</em>
+            <span>After</span><i style={{ width: pct(after.rate) }} /><em>{pct(after.rate)}</em>
           </div>
+          <p>{band !== null ? `Within the ±${band}-point noise. ` : ""}{worse ? `Another misreading rose from ${pct(worse.before)} to ${pct(worse.after)}.` : ""}</p>
         </li>
       </ol>
       <div className="r-verdict" data-rise>
-        <strong>Wording can't fix a missing rule.</strong>
-        <span>Shopee has to decide the number and publish it.</span>
-        {finding.class && <span className={`b-kind k-${finding.class}`}>{CLASS_LABEL[finding.class]}</span>}
+        <strong>The fix failed. Only {reached} of these {suite.scenarios.length} readers ever saw it.</strong>
+        {surface && <span>The rest meet the rule at checkout or hear it from a friend.</span>}
       </div>
+      <People total={suite.scenarios.length} lit={reached} tone="cyan" />
     </section>
   );
 }
@@ -396,7 +407,7 @@ function Rumours(props: { folk: readonly FolkVersion[]; model: RunModel | null; 
   const noneHold = none.filter((s) => holders.has(s.id)).length;
   if (!rumour || !model) return null;
   return (
-    <section className="l-section l-rumour" id="rumours" aria-labelledby="rumours-title">
+    <section className="l-section l-rumour" id="rumours" aria-labelledby="rumours-title" data-turbulent data-chapter="Rumour test">
       <h2 id="rumours-title" className="l-kicker" data-rise>The rumour survives the official text</h2>
       <p className="l-claim" data-rise>“{shortClaim(rumour)}”<span className="l-stamp">Not in Shopee's text</span></p>
       <p className="l-lead" data-rise>Readers told this rumour, then:</p>
@@ -421,40 +432,22 @@ function Rumours(props: { folk: readonly FolkVersion[]; model: RunModel | null; 
 }
 
 // ---------------------------------------------------------------------------
-// Fixes tested on the same readers, and the comparison with one AI review.
+// Fixes tested on the same readers.
 
-function Numbers(props: { model: RunModel | null; top: Misreading | undefined }): ReactNode {
-  const { model, top } = props;
-  const scopeTest = useRun(SCOPE_TEST, false).model;
+function Numbers(): ReactNode {
   const storeTest = useRun(STORE_TEST, false).model;
   const grab = useRun(GRAB_RUN, false).model;
 
   const grabBefore = grab?.iterations[0]?.findingReproduction.find((r) => r.findingId === GRAB_FINDING);
   const grabAfter = grab && grab.iterations.length > 1 ? grab.iterations.at(-1)?.findingReproduction.find((r) => r.findingId === GRAB_FINDING) : undefined;
-  const scope = scopeTest?.comparison;
-  const scopeBefore = scope?.before.findingReproduction.find((r) => r.findingId === top?.id);
-  const scopeAfter = scope?.after.findingReproduction.find((r) => r.findingId === top?.id);
-  // The scope edit's verdict also counts every other misreading: the largest rise beyond noise, if any.
-  const scopeWorse = (scope?.after.findingReproduction ?? []).flatMap((a) => {
-    const b = scope?.before.findingReproduction.find((x) => x.findingId === a.findingId);
-    return b && b.noiseBand !== null && a.rate > b.rate && beyondNoise(a.rate - b.rate, b.noiseBand) ? [{ before: b.rate, after: a.rate }] : [];
-  }).sort((x, y) => (y.after - y.before) - (x.after - x.before))[0];
   const promise = storeTest?.comparison?.fidelity?.newCommitments[0];
 
-  const systems = model?.score?.systems ?? [];
-  const cases = new Set(model?.score?.matches.map((m) => m.edgeCaseId)).size;
-  const tunnel = systems.find((s) => s.id === "wind-tunnel");
-  const review = systems.find((s) => s.id === "baseline-mean");
-
   return (
-    <section className="l-section" id="numbers" aria-labelledby="numbers-title">
+    <section className="l-section" id="numbers" aria-labelledby="numbers-title" data-chapter="Every edit">
       <h2 id="numbers-title" className="l-kicker" data-rise>Every edit gets the same test</h2>
       <div className="l-fixes">
         {grabBefore && grabAfter && grabBefore.noiseBand !== null && (
           <Fix who="Grab" what="Rider clauses rewritten" before={grabBefore.rate} after={grabAfter.rate} band={effectiveBand(grabBefore.noiseBand)} n={grabBefore.n} />
-        )}
-        {scopeBefore && scopeAfter && scopeBefore.noiseBand !== null && (
-          <Fix who="Shopee" what="Scope sentence added" before={scopeBefore.rate} after={scopeAfter.rate} band={effectiveBand(scopeBefore.noiseBand)} n={scopeBefore.n} worse={scopeWorse} />
         )}
         {promise && (
           <figure className="fix bad" data-rise>
@@ -465,47 +458,20 @@ function Numbers(props: { model: RunModel | null; top: Misreading | undefined })
           </figure>
         )}
       </div>
-      {tunnel && review && cases > 0 && (
-        <div className="l-versus" data-rise>
-          <h3>Known edge cases found, scored blind</h3>
-          <Dots label="One AI review" hit={Math.round(review.recall * cases)} of={cases} tone="plain" />
-          <Dots label="Wind tunnel" hit={Math.round(tunnel.recall * cases)} of={cases} tone="green" />
-          <p>A review lists more. The tunnel counts who believes each one.</p>
-        </div>
-      )}
     </section>
   );
 }
 
-/**
- * A rewrite's effect on the same readers: mean belief score before → after, judged against normal variation.
- * `worse` is another misreading that rose beyond noise, which fails the edit whatever this one did.
- */
-function Fix(props: { who: string; what: string; before: number; after: number; band: number; n: number; worse?: { before: number; after: number } | undefined }): ReactNode {
+/** A rewrite's effect on the same readers: mean belief score before → after, judged against normal variation. */
+function Fix(props: { who: string; what: string; before: number; after: number; band: number; n: number }): ReactNode {
   const real = beyondNoise(props.after - props.before, props.band) && props.after < props.before;
   const score = (x: number): string => String(Math.round(x * 100));
-  const ok = real && !props.worse;
   return (
-    <figure className={ok ? "fix good" : props.worse ? "fix failed" : "fix flat"} data-rise>
-      <span className="fix-mark">{ok ? <Check /> : <X />}</span>
+    <figure className={real ? "fix good" : "fix flat"} data-rise>
+      <span className="fix-mark">{real ? <Check /> : <X />}</span>
       <figcaption><b>{props.who}</b> {props.what}</figcaption>
       <strong className="fix-num">{score(props.before)}<span>→</span>{score(props.after)}</strong>
-      <span className="fix-verdict">
-        {props.worse ? `Failed: another misreading rose ${score(props.worse.before)} → ${score(props.worse.after)}` : real ? "Works" : "Within noise"}
-        {` · ±${Math.round(props.band * 100)} noise · same ${props.n} readers`}
-      </span>
+      <span className="fix-verdict">{real ? "Works" : "Within noise"}{` · ±${Math.round(props.band * 100)} noise · same ${props.n} readers`}</span>
     </figure>
-  );
-}
-
-function Dots(props: { label: string; hit: number; of: number; tone: "plain" | "green" }): ReactNode {
-  return (
-    <div className={`dots ${props.tone}`}>
-      <span>{props.label}</span>
-      <span className="dots-row" role="img" aria-label={`${props.hit} of ${props.of}`}>
-        {Array.from({ length: props.of }, (_, i) => <i key={i} className={i < props.hit ? "on" : undefined} />)}
-      </span>
-      <b>{props.hit}/{props.of}</b>
-    </div>
   );
 }

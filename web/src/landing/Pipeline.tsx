@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
 import { Bot, FileSearch, Layers, ListChecks, Scale, ScanSearch, Users, Wand2 } from "lucide-react";
-import type { RunModel } from "../model";
+import { codebook, originalReadings, type RunModel } from "../model";
 import usage from "./usage.json";
+import { CountUp } from "./Stakes";
 
 /** Real token usage from one instrumented run (scripts/usage-summary.ts → docs/usage-probe.json, copied here). */
 interface StageUsage {
@@ -24,7 +25,15 @@ interface UsageProbe {
 const PROBE = usage as UsageProbe;
 
 /** Stages whose work grows with the number of readers; the rest run a fixed number of times per test. */
-const PER_READER = new Set(["reader", "grader", "coder", "embeddings", "decisions", "resolution"]);
+const PER_READER = new Set(["reader", "grader", "coder", "embeddings", "decisions"]);
+
+function firstBeliefs(m: RunModel): number {
+  return originalReadings(m).reduce((n, r) => n + r.interpretations.length, 0);
+}
+
+function codebookSize(m: RunModel): number {
+  return codebook(m).length;
+}
 
 interface Layer {
   name: string;
@@ -49,10 +58,10 @@ const LAYERS: Layer[] = [
     icon: <Users />,
     stages: ["reader"],
     ask: "You are this shopper, a friend told you this, you see this screen. What do you believe now?",
-    gives: (m) => ({ value: String(m.readings.reduce((n, r) => n + r.interpretations.length, 0)), unit: "beliefs, in their words" }),
+    gives: (m) => ({ value: String(firstBeliefs(m)), unit: "beliefs, in their own words" }),
     proof: (m) => {
       const band = m.iterations[0]?.findingReproduction.find((r) => r.noiseBand !== null)?.noiseBand;
-      return band === undefined || band === null ? null : `Same reader, read twice: within ±${Math.round(band * 100)} points`;
+      return band === undefined || band === null ? null : `Each reader reads twice; top misreading varies ±${Math.round(band * 100)} points`;
     },
   },
   {
@@ -60,7 +69,7 @@ const LAYERS: Layer[] = [
     icon: <ListChecks />,
     stages: ["grader"],
     ask: "Does this belief fit the policy, contradict it, or go beyond it?",
-    gives: (m) => ({ value: String(m.grades.length), unit: "checks" }),
+    gives: (m) => ({ value: String(m.grades.length), unit: "checks, repeat reads included" }),
     proof: () => null,
   },
   {
@@ -68,8 +77,8 @@ const LAYERS: Layer[] = [
     icon: <Layers />,
     stages: ["embeddings", "coder", "decisions"],
     ask: "Is this belief the same idea as that one?",
-    gives: (m) => ({ value: `${m.readings.reduce((n, r) => n + r.interpretations.length, 0)} → ${m.findings.length}`, unit: "beliefs into misreadings" }),
-    proof: (m) => (m.codings.length ? `${m.codings.length.toLocaleString("en-US")} yes/no matches` : null),
+    gives: (m) => ({ value: `${firstBeliefs(m)} → ${codebookSize(m)} → ${m.findings.length}`, unit: "beliefs → groups → misreadings" }),
+    proof: (m) => (m.codings.length ? `${m.codings.length.toLocaleString("en-US")} belief-to-group probability judgments` : null),
   },
   {
     name: "An agent picks the next readers",
@@ -123,13 +132,20 @@ const LAYERS: Layer[] = [
   },
 ];
 
-/** Measured cost of the stages, scaled from the probe run to `readers` readers; null when no call of them was measured. */
-function stageCost(stages: readonly string[], readers: number): { usd: number; model: string | null } | null {
+/**
+ * Estimated cost of the stages for run `m`, from the measured probe: per-reader stages scale with the reader count,
+ * single AI reviews with how many `m` ran on each model, everything else as measured. Null when nothing was measured.
+ */
+function stageCost(stages: readonly string[], m: RunModel): { usd: number; model: string | null } | null {
   const rows = PROBE.stages.filter((s) => stages.includes(s.stage));
   if (rows.length === 0) return null;
-  const scale = readers / Math.max(1, PROBE.readers);
+  const scale = (s: StageUsage): number => {
+    if (PER_READER.has(s.stage)) return m.scenarios.length / Math.max(1, PROBE.readers);
+    if (s.stage === "baseline") return m.baselines.filter((b) => b.model === s.model).length / Math.max(1, s.calls);
+    return 1;
+  };
   return {
-    usd: rows.reduce((sum, s) => sum + s.costUsd * (PER_READER.has(s.stage) ? scale : 1), 0),
+    usd: rows.reduce((sum, s) => sum + s.costUsd * scale(s), 0),
     model: [...rows].sort((a, b) => b.costUsd - a.costUsd)[0]?.model ?? null,
   };
 }
@@ -144,20 +160,27 @@ function perCall(stage: string, model: string): number {
   return row && row.calls > 0 ? row.costUsd / row.calls : 0;
 }
 
+/** One more reading in the probe: reading it, grading it, coding it against the frozen groups (Decisions API). */
+function perReading(): number {
+  const readings = PROBE.stages.find((s) => s.stage === "reader")?.calls ?? 0;
+  const rows = PROBE.stages.filter((s) => s.stage === "reader" || s.stage === "grader" || (s.stage === "coder" && s.model === "gpt-6-luna"));
+  return readings > 0 ? rows.reduce((sum, s) => sum + s.costUsd, 0) / readings : 0;
+}
+
 export function Pipeline(props: { model: RunModel | null; wallSeconds: number | null }): ReactNode {
   const { model, wallSeconds } = props;
   if (!model) return null;
   const readers = model.scenarios.length;
-  const costs = LAYERS.map((l) => stageCost(l.stages, readers));
+  const costs = LAYERS.map((l) => stageCost(l.stages, model));
   // Every measured stage counts toward the total, including calls no layer above names.
-  const total = stageCost(PROBE.stages.map((s) => s.stage), readers)?.usd ?? 0;
+  const total = stageCost(PROBE.stages.map((s) => s.stage), model)?.usd ?? 0;
   const max = Math.max(...costs.map((c) => c?.usd ?? 0), 1e-9);
-  // An edit test rereads 10 readers three times (original, edit, repeat): 15 probe readers' worth of the per-reader
-  // stages, each of which read twice in the probe; plus one fact check of the edit.
-  const editTest = (stageCost(["reader", "grader", "coder", "embeddings"], 15)?.usd ?? 0) + perCall("fidelity", "gpt-6.1-sol");
+  // An edit test reuses the suite's earlier readings: one fresh reading per reader of the edited text, graded and
+  // coded against the frozen groups, plus one fact check of the edit.
+  const editTest = perReading() * 10 + perCall("fidelity", "gpt-6.1-sol");
   const review = perCall("baseline", "gpt-6.1-sol");
   return (
-    <section className="l-section l-pipeline" id="pipeline" aria-labelledby="pipeline-title">
+    <section className="l-section l-pipeline" id="pipeline" aria-labelledby="pipeline-title" data-chapter="Pipeline">
       <h2 id="pipeline-title" data-rise>Eight AI layers, one question each</h2>
       <ol className="p-layers">
         {LAYERS.map((l, i) => {
@@ -187,16 +210,31 @@ export function Pipeline(props: { model: RunModel | null; wallSeconds: number | 
       </ol>
       <h3 className="p-econ-title" data-rise>What it costs</h3>
       <div className="p-econ" data-rise>
-        <div><strong>{usd(total)}</strong><span>one full test, {readers} readers{wallSeconds ? `, ${Math.round(wallSeconds / 60)} min` : ""}</span></div>
-        <div><strong>{usd(editTest)}</strong><span>to retest one edit on the same 10 readers, about 20 s</span></div>
+        <div><strong><CountUp fact={{ value: total, decimals: 2, prefix: "$" }} /></strong><span>estimated model cost of this run, {readers} readers{wallSeconds ? `, ${Math.round(wallSeconds / 60)} min` : ""}</span></div>
+        <div><strong>{usd(editTest)}</strong><span>estimated model cost to retest one edit on 10 readers; ours took 17 s</span></div>
         <div><strong>{usd(review)}</strong><span>one AI review, which lists problems but can't count who believes them</span></div>
+      </div>
+      <h3 className="p-econ-title" data-rise>Cost context</h3>
+      <div className="p-econ versus" data-rise>
+        <div>
+          <strong><CountUp fact={{ value: 4000, prefix: "$" }} /></strong>
+          <span>illustrative participant pay: 50 one-hour remote consumer interviews at the recommended $80 an hour. Not a Vietnam quote.</span>
+          <a href="https://www.userinterviews.com/blog/research-incentives-report" target="_blank" rel="noreferrer">User Interviews incentive report, updated 2025</a>
+        </div>
+        <div>
+          <strong><CountUp fact={{ value: 8.01, decimals: 2, prefix: "$" }} /></strong>
+          <span>average cost of one live support contact in Gartner's 2019 poll. A different service and cost base, shown for scale.</span>
+          <a href="https://emt.gartnerweb.com/ngw/globalassets/en/sales-service/documents/trends/delivering-on-the-digital-promise-ebook.pdf" target="_blank" rel="noreferrer">Gartner, 2019</a>
+        </div>
       </div>
       {review > 0 && (
         <p className="p-worth" data-rise>
-          A full test costs as much as {Math.round(total / review)} single reviews. It buys what a review can't: how many readers believe each problem, who they are, and whether a fix works. At {usd(editTest)} an edit, every change to the text can be retested before it ships.
+          A full test costs as much as {Math.round(total / review)} single reviews. It buys what a review can't: how many readers believe each problem, who they are, and whether a fix works.
         </p>
       )}
-      <p className="p-note" data-rise>Token counts measured on a {PROBE.readers}-reader run ({PROBE.runId}) at OpenAI list prices; per-reader stages scaled to {readers} readers.</p>
+      <p className="p-note" data-rise>
+        Simulated readers don't replace people. They show which sentence to put in front of people. Costs are estimates from token counts measured on a {PROBE.readers}-reader run ({PROBE.runId}) at OpenAI list prices, scaled to {readers} readers.
+      </p>
     </section>
   );
 }
