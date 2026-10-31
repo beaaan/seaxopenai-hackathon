@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Check, ChevronDown, CircleHelp, CircleSlash, EyeOff, FileText, PenLine, RotateCcw, ShieldCheck, ShoppingCart, X } from "lucide-react";
-import type { FolkVersion, GradeLabel, Scenario } from "@shared/schema";
+import type { FolkVersion, GradeLabel, Iteration, Scenario } from "@shared/schema";
 import { beyondNoise, effectiveBand } from "@shared/noise";
 import { api, type PolicyDetail } from "../api";
 import { useRun } from "../hooks";
@@ -358,6 +358,31 @@ const SCOPE_GLOSS = "“This article does not state how many failed deliveries c
 
 const norm = (s: string): string => s.trim().replace(/[.。]+$/, "");
 
+type FindingMeasurement = Iteration["findingReproduction"][number];
+
+function RepairComparison(props: { title: string; before: FindingMeasurement; after: FindingMeasurement }): ReactNode {
+  const { title, before, after } = props;
+  const pct = (rate: number): string => `${(rate * 100).toFixed(1)}%`;
+  const noise = before.noiseBand === null ? "Noise unavailable" : `Effective noise band: ±${(effectiveBand(before.noiseBand) * 100).toFixed(1)} percentage points`;
+  const samples = before.n === after.n ? `n = ${before.n} before and after` : `n = ${before.n} before; n = ${after.n} after`;
+  const delta = after.rate - before.rate;
+  const interpretation = before.n === 0 || before.n !== after.n ? "Measurement coverage incomplete — comparison inconclusive"
+    : before.noiseBand === null ? "Noise unavailable — comparison inconclusive"
+    : !beyondNoise(delta, before.noiseBand) ? "Within measured noise"
+    : delta > 0 ? "Increased beyond noise" : "Decreased beyond noise";
+  return (
+    <figure className="r-comparison">
+      <figcaption>{title}</figcaption>
+      <div className="r-bars" role="img" aria-label={`Mean belief score: ${pct(before.rate)} before, ${pct(after.rate)} after. ${noise}. ${samples}. ${interpretation}.`}>
+        <span>Before</span><i style={{ width: pct(before.rate) }} /><em>{pct(before.rate)}</em>
+        <span>After</span><i style={{ width: pct(after.rate) }} /><em>{pct(after.rate)}</em>
+      </div>
+      <p>{noise} · {samples}</p>
+      <p className="r-interpretation">{interpretation}</p>
+    </figure>
+  );
+}
+
 function Repair(props: { top: Misreading | undefined }): ReactNode {
   const { top } = props;
   const suite = useRun(SCOPE_TEST, false).model;
@@ -371,12 +396,12 @@ function Repair(props: { top: Misreading | undefined }): ReactNode {
   const added = v1.sentences.filter((s) => !old.has(norm(s.text)));
   const worse = cmp.after.findingReproduction.flatMap((a) => {
     const b = cmp.before.findingReproduction.find((x) => x.findingId === a.findingId);
-    return b && b.noiseBand !== null && a.rate > b.rate && beyondNoise(a.rate - b.rate, b.noiseBand) ? [{ before: b.rate, after: a.rate }] : [];
+    return b && b.n > 0 && b.n === a.n && b.noiseBand !== null && a.rate > b.rate && beyondNoise(a.rate - b.rate, b.noiseBand) ? [{ before: b, after: a }] : [];
   })[0];
   const surface = added[0]?.id.split(".")[0] ?? null;
   const reached = surface ? suite.scenarios.filter((s) => s.exposure.surfaceIds.includes(surface)).length : 0;
-  const pct = (x: number): string => `${Math.round(x * 100)}%`;
-  const band = before.noiseBand === null ? null : Math.round(effectiveBand(before.noiseBand) * 100);
+  const verdict = cmp.verdict === "fail" ? "The edit failed the frozen suite."
+    : cmp.verdict === "pass" ? "The edit passed the frozen suite." : "The edit result is inconclusive.";
   return (
     <section className="l-ch l-repair" id="repair" aria-labelledby="repair-title" data-chapter="The fix">
       <span className="l-kick" data-rise>Can it be fixed?</span>
@@ -396,15 +421,16 @@ function Repair(props: { top: Misreading | undefined }): ReactNode {
         <li data-rise>
           <span className="r-icon"><RotateCcw /></span>
           <b>The same {suite.scenarios.length} readers read it again</b>
-          <div className="r-bars" role="img" aria-label={`Three-failure belief ${pct(before.rate)} before, ${pct(after.rate)} after`}>
-            <span>Before</span><i style={{ width: pct(before.rate) }} /><em>{pct(before.rate)}</em>
-            <span>After</span><i style={{ width: pct(after.rate) }} /><em>{pct(after.rate)}</em>
-          </div>
-          <p>No real change.{worse ? ` And a different misreading rose from ${pct(worse.before)} to ${pct(worse.after)}.` : ""}</p>
+          <p>Mean belief scores average coded belief probabilities across the selected simulated readers.</p>
+          <RepairComparison title={top?.title ?? before.findingId} before={before} after={after} />
+          {worse && worse.before.findingId !== before.findingId && (
+            <RepairComparison title={suite.findings.find((f) => f.id === worse.before.findingId)?.title ?? worse.before.findingId} before={worse.before} after={worse.after} />
+          )}
+          <p>Effective noise bands include a minimum threshold of 5 percentage points.</p>
         </li>
       </ol>
       <div className="r-verdict" data-rise>
-        <strong>The tunnel caught a fix that would not have worked.</strong>
+        <strong>{verdict}</strong>
         {surface && <span>Only {reached} of these {suite.scenarios.length} readers ever see the help article. The rest meet the rule at checkout or hear it from a friend.</span>}
       </div>
       <People total={suite.scenarios.length} lit={reached} tone="cyan" />

@@ -17,73 +17,97 @@ function compact(n: number): string {
 }
 
 /**
- * The economics on one screen: what one misreading could cost in support contacts (buyers × the simulated share who
- * believe it × the share who contact support × Gartner's cost per contact), against what finding and retesting it
- * costs, and what the usual alternatives cost.
+ * Hypothetical support costs use buyer assumptions independent of the simulation.
+ * Estimated model costs and external benchmarks provide separate cost context.
  */
 export function Economics(props: { model: RunModel | null; top: Misreading | undefined; wallSeconds: number | null }): ReactNode {
   const { model, top, wallSeconds } = props;
   const [buyers, setBuyers] = useState<number>(BUYERS[1]);
   const [contact, setContact] = useState<number>(CONTACT[1]);
+  const [misreading, setMisreading] = useState({ text: "", badInput: false });
   if (!model || !top || model.scenarios.length === 0) return null;
   const readers = model.scenarios.length;
   const held = top.readers.length;
-  const share = held / readers;
-  const bill = buyers * share * contact * SUPPORT_CONTACT.usd;
+  const rate = misreading.text.trim() === "" ? null : Number(misreading.text);
+  const invalid = misreading.badInput || (rate !== null && (!Number.isFinite(rate) || rate < 0 || rate > 100));
+  const bill = invalid || rate === null ? null : buyers * (rate / 100) * contact * SUPPORT_CONTACT.usd;
   const run = runCost(model);
   const retest = editTestCost(RETEST_READERS);
   const review = reviewCost();
   return (
     <section className="l-section l-econ" id="economics" aria-labelledby="econ-title" data-chapter="Economics">
       <span className="l-kick" data-rise>The economics</span>
-      <h2 id="econ-title" data-rise>What a misreading could cost, and what finding it costs</h2>
+      <h2 id="econ-title" data-rise>What-if support cost and estimated testing costs</h2>
+      <p className="c-observed" data-rise>
+        <span>Simulation result: <b>{held} of {readers} simulated readers</b> held this belief.</span>
+        <small>These scenarios do not estimate how common the belief is among real buyers.</small>
+      </p>
 
       <div className="c-eq" data-rise>
         <div className="c-term">
           <strong>{compact(buyers)}</strong>
-          <span>buyers lose COD</span>
-          <div className="c-pick" role="group" aria-label="Buyers who lose COD">
-            {BUYERS.map((b) => <button key={b} type="button" className={b === buyers ? "on" : undefined} onClick={() => setBuyers(b)}>{compact(b)}</button>)}
+          <span>assumed buyers who lose COD</span>
+          <div className="c-pick" role="group" aria-label="Assumed buyer count">
+            {BUYERS.map((b) => <button key={b} type="button" aria-pressed={b === buyers} className={b === buyers ? "on" : undefined} onClick={() => setBuyers(b)}>{compact(b)}</button>)}
           </div>
         </div>
         <b className="c-op">×</b>
-        <div className="c-term measured">
-          <strong>{Math.round(share * 100)}%</strong>
-          <span>believe a rule that isn't there</span>
-          <small>{held} of {readers} simulated readers</small>
+        <div className="c-term">
+          <label htmlFor="cost-misreading-rate">Assumed share of buyers who misread (%)</label>
+          <input
+            id="cost-misreading-rate"
+            className="c-rate-input"
+            type="number"
+            inputMode="decimal"
+            min="0"
+            max="100"
+            step="any"
+            value={misreading.text}
+            aria-invalid={invalid}
+            aria-describedby={invalid ? "cost-rate-help cost-rate-error" : "cost-rate-help"}
+            onInput={(event) => setMisreading({ text: event.currentTarget.value, badInput: event.currentTarget.validity.badInput })}
+          />
+          <small id="cost-rate-help">Choose a hypothetical rate from 0 to 100%. Decimals are allowed.</small>
+          {invalid && <small id="cost-rate-error" role="alert">Enter a number from 0 to 100.</small>}
         </div>
         <b className="c-op">×</b>
         <div className="c-term">
           <strong>{Math.round(contact * 100)}%</strong>
-          <span>of them contact support</span>
-          <div className="c-pick" role="group" aria-label="Share who contact support">
-            {CONTACT.map((c) => <button key={c} type="button" className={c === contact ? "on" : undefined} onClick={() => setContact(c)}>{Math.round(c * 100)}%</button>)}
+          <span>assumed share of those buyers contacting support</span>
+          <div className="c-pick" role="group" aria-label="Assumed share contacting support">
+            {CONTACT.map((c) => <button key={c} type="button" aria-pressed={c === contact} className={c === contact ? "on" : undefined} onClick={() => setContact(c)}>{Math.round(c * 100)}%</button>)}
           </div>
         </div>
         <b className="c-op">×</b>
         <div className="c-term">
           <strong>${SUPPORT_CONTACT.usd.toFixed(2)}</strong>
-          <span>per live contact</span>
+          <span>historical benchmark per live contact</span>
           <a href={SUPPORT_CONTACT.url} target="_blank" rel="noreferrer">{SUPPORT_CONTACT.source}</a>
+          <small>This is not a measured Shopee support cost.</small>
         </div>
       </div>
 
       <div className="e-versus" data-rise>
-        <div className="e-side bill">
-          <strong><CountUp fact={{ value: Math.round(bill), prefix: "$" }} /></strong>
-          <span>illustrative support-cost scenario for this one misreading</span>
-        </div>
+        <output className="e-side bill" aria-live="polite" aria-atomic="true">
+          {bill === null ? <span>Enter an assumed misreading rate to calculate a scenario.</span> : (
+            <>
+              <strong>${Math.round(bill).toLocaleString("en-US")}</strong>
+              <span>Hypothetical support cost under these assumptions</span>
+            </>
+          )}
+        </output>
         <b className="e-vs">vs</b>
         <div className="e-side find">
           <strong><CountUp fact={{ value: run, decimals: 2, prefix: "$" }} /></strong>
-          <span>to find it: one run, {readers} readers{wallSeconds ? `, ${Math.round(wallSeconds / 60)} min` : ""}</span>
+          <span>estimated model cost: one run, {readers} readers{wallSeconds ? `, ${Math.round(wallSeconds / 60)} min` : ""}</span>
           <ul>
             <li><b>{usd(retest)}</b> to retest a fix on {RETEST_READERS} readers, in 17 seconds</li>
             <li><b>{usd(review)}</b> for one AI review, which lists problems but can't count who believes them</li>
           </ul>
         </div>
       </div>
-      {run > 0 && <p className="e-ratio" data-rise>In this scenario the support bill is <b>{Math.round(bill / run).toLocaleString("en-US")}×</b> the cost of the run that found it.</p>}
+      <p className="c-note" data-rise>An illustrative scenario, not measured business impact or predicted savings. Totals are rounded to whole US dollars.</p>
+      {bill !== null && run > 0 && <p className="e-ratio">Under these assumptions, the hypothetical support cost is <b>{Math.round(bill / run).toLocaleString("en-US")}×</b> the estimated model cost of this run.</p>}
 
       <h3 className="p-econ-title" data-rise>What the alternatives cost</h3>
       <div className="p-econ versus" data-rise>
