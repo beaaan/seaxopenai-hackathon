@@ -10,6 +10,7 @@ export const STAGES = [
   { id: "agent", label: "Agent steers" },
   { id: "findings", label: "Misreadings" },
   { id: "benchmark", label: "Benchmark" },
+  { id: "persona", label: "Persona lives it" },
 ] as const;
 export type StageId = (typeof STAGES)[number]["id"];
 
@@ -29,7 +30,7 @@ export function stageOf(e: RunEvent): StageId | null {
     case "codebook.fixed":
       return "clustering";
     case "thread.item":
-      return e.payload.record.role === "probe" ? null : "agent";
+      return e.payload.record.role === "probe" ? "persona" : "agent";
     case "allocation.decided":
       return "agent";
     case "findings.updated":
@@ -72,7 +73,7 @@ function dwell(e: RunEvent): number {
       return 0.2;
     case "thread.item": {
       const r = e.payload.record;
-      if (r.role === "probe") return 0.06;
+      if (r.role === "probe") return r.itemType === "agentMessage" ? 0.75 : r.itemType === "dynamicToolCall" ? 0.7 : 0.15;
       if (r.itemType === "dynamicToolCall") return 0.55;
       if (r.itemType === "agentMessage") return 1.4;
       return 0.25;

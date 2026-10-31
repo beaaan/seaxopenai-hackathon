@@ -1,10 +1,10 @@
 import { Suspense, lazy, useEffect, useMemo, useState, type ReactNode } from "react";
+import { Check, CircleSlash, EyeOff, FileText, ShoppingCart, X } from "lucide-react";
 import type { FolkVersion } from "@shared/schema";
 import { beyondNoise, effectiveBand } from "@shared/noise";
 import { api, type PolicyDetail } from "../api";
 import { useRun } from "../hooks";
-import { CLASS_LABEL, CLASS_MEANING, cohortSize, misreadings, quoted, type Misreading, type RunModel } from "../model";
-import { pct } from "../ui";
+import { CLASS_LABEL, CLASS_MEANING, cohortSize, misreadings, type Misreading, type RunModel } from "../model";
 import { tunnelData, type TunnelData } from "./tunnel";
 import "./landing.css";
 
@@ -84,22 +84,21 @@ export function LandingPage(): ReactNode {
           <a className="l-ghost" href={REPORT}>Report</a>
         </header>
         <div className="l-hero-copy">
+          <span className="l-live"><i />Live replay of a real run</span>
           <h1 id="hero-title">Watch 50 AI readers misread a policy</h1>
-          <p>A real run on Shopee's cash-on-delivery policy text, replayed from its event log.</p>
           <div className="l-actions">
             <a className="l-button" href={LIVE}>Watch the full run</a>
-            <a className="l-ghost" href={REPORT}>Open the report</a>
+            <a className="l-ghost" href={REPORT}>Report</a>
           </div>
         </div>
       </section>
 
       <Found model={model} data={data} rows={rows} />
-      <Rumours folk={folk} model={model} />
-      <Numbers model={model} rows={rows} folk={folk} />
+      <Rumours folk={folk} model={model} top={rows[0]} />
+      <Numbers model={model} top={rows[0]} />
 
       <section className="l-cta" aria-labelledby="cta-title">
         <h2 id="cta-title" data-rise>Test your own policy</h2>
-        <p data-rise>Paste the exact text and watch the readers live.</p>
         <div className="l-actions" data-rise>
           <a className="l-button" href="#/new">Test a policy</a>
           <a className="l-ghost" href="#/policies">Policies tested</a>
@@ -136,52 +135,35 @@ function shortClaim(f: FolkVersion): string {
 function Found(props: { model: RunModel | null; data: TunnelData | null; rows: Misreading[] }): ReactNode {
   const { model, data, rows } = props;
   const [active, setActive] = useState(0);
-  const [open, setOpen] = useState(0);
-  const pool = data?.pools[active];
-  const sentence = pool?.role === "misreading" && pool.sentenceIndex !== null ? data?.sentences[pool.sentenceIndex] : undefined;
-  const told = pool ? [...pool.heard.entries()].filter(([k]) => k !== null).sort((a, b) => b[1] - a[1])[0] : undefined;
-  const rumour = told ? data?.folk.get(told[0]!) : undefined;
-  const heardNothing = data?.streams.filter((s) => s.folkId === null).length ?? 0;
+  const [open, setOpen] = useState<number | null>(null);
   const total = model ? cohortSize(model) : 0;
+  const top = rows[0];
   const v0 = model?.versions.find((v) => v.version === 0);
-  const byId = useMemo(() => new Map((model?.scenarios ?? []).map((s) => [s.id, s])), [model]);
   return (
     <section className="l-section" id="found" aria-labelledby="found-title">
-      <h2 id="found-title" data-rise>Where {total || 50} readers went wrong</h2>
-      <div className="l-legend" data-rise>
-        <span><i className="dot rumour" />told a rumour</span>
-        <span><i className="dot nothing" />heard nothing</span>
-      </div>
+      {top && total > 0 && (
+        <div className="l-big" data-rise>
+          <strong className="l-num"><span>{top.readers.length}</span><small>/{total}</small></strong>
+          <h2 id="found-title">believe a rule that is not in the text</h2>
+          <People total={total} lit={top.readers.length} />
+        </div>
+      )}
       <figure className="l-tunnel" data-rise>
         {data ? (
-          <Suspense fallback={<div className="tunnel tunnel-loading">Loading the readers</div>}>
+          <Suspense fallback={<div className="tunnel tunnel-loading" />}>
             <WindTunnel data={data} active={active} onActive={setActive} />
           </Suspense>
-        ) : <div className="tunnel tunnel-loading">Loading the readers</div>}
-        <figcaption aria-live="polite">
-          {pool && data && (
-            pool.role === "none" ? <><b>{pool.readers} of {data.total}</b> share no wrong idea with another reader.</>
-              : pool.role === "other" ? <><b>{pool.readers}</b> readers hold rarer wrong ideas.</>
-                : <>
-                  <b>{pool.holders} of {data.total}</b> believe {quoted(pool.label)}.{" "}
-                  {pool.holders > pool.readers && <>{pool.readers} lines end here; the others belong to readers drawn to a more common idea. </>}
-                  {!sentence && <>The text never says this. </>}
-                  {told && rumour && told[1] * 2 > pool.readers && <>{told[1]} of these lines were told “{shortClaim(rumour)}”. {(pool.heard.get(null) ?? 0) === 0 ? "None" : pool.heard.get(null)} of the {heardNothing} who heard no rumour end here.</>}
-                </>
-          )}
-        </figcaption>
+        ) : <div className="tunnel tunnel-loading" />}
       </figure>
       <ol className="board">
         {rows.map((r, i) => {
           const cited = v0?.sentences.filter((s) => r.sentenceIds.includes(s.id)) ?? [];
-          const rumourHolders = r.readers.filter((id) => byId.get(id)?.exposure.folkVersionId).length;
           const quote = model?.readings.flatMap((x) => x.interpretations).find((x) => r.interpretationIds.includes(x.id));
           return (
             <li key={r.id} className={i === open ? "open" : undefined} data-rise>
-              <button type="button" aria-expanded={i === open} onClick={() => setOpen(i)}>
+              <button type="button" aria-expanded={i === open} onClick={() => setOpen(i === open ? null : i)}>
                 <span className="b-count">{r.readers.length}</span>
                 <span className="b-title">{r.title}</span>
-                <span className="b-heard">{rumourHolders} of {r.readers.length} told a rumour</span>
                 {r.kind && <span className={`b-kind k-${r.kind}`}>{CLASS_LABEL[r.kind]}</span>}
               </button>
               {i === open && (
@@ -199,82 +181,84 @@ function Found(props: { model: RunModel | null; data: TunnelData | null; rows: M
   );
 }
 
-// ---------------------------------------------------------------------------
-// The rumours readers were told, one lit at a time.
-
-function Rumours(props: { folk: readonly FolkVersion[]; model: RunModel | null }): ReactNode {
-  const { folk, model } = props;
-  const [lit, setLit] = useState(0);
-  useEffect(() => {
-    if (folk.length < 2 || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const id = window.setInterval(() => {
-      if (!document.hidden) setLit((i) => (i + 1) % folk.length);
-    }, 2000);
-    return () => window.clearInterval(id);
-  }, [folk.length]);
-  const told = (id: string | null): number => model?.scenarios.filter((s) => s.exposure.folkVersionId === id).length ?? 0;
+/** One dot per reader; the first `lit` glow. */
+function People(props: { total: number; lit: number; tone?: "amber" | "cyan" }): ReactNode {
   return (
-    <section className="l-section l-rumours" id="rumours" aria-labelledby="rumours-title">
-      <div>
-        <h2 id="rumours-title" data-rise>What people hear instead of the rule</h2>
-        <p className="l-statement" data-rise>
-          {folk.map((f, i) => (
-            <span key={f.id} className={i === lit ? "lit" : undefined}>“{shortClaim(f)}”{i < folk.length - 1 ? ", " : "."}</span>
-          ))}
-        </p>
-        <p className="l-note" data-rise>Shopee's article states none of these.</p>
+    <span className={`people ${props.tone ?? "amber"}`} role="img" aria-label={`${props.lit} of ${props.total}`}>
+      {Array.from({ length: props.total }, (_, i) => <i key={i} className={i < props.lit ? "on" : undefined} style={{ ["--d" as string]: `${i * 18}ms` }} />)}
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// The rumour against the official text: who still believes it, by what they saw.
+
+/** What a reader saw of the official text, by surface ids. */
+function sawOf(surfaceIds: readonly string[]): { key: string; label: string; icon: ReactNode } {
+  if (surfaceIds.length === 0) return { key: "none", label: "Saw no official text", icon: <EyeOff /> };
+  if (surfaceIds.length === 1 && surfaceIds[0] === "help") return { key: "help", label: "Read the help article", icon: <FileText /> };
+  if (surfaceIds.length === 1 && surfaceIds[0] === "checkout") return { key: "checkout", label: "Saw the checkout message", icon: <ShoppingCart /> };
+  return { key: surfaceIds.join("+"), label: `Saw ${surfaceIds.join(" and ")}`, icon: <FileText /> };
+}
+
+const SAW_ORDER = ["help", "checkout", "none"];
+
+function Rumours(props: { folk: readonly FolkVersion[]; model: RunModel | null; top: Misreading | undefined }): ReactNode {
+  const { folk, model, top } = props;
+  const scenarios = model?.scenarios ?? [];
+  const holders = new Set(top?.readers ?? []);
+  const told = new Map<string, number>();
+  for (const s of scenarios) if (holders.has(s.id) && s.exposure.folkVersionId) told.set(s.exposure.folkVersionId, (told.get(s.exposure.folkVersionId) ?? 0) + 1);
+  const rumourId = [...told.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+  const rumour = folk.find((f) => f.id === rumourId);
+  const groups = new Map<string, { label: string; icon: ReactNode; of: number; hold: number }>();
+  for (const s of scenarios) {
+    if (s.exposure.folkVersionId !== rumourId) continue;
+    const saw = sawOf(s.exposure.surfaceIds);
+    const g = groups.get(saw.key) ?? { label: saw.label, icon: saw.icon, of: 0, hold: 0 };
+    g.of++;
+    if (holders.has(s.id)) g.hold++;
+    groups.set(saw.key, g);
+  }
+  const ordered = [...groups.entries()].sort((a, b) => SAW_ORDER.indexOf(a[0]) - SAW_ORDER.indexOf(b[0]));
+  const none = scenarios.filter((s) => s.exposure.folkVersionId === null);
+  const noneHold = none.filter((s) => holders.has(s.id)).length;
+  if (!rumour || !model) return null;
+  return (
+    <section className="l-section l-rumour" id="rumours" aria-labelledby="rumours-title">
+      <h2 id="rumours-title" className="l-kicker" data-rise>The rumour survives the official text</h2>
+      <p className="l-claim" data-rise>“{shortClaim(rumour)}”<span className="l-stamp">Not in Shopee's text</span></p>
+      <div className="l-matrix" data-rise>
+        {ordered.map(([key, g]) => (
+          <div key={key} className="m-row">
+            <span className="m-icon">{g.icon}</span>
+            <span className="m-label">{g.label}</span>
+            <People total={g.of} lit={g.hold} />
+            <b>{g.hold}/{g.of}</b>
+          </div>
+        ))}
+        <div className="m-row calm">
+          <span className="m-icon"><CircleSlash /></span>
+          <span className="m-label">Heard no rumour</span>
+          <People total={none.length} lit={noneHold} tone="cyan" />
+          <b>{noneHold}/{none.length}</b>
+        </div>
       </div>
-      {model && (
-        <dl className="l-told" data-rise aria-label="What readers were told before reading">
-          {folk.filter((f) => told(f.id) > 0).map((f) => (
-            <div key={f.id}><dt>{told(f.id)}</dt><dd>told “{shortClaim(f)}”</dd></div>
-          ))}
-          <div className="nothing"><dt>{told(null)}</dt><dd>heard nothing</dd></div>
-        </dl>
-      )}
     </section>
   );
 }
 
 // ---------------------------------------------------------------------------
-// The numbers, as three charts.
+// Fixes tested on the same readers, and the comparison with one AI review.
 
-/** What a reader saw of the official text, by surface ids. */
-function sawLabel(surfaceIds: readonly string[]): string {
-  if (surfaceIds.length === 0) return "saw no official text";
-  if (surfaceIds.length === 1 && surfaceIds[0] === "help") return "read the help article";
-  if (surfaceIds.length === 1 && surfaceIds[0] === "checkout") return "saw the checkout message";
-  return `saw ${surfaceIds.join(" and ")}`;
-}
-
-function Numbers(props: { model: RunModel | null; rows: Misreading[]; folk: readonly FolkVersion[] }): ReactNode {
-  const { model, rows, folk } = props;
+function Numbers(props: { model: RunModel | null; top: Misreading | undefined }): ReactNode {
+  const { model, top } = props;
   const scopeTest = useRun(SCOPE_TEST, false).model;
   const storeTest = useRun(STORE_TEST, false).model;
   const grab = useRun(GRAB_RUN, false).model;
-  const top = rows[0];
-  const scenarios = model?.scenarios ?? [];
-  const holderSet = new Set(top?.readers ?? []);
-  const told = new Map<string, number>();
-  for (const s of scenarios) if (holderSet.has(s.id) && s.exposure.folkVersionId) told.set(s.exposure.folkVersionId, (told.get(s.exposure.folkVersionId) ?? 0) + 1);
-  const rumourId = [...told.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
-  const rumour = folk.find((f) => f.id === rumourId);
-  // Readers told the rumour, split by what they saw of the official text; then everyone who heard no rumour.
-  const groups = new Map<string, { label: string; of: number; hold: number }>();
-  for (const s of scenarios) {
-    if (s.exposure.folkVersionId !== rumourId) continue;
-    const label = sawLabel(s.exposure.surfaceIds);
-    const g = groups.get(label) ?? { label, of: 0, hold: 0 };
-    g.of++;
-    if (holderSet.has(s.id)) g.hold++;
-    groups.set(label, g);
-  }
-  const none = scenarios.filter((s) => s.exposure.folkVersionId === null);
-  const noneHold = none.filter((s) => holderSet.has(s.id)).length;
 
   const grabBefore = grab?.iterations[0]?.findingReproduction.find((r) => r.findingId === GRAB_FINDING);
   const grabAfter = grab && grab.iterations.length > 1 ? grab.iterations.at(-1)?.findingReproduction.find((r) => r.findingId === GRAB_FINDING) : undefined;
-
   const scope = scopeTest?.comparison;
   const scopeBefore = scope?.before.findingReproduction.find((r) => r.findingId === top?.id);
   const scopeAfter = scope?.after.findingReproduction.find((r) => r.findingId === top?.id);
@@ -284,78 +268,60 @@ function Numbers(props: { model: RunModel | null; rows: Misreading[]; folk: read
   const cases = new Set(model?.score?.matches.map((m) => m.edgeCaseId)).size;
   const tunnel = systems.find((s) => s.id === "wind-tunnel");
   const review = systems.find((s) => s.id === "baseline-mean");
-  const onlyUs = model?.score?.outsideReference.filter((o) => o.systemId === "wind-tunnel").length ?? 0;
 
   return (
     <section className="l-section" id="numbers" aria-labelledby="numbers-title">
-      <h2 id="numbers-title" data-rise>The numbers</h2>
-      <p className="l-note" data-rise>All readers are simulated. No real-reader answers are recorded yet.</p>
-      <div className="l-charts">
-        <figure className="chart" data-rise>
-          <figcaption>Hold the three-failure rule, by what they saw</figcaption>
-          {top && rumour && model ? (
-            <>
-              <p>Told “{shortClaim(rumour)}”, then:</p>
-              {[...groups.values()].sort((a, b) => a.label.localeCompare(b.label)).map((g) => <Bar key={g.label} label={g.label} value={g.hold} of={g.of} tone="amber" />)}
-              <Bar label="Heard no rumour (any text)" value={noneHold} of={none.length} tone="cyan" />
-            </>
-          ) : <p>Loading</p>}
-        </figure>
-        <figure className="chart" data-rise>
-          <figcaption>Edits, read again by the same readers</figcaption>
-          {scopeBefore && scopeAfter && scopeBefore.noiseBand !== null ? (
-            <Shift label={`Shopee: scope sentence added · n=${scopeBefore.n}`} before={scopeBefore.rate} after={scopeAfter.rate} band={effectiveBand(scopeBefore.noiseBand)} tag={scope?.verdict === "fail" ? "Failed" : undefined} />
-          ) : null}
-          {grabBefore && grabAfter && grabBefore.noiseBand !== null && (
-            <Shift label={`Grab: rider clauses rewritten · n=${grabBefore.n}`} before={grabBefore.rate} after={grabAfter.rate} band={effectiveBand(grabBefore.noiseBand)} />
-          )}
-          {promise && (
-            <div className="shift">
-              <div className="bar-head"><span>Shopee: “pay at a convenience store”</span><b className="bad">Rejected</b></div>
-              <span className="shift-verdict bad">Promises something the original never did</span>
-            </div>
-          )}
-        </figure>
-        <figure className="chart" data-rise>
-          <figcaption>Known edge cases found, scored blind</figcaption>
-          {tunnel && review && cases > 0 ? (
-            <>
-              <Bar label="Single AI review (mean of three)" value={Math.round(review.recall * cases)} of={cases} tone="plain" />
-              <Bar label="Wind tunnel" value={Math.round(tunnel.recall * cases)} of={cases} tone="green" />
-              <p>{onlyUs} wind-tunnel findings matched no listed edge case; they are not validated.</p>
-            </>
-          ) : <p>Loading</p>}
-        </figure>
+      <h2 id="numbers-title" className="l-kicker" data-rise>Test a fix before it ships</h2>
+      <div className="l-fixes">
+        {grabBefore && grabAfter && grabBefore.noiseBand !== null && (
+          <Fix who="Grab" what="Rider clauses rewritten" before={grabBefore.rate} after={grabAfter.rate} band={effectiveBand(grabBefore.noiseBand)} n={grabBefore.n} />
+        )}
+        {scopeBefore && scopeAfter && scopeBefore.noiseBand !== null && (
+          <Fix who="Shopee" what="Scope sentence added" before={scopeBefore.rate} after={scopeAfter.rate} band={effectiveBand(scopeBefore.noiseBand)} n={scopeBefore.n} />
+        )}
+        {promise && (
+          <figure className="fix bad" data-rise>
+            <span className="fix-mark"><X /></span>
+            <figcaption><b>Shopee</b> “Pay at a convenience store”</figcaption>
+            <strong className="fix-num">+1 promise</strong>
+            <span className="fix-verdict">Rejected: the original never said it</span>
+          </figure>
+        )}
       </div>
+      {tunnel && review && cases > 0 && (
+        <div className="l-versus" data-rise>
+          <h3>Known edge cases found, scored blind</h3>
+          <Dots label="One AI review" hit={Math.round(review.recall * cases)} of={cases} tone="plain" />
+          <Dots label="Wind tunnel" hit={Math.round(tunnel.recall * cases)} of={cases} tone="green" />
+          <p>A review lists more. The tunnel counts who believes each one.</p>
+        </div>
+      )}
     </section>
   );
 }
 
-function Bar(props: { label: string; value: number; of: number; tone: "amber" | "cyan" | "plain" | "green" }): ReactNode {
-  const share = props.of > 0 ? props.value / props.of : 0;
+/** A rewrite's effect on the same readers: mean belief score before → after, judged against normal variation. */
+function Fix(props: { who: string; what: string; before: number; after: number; band: number; n: number }): ReactNode {
+  const real = beyondNoise(props.after - props.before, props.band);
+  const score = (x: number): string => String(Math.round(x * 100));
   return (
-    <div className="bar">
-      <div className="bar-head"><span>{props.label}</span><b>{props.value} of {props.of}</b></div>
-      <div className="bar-track" role="img" aria-label={`${props.value} of ${props.of}`}><i className={`bar-fill ${props.tone}`} style={{ width: `${share * 100}%` }} /></div>
-    </div>
+    <figure className={real ? "fix good" : "fix flat"} data-rise>
+      <span className="fix-mark">{real ? <Check /> : <X />}</span>
+      <figcaption><b>{props.who}</b> {props.what}</figcaption>
+      <strong className="fix-num">{score(props.before)}<span>→</span>{score(props.after)}</strong>
+      <span className="fix-verdict">{real ? "Works" : "No real change"} · belief score, same {props.n} readers</span>
+    </figure>
   );
 }
 
-/** Before → after on the same readers, with the normal-variation band drawn around "before". */
-function Shift(props: { label: string; before: number; after: number; band: number; tag?: string }): ReactNode {
-  const { before, after, band } = props;
-  const real = beyondNoise(after - before, band);
-  const at = (x: number): string => `${Math.min(100, Math.max(0, x * 100))}%`;
+function Dots(props: { label: string; hit: number; of: number; tone: "plain" | "green" }): ReactNode {
   return (
-    <div className="shift">
-      <div className="bar-head"><span>{props.label}</span><b>{pct(before)} → {pct(after)}{props.tag && <em className="bad"> {props.tag}</em>}</b></div>
-      <div className="shift-track" role="img" aria-label={`${pct(before)} before, ${pct(after)} after, normal variation ±${Math.round(band * 100)} points`}>
-        <i className="shift-band" style={{ left: at(before - band), width: `${Math.min(before + band, 1) * 100 - Math.max(before - band, 0) * 100}%` }} />
-        <i className="shift-line" style={{ left: at(Math.min(before, after)), width: `${Math.abs(after - before) * 100}%` }} />
-        <i className="shift-dot before" style={{ left: at(before) }} />
-        <i className={`shift-dot after ${real ? "real" : ""}`} style={{ left: at(after) }} />
-      </div>
-      <span className={real ? "shift-verdict real" : "shift-verdict"}>{real ? "Beyond normal variation" : "Within normal variation"}</span>
+    <div className={`dots ${props.tone}`}>
+      <span>{props.label}</span>
+      <span className="dots-row" role="img" aria-label={`${props.hit} of ${props.of}`}>
+        {Array.from({ length: props.of }, (_, i) => <i key={i} className={i < props.hit ? "on" : undefined} />)}
+      </span>
+      <b>{props.hit}/{props.of}</b>
     </div>
   );
 }

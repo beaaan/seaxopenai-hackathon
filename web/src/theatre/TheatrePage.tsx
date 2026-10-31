@@ -5,16 +5,11 @@ import type { Cluster, Finding, FolkVersion, Score } from "@shared/schema";
 import { api, type PolicyDetail } from "../api";
 import { useRun } from "../hooks";
 import { CLASS_LABEL, cohortSize, foldRun, misreadings, type Misreading } from "../model";
+import { AgentPanel } from "./AgentPanel";
+import { emptyAgents, onAllocation, onThreadItem, type Agents } from "./agents";
 import { TheatreScene } from "./scene";
 import { STAGES, endOf, isRetestReading, schedule, stageOf, type StageId } from "./timeline";
 import "./theatre.css";
-
-interface Line {
-  key: number;
-  who: string;
-  text: string;
-  kind: "tool" | "say" | "think" | "task" | "decide" | "system";
-}
 
 interface Hud {
   stage: StageId | null;
@@ -26,9 +21,7 @@ interface Hud {
   graded: number;
   clusters: number;
   toolCalls: number;
-  baselines: number;
-  agent: Line[];
-  log: Array<{ key: number; at: string; type: string; detail: string }>;
+  agents: Agents;
   findings: Misreading[] | null;
   total: number;
   score: Score | null;
@@ -37,7 +30,7 @@ interface Hud {
 
 /** A fresh HUD: playback mutates it in place, so every reset needs new objects. */
 function emptyHud(): Hud {
-  return { stage: null, reached: new Set(), readers: 0, readings: 0, rereads: 0, interpretations: 0, graded: 0, clusters: 0, toolCalls: 0, baselines: 0, agent: [], log: [], findings: null, total: 0, score: null, done: false };
+  return { stage: null, reached: new Set(), readers: 0, readings: 0, rereads: 0, interpretations: 0, graded: 0, clusters: 0, toolCalls: 0, agents: emptyAgents(), findings: null, total: 0, score: null, done: false };
 }
 const SPEEDS = [1, 2, 4] as const;
 
@@ -90,6 +83,8 @@ export function TheatrePage(props: { runId: string; embedded?: boolean }): React
       return;
     }
     scene.current = s;
+    // In the hero the title and agent panels own the bottom third.
+    if (embedded) s.setFraming(1.3, 0.09);
     const fit = (): void => {
       const r = host.current!.getBoundingClientRect();
       s.resize(Math.round(r.width), Math.round(r.height));
@@ -112,31 +107,18 @@ export function TheatrePage(props: { runId: string; embedded?: boolean }): React
       h.stage = stage;
       h.reached.add(stage);
     }
-    const agent = (line: Omit<Line, "key">): void => {
-      // One "thinking" line at a time; a run of them says nothing new.
-      if (line.kind === "think" && h.agent.at(-1)?.kind === "think") return;
-      h.agent = [...h.agent.slice(-4), { ...line, key: index }];
-    };
-    let detail = "";
     switch (e.type) {
       case "run.started":
         s?.setReaderTotal(e.payload.config.budget);
-        detail = `budget ${e.payload.config.budget} readers · reader ${e.payload.config.models.reader} · grader ${e.payload.config.models.grader}`;
         break;
       case "policy.version":
         if (e.payload.policy.version === 0) s?.policy(e.payload.policy.sentences);
-        detail = `v${e.payload.policy.version} · ${e.payload.policy.sentences.length} sentences`;
-        break;
-      case "dims.extracted":
-        detail = `${e.payload.dimensions.length} ways readers differ`;
-        agent({ who: "Pipeline", kind: "system", text: `Readers will differ by: ${e.payload.dimensions.map((d) => d.id.replace(/_/g, " ")).join(", ")}.` });
         break;
       case "scenario.created": {
         const sc = e.payload.scenario;
         const heard = sc.exposure.folkVersionId ? folkRef.current.get(sc.exposure.folkVersionId)?.claimEn ?? sc.exposure.folkVersionId : null;
         s?.reader(sc, instant, heard);
         h.readers++;
-        detail = `${sc.id} ${sc.persona.name}, ${sc.persona.age}, ${sc.persona.province}`;
         break;
       }
       case "reading.completed": {
@@ -148,13 +130,11 @@ export function TheatrePage(props: { runId: string; embedded?: boolean }): React
           h.readings++;
           h.interpretations += r.interpretations.length;
         }
-        detail = `${r.scenarioId} ${retest ? "read again (variation)" : `${r.interpretations.length} interpretations`} · ${r.model}`;
         break;
       }
       case "grades.added":
         s?.grade(e.payload.grades, instant);
         h.graded += e.payload.grades.length;
-        detail = `${e.payload.grades.length} interpretations graded`;
         break;
       case "clusters.updated": {
         const all = eventsRef.current.slice(0, index + 1);
@@ -163,53 +143,34 @@ export function TheatrePage(props: { runId: string; embedded?: boolean }): React
         const readerCount = (c: Cluster): number => new Set(c.readingIds.map((id) => scenarioOf.get(id) ?? id)).size;
         s?.clusters(e.payload.clusters, readerCount, instant);
         h.clusters = e.payload.clusters.length;
-        detail = `${e.payload.clusters.length} belief clusters`;
         break;
       }
       case "thread.item": {
         const r = e.payload.record;
-        const line = describeItem(r.itemType, r.item);
-        if (line && r.role !== "probe") agent({ who: r.label, ...line });
+        onThreadItem(h.agents, r, index);
         if (r.itemType === "dynamicToolCall") h.toolCalls++;
-        detail = `${r.label} · ${r.itemType}`;
         break;
       }
-      case "allocation.decided": {
-        const d = e.payload.decision;
+      case "allocation.decided":
         s?.agentPulse();
-        agent({ who: "Reviewer", kind: "decide", text: d.stopExploring ? `Stop exploring. ${d.rationale}` : `Next ${d.n} readers, focused on ${d.focusDimIds.map((x) => x.replace(/_/g, " ")).join(" and ")}. ${d.rationale}` });
-        detail = `batch ${d.batch}: ${d.stopExploring ? "stop" : `+${d.n} readers`}`;
+        onAllocation(h.agents, e.payload.decision, index);
         break;
-      }
       case "findings.updated": {
         const m = foldRun(runId, eventsRef.current.slice(0, index + 1));
         h.findings = misreadings(m);
         h.total = cohortSize(m);
         s?.findingsLanded();
-        detail = `${e.payload.findings.length} misreadings named`;
         break;
       }
-      case "baseline.completed":
-        h.baselines++;
-        detail = `single AI review by ${e.payload.run.model}: ${e.payload.run.issues.length} issues`;
-        break;
       case "score.completed":
         h.score = e.payload.score;
-        detail = "scored blind against the holdout";
         break;
       case "run.completed":
         h.done = true;
-        detail = e.payload.summary;
-        break;
-      case "log":
-        detail = e.payload.message;
         break;
       default:
         break;
     }
-    const t0 = eventsRef.current[0]?.ts ? Date.parse(eventsRef.current[0].ts) : Date.parse(e.ts);
-    const sec = Math.max(0, Math.round((Date.parse(e.ts) - t0) / 1000));
-    h.log = [...h.log.slice(-6), { key: index, at: `${String(Math.floor(sec / 60)).padStart(2, "0")}:${String(sec % 60).padStart(2, "0")}`, type: e.type, detail }];
   }, [runId]);
 
   const flush = useCallback((): void => {
@@ -322,13 +283,13 @@ export function TheatrePage(props: { runId: string; embedded?: boolean }): React
               <li key={s.id} className={s.id === hud.stage ? "now" : hud.reached.has(s.id) ? "done" : undefined}>{s.label}</li>
             ))}
           </ol>
-          <dl className="t-counters">
-            <div><dt>Readings</dt><dd>{hud.readings + hud.rereads}</dd></div>
-            <div><dt>Interpretations</dt><dd>{hud.interpretations}</dd></div>
-            <div><dt>Belief clusters</dt><dd>{hud.clusters}</dd></div>
-            <div><dt>Agent tool calls</dt><dd>{hud.toolCalls}</dd></div>
-            <div><dt>Misreadings</dt><dd>{hud.findings?.length ?? 0}</dd></div>
-          </dl>
+          {hud.agents.active ? <AgentPanel agents={hud.agents} /> : (
+            <dl className="t-counters">
+              <div><dt>Readings</dt><dd>{hud.readings + hud.rereads}</dd></div>
+              <div><dt>Interpretations</dt><dd>{hud.interpretations}</dd></div>
+              <div><dt>Belief clusters</dt><dd>{hud.clusters}</dd></div>
+            </dl>
+          )}
         </div>
       </div>
     );
@@ -366,23 +327,7 @@ export function TheatrePage(props: { runId: string; embedded?: boolean }): React
         <div><dt>Agent tool calls</dt><dd>{hud.toolCalls}</dd></div>
       </dl>
 
-      <section className="t-agent" aria-label="Agent">
-        <h2>Agent <span>Codex</span></h2>
-        <ol>
-          {hud.agent.map((l) => (
-            <li key={l.key} className={l.kind}><b>{l.who}</b> {l.text}</li>
-          ))}
-        </ol>
-      </section>
-
-      <section className={hud.findings ? "t-log behind" : "t-log"} aria-label="Event log">
-        <h2>Log</h2>
-        <ol>
-          {hud.log.map((l) => (
-            <li key={l.key}><time>{l.at}</time><b>{l.type}</b><span>{l.detail}</span></li>
-          ))}
-        </ol>
-      </section>
+      <AgentPanel agents={hud.agents} />
 
       {hud.findings && (
         <section className="t-findings" aria-label="Misreadings found">
@@ -428,35 +373,4 @@ function ScoreLine(props: { score: Score }): ReactNode {
       Known edge cases found, scored blind: single AI review <b>{Math.round(review.recall * 100)}%</b>, wind tunnel <b>{Math.round(tunnel.recall * 100)}%</b>
     </p>
   );
-}
-
-/** One readable line for a Codex thread item; null for items with nothing to show. */
-function describeItem(itemType: string, item: unknown): Omit<Line, "key" | "who"> | null {
-  const o = (item ?? {}) as Record<string, unknown>;
-  if (itemType === "dynamicToolCall") {
-    const args = o.arguments && typeof o.arguments === "object" ? Object.entries(o.arguments as Record<string, unknown>).filter(([, v]) => v !== null).map(([k, v]) => `${k}=${String(v)}`).join(", ") : "";
-    return { kind: "tool", text: `${String(o.tool ?? "tool")}(${args})` };
-  }
-  if (itemType === "agentMessage" && typeof o.text === "string") {
-    try {
-      const parsed = JSON.parse(o.text) as Record<string, unknown>;
-      if (typeof parsed.rationale === "string") return { kind: "say", text: parsed.rationale };
-    } catch {
-      // Plain text message.
-    }
-    return { kind: "say", text: o.text.slice(0, 280) };
-  }
-  if (itemType === "reasoning") return { kind: "think", text: "thinking…" };
-  if (itemType === "userMessage" && Array.isArray(o.content)) {
-    const first = o.content[0] as { text?: unknown } | undefined;
-    if (typeof first?.text === "string") {
-      try {
-        const task = (JSON.parse(first.text) as { task?: unknown }).task;
-        if (typeof task === "string") return { kind: "task", text: task };
-      } catch {
-        return { kind: "task", text: first.text.slice(0, 160) };
-      }
-    }
-  }
-  return null;
 }

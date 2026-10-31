@@ -19,11 +19,11 @@ The web app has three views: a landing page with the result on Shopee's article,
 - 11 of the 15 readers told "the lock lasts about 60 days" kept expecting a 60-day lock.
 - 11 readers found no retry time in the checkout message "temporarily unavailable".
 - The article gives no number, time window or lock duration, so it cannot correct either rumour. Every finding needs a rule decision or information Shopee has not published.
-- Edit tests on the same readers (`cod-main-rt1`, `cod-main-rt2`, 10 readers each): a sentence spelling out the scope moved the three-failure belief from 85% to 82%, within variation, and made another misreading more common, so it fails. An edit telling cash-only buyers to pay at a convenience store fails because it promises something the original never did.
+- Edit tests on the same readers (`cod-main-rt1`, `cod-main-rt2`, 10 readers each): a sentence spelling out the scope moved the mean belief score for the three-failure cutoff from 0.85 to 0.82, within variation, and made another misreading more likely, so it fails. An edit telling cash-only buyers to pay at a convenience store fails because it promises something the original never did.
 - Against nine edge cases from research written before any run, scored blind, each single AI review found 8 and the wind tunnel 5. Three wind-tunnel findings matched no listed edge case; they are not validated. What the wind tunnel adds is how many readers each problem affects and what they had heard.
 
 **Grab VN, scheduled-ride cancellation terms** (40 simulated riders, run `grab-main-noref`)
-- A rewrite of the rider clauses reduced "Driver-support funding remains unresolved for riders" from 97% to 62% of the same 12 readers, beyond the ±5-point variation between reads. The rewrite kept every rule unchanged.
+- A rewrite of the rider clauses lowered the mean belief score for "Driver-support funding remains unresolved for riders" across the same 12 readers from 0.97 to 0.62, beyond the ±0.05 variation between reads. The rewrite kept every rule unchanged. (Belief score: each reader's highest coded probability of holding the misreading, averaged.)
 
 **Limits.** The simulated readers cover combinations of traits; they are not a sample of the population, so the counts are not national rates. Whether real people read the text the same way is checked on the phone page in the app (Ask real people).
 

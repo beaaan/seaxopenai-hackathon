@@ -167,6 +167,8 @@ export class TheatreScene {
   private orbs: Orb[] = [];
   private tags: Array<{ el: HTMLDivElement; at: THREE.Vector3; until: number }> = [];
   private time = 0;
+  private thoughts = 0;
+  private framing = { back: 1, lift: 0 };
   private w = 1;
   private h = 1;
   private readerTotal = 50;
@@ -182,11 +184,17 @@ export class TheatreScene {
     this.camera.position.set(0, -1.6, 25);
     this.composer = new EffectComposer(this.renderer);
     const render = new RenderPass(this.scene, this.camera);
-    this.bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 1.05, 0.55, 0.08);
+    this.bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.7, 0.5, 0.16);
     const output = new OutputPass();
     this.passes = [render, this.bloom, output];
     for (const pass of [render, this.bloom, output]) this.composer.addPass(pass);
     this.seedDust();
+  }
+
+  /** Back the camera off by `back` and raise the content by `lift` of the height, for panels that own the bottom. */
+  setFraming(back: number, lift: number): void {
+    this.framing = { back, lift };
+    if (this.w > 1) this.resize(this.w, this.h);
   }
 
   resize(w: number, h: number): void {
@@ -197,7 +205,8 @@ export class TheatreScene {
     this.bloom.resolution.set(w, h);
     this.camera.aspect = w / h;
     // Content sits in the upper two thirds; panels own the bottom. Narrower screens back the camera off.
-    this.camera.position.z = 25 * Math.max(1, 1.7 / (w / h));
+    this.camera.position.z = 25 * Math.max(1, 1.7 / (w / h)) * this.framing.back;
+    if (this.framing.lift) this.camera.setViewOffset(w, h, 0, this.framing.lift * h, w, h);
     this.camera.updateProjectionMatrix();
   }
 
@@ -284,6 +293,14 @@ export class TheatreScene {
     if (reader && !instant) reader.pulse = 1;
     // A re-read measures variation and a rewrite's reading refers to another version's sentences: neither adds beliefs.
     const beliefs = !retest && r.policyVersion === 0;
+    // Every few readings, the reader's own words float up: the interpretation it formed outside the text if any.
+    if (beliefs && !instant && reader && this.thoughts++ % 3 === 0) {
+      const it = r.interpretations.find((x) => x.sentenceId === null) ?? r.interpretations[0];
+      if (it) {
+        const said = it.glossEn.split(/(?<=[.;!?])\s|,\s(?:but|so)\s/)[0] ?? it.glossEn;
+        this.tag(it.sentenceId === null ? "thought gap" : "thought", `“${escape(clip(said, 92))}”`, reader.pos.clone().add(new THREE.Vector3(0, 0.25, 0)), 1.1);
+      }
+    }
     for (const [k, it] of r.interpretations.entries()) {
       const slab = this.slabs.find((s) => s.id === it.sentenceId);
       const hitAt = slab ? new THREE.Vector3((hash(k, 3) - 0.5) * 2.6, slab.y, 0.05) : this.gapSlab ? this.gapSlab.mesh.position.clone().add(new THREE.Vector3((hash(k, 4) - 0.5) * 2.6, 0, 0)) : new THREE.Vector3();
@@ -473,13 +490,13 @@ export class TheatreScene {
     for (const s of this.slabs) {
       s.heat = Math.max(0, s.heat - dt * 0.9);
       const m = s.mesh.material as THREE.MeshBasicMaterial;
-      m.opacity = 0.18 + Math.min(1, s.heat) * 0.7;
+      m.opacity = 0.16 + Math.min(1, s.heat) * 0.4;
       m.color.copy(TINT.slab).lerp(TINT.hit, Math.min(1, s.heat));
       s.label.classList.toggle("hot", s.heat > 0.35);
     }
     if (this.gapSlab) {
       this.gapSlab.heat = Math.max(0, this.gapSlab.heat - dt * 0.9);
-      (this.gapSlab.mesh.material as THREE.MeshBasicMaterial).opacity = 0.08 + Math.min(1, this.gapSlab.heat) * 0.6;
+      (this.gapSlab.mesh.material as THREE.MeshBasicMaterial).opacity = 0.08 + Math.min(1, this.gapSlab.heat) * 0.4;
       this.gapSlab.label.classList.toggle("hot", this.gapSlab.heat > 0.35);
     }
 
