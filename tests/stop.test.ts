@@ -7,7 +7,7 @@ function current(overrides: Partial<Omit<Iteration, "decision" | "reason">> = {}
 }
 
 function args(overrides: Partial<StopDecisionArgs> = {}): StopDecisionArgs {
-  return { history: [{ ...current({ policyVersion: 0, conflictRate: 0.21 }), decision: "continue", reason: "initial" }], current: current(), iterationIndex: 1, maxIterations: 3, fidelityFailures: 0, ...overrides };
+  return { history: [{ ...current({ policyVersion: 0, conflictRate: 0.21 }), decision: "continue", reason: "initial" }], current: current(), iterationIndex: 1, maxIterations: 3, fidelityFailures: 0, conflictMeasured: true, ...overrides };
 }
 
 describe("stopDecision", () => {
@@ -43,6 +43,13 @@ describe("stopDecision", () => {
 
   it("continues when improvement exceeds the measured noise", () => {
     expect(stopDecision(args({ current: current({ conflictRate: 0.1 }) }))).toEqual({ decision: "continue", reason: "conflict rate 0.21 → 0.10 (Δ 0.11) exceeds the noise band 0.05; 2 open wording findings remain" });
+  });
+
+  it("uses the same minimum effect as the rewrite acceptance gate", () => {
+    const previous = { ...current({ conflictRate: 0 }), decision: "continue" as const, reason: "previous" };
+    const result = stopDecision(args({ history: [previous], current: current({ conflictRate: 0.01, noiseBand: 0 }) }));
+    expect(result.reason).toContain("within the noise band 0.05");
+    expect(result.reason).not.toContain("keeping the previous version");
   });
 
   it("skips improvement comparisons with no history or no measured band", () => {

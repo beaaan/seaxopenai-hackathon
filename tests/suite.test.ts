@@ -6,7 +6,7 @@ type Repro = { findingId: string; rate: number; n?: number; noiseBand?: number |
 type Args = { before: Iteration; after: Iteration; noiseBand: number; conflictMeasured: boolean };
 
 /** Wording-preserving edits: the fidelity check passed or was not run. */
-const compareSuite = (args: Args) => compareWithFidelity({ ...args, fidelity: null });
+const compareSuite = (args: Args) => compareWithFidelity({ ...args, fidelity: null, coverageIssues: [] });
 
 function iteration(conflictRate: number, findingReproduction: Repro[] = [], overrides: Partial<Iteration> = {}): Iteration {
   return {
@@ -21,7 +21,7 @@ describe("compareSuite fidelity gate", () => {
     const fidelity: FidelityResult = { passed: false, facts: [{ factId: "help.4", entailed: true, why: "kept" }], newCommitments: ["cash buyers can pay at convenience stores"], requiresNewFact: null };
     const result = compareWithFidelity({
       before: iteration(0, [{ findingId: "f1", rate: 0.9 }]), after: iteration(0, [{ findingId: "f1", rate: 0.1 }]),
-      noiseBand: 0, conflictMeasured: false, fidelity,
+      noiseBand: 0, conflictMeasured: false, fidelity, coverageIssues: [],
     });
     expect(result.verdict).toBe("fail");
     expect(result.reasons[0]).toBe("edit adds a commitment the original never made: cash buyers can pay at convenience stores");
@@ -65,10 +65,10 @@ describe("compareSuite with a reference", () => {
     expect(compareSuite({ before: iteration(0), after: iteration(0, [], { readings: 9 }), noiseBand: 0, conflictMeasured: true }).verdict).toBe("inconclusive");
   });
 
-  it("does not block on findings the selected scenarios never covered", () => {
+  it("is inconclusive when a frozen finding has no observed coding on the selected scenarios", () => {
     const result = compareSuite({ before: iteration(0, [{ findingId: "f1", rate: 0, n: 0 }]), after: iteration(0, [{ findingId: "f1", rate: 0, n: 0 }]), noiseBand: 0, conflictMeasured: true });
-    expect(result.verdict).toBe("pass");
-    expect(result.reasons).toContain("f1 not covered by these scenarios");
+    expect(result.verdict).toBe("inconclusive");
+    expect(result.reasons.join(" ")).toContain("f1 coding coverage 0/10 before vs 0/10 after");
   });
 });
 

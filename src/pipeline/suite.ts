@@ -1,6 +1,7 @@
 import { MIN_PAIRED_SCENARIOS } from "../reviewer/metrics";
 import { effectiveBand } from "../shared/noise";
-import type { FidelityResult, Iteration, SuiteComparison } from "../shared/schema";
+import type { FidelityResult, SuiteComparison } from "../shared/schema";
+import type { IterationMeasurement } from "./comparison";
 
 export type SuiteResult = Pick<SuiteComparison, "verdict" | "reasons">;
 
@@ -11,18 +12,18 @@ const pp = (delta: number): string => `${(delta * 100).toFixed(1)} pp`;
  * Policy CI on identical scenario cohorts. Every change is judged against its own test–retest noise:
  * - fail: the edit changes the rule (fidelity vs v0), or the conflict rate (when a reference exists) or any finding's
  *   reproduction rose beyond its band;
- * - inconclusive: < 5 paired scenarios, a finding measured before but not after, or — without a reference,
+ * - inconclusive: incomplete or mismatched cohorts, missing grades/codings/noise, < 5 paired scenarios, or — without a reference,
  *   where conflicts cannot be measured — no finding moved beyond its band;
  * - pass otherwise. `reasons` carries the evidence either way.
  */
-export function compareSuite(args: { before: Iteration; after: Iteration; noiseBand: number; conflictMeasured: boolean; fidelity: FidelityResult | null }): SuiteResult {
+export function compareSuite(args: { before: IterationMeasurement; after: IterationMeasurement; noiseBand: number; conflictMeasured: boolean; fidelity: FidelityResult | null; coverageIssues: readonly string[] }): SuiteResult {
   const { before, after, noiseBand, conflictMeasured, fidelity } = args;
   const ruleChanges = fidelity === null || fidelity.passed ? [] : [
     ...fidelity.newCommitments.map((c) => `edit adds a commitment the original never made: ${c}`),
     ...fidelity.facts.filter((f) => !f.entailed).map((f) => `edit no longer states ${f.factId}: ${f.why}`),
   ];
   if (fidelity !== null && !fidelity.passed && ruleChanges.length === 0) ruleChanges.push("edit changes what the policy says (fidelity check failed)");
-  const blockers: string[] = [];
+  const blockers: string[] = [...args.coverageIssues];
   if (before.noiseBandScenarios === null || after.noiseBandScenarios === null || before.noiseBandScenarios < MIN_PAIRED_SCENARIOS || after.noiseBandScenarios < MIN_PAIRED_SCENARIOS) {
     blockers.push(`only ${before.noiseBandScenarios ?? 0}/${after.noiseBandScenarios ?? 0} test–retest pairs (minimum ${MIN_PAIRED_SCENARIOS})`);
   }
@@ -35,17 +36,13 @@ export function compareSuite(args: { before: Iteration; after: Iteration; noiseB
   const current = new Map(after.findingReproduction.map((finding) => [finding.findingId, finding]));
   for (const prior of before.findingReproduction) {
     const next = current.get(prior.findingId);
-    if (prior.n === 0) {
-      notes.push(`${prior.findingId} not covered by these scenarios`);
-      continue;
-    }
-    if (!next || next.n === 0) {
-      blockers.push(`${prior.findingId} measured before (n=${prior.n}) but not after`);
+    if (!next || prior.n < MIN_PAIRED_SCENARIOS || prior.n !== before.readings || next.n !== after.readings || prior.n !== next.n) {
+      blockers.push(`${prior.findingId} coding coverage ${prior.n}/${before.readings} before vs ${next?.n ?? 0}/${after.readings} after (complete identical cohorts of at least ${MIN_PAIRED_SCENARIOS} required)`);
       continue;
     }
     const change = `${prior.findingId} ${pct(prior.rate)} → ${pct(next.rate)}`;
-    if (prior.noiseBand === null) {
-      notes.push(`${change} (no noise estimate: < ${MIN_PAIRED_SCENARIOS} re-read pairs)`);
+    if (prior.noiseBand === null || next.noiseBand === null) {
+      blockers.push(`${change} (no noise estimate: < ${MIN_PAIRED_SCENARIOS} re-read pairs)`);
       continue;
     }
     const band = effectiveBand(prior.noiseBand);

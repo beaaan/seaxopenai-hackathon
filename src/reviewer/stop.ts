@@ -1,4 +1,5 @@
 import type { Iteration } from "../shared/schema";
+import { effectiveBand } from "../shared/noise";
 
 export interface StopDecisionArgs {
   history: Iteration[];
@@ -6,6 +7,8 @@ export interface StopDecisionArgs {
   iterationIndex: number;
   maxIterations: number;
   fidelityFailures: number;
+  /** Finding-level acceptance is checked separately; absent references cannot supply a conflict-rate signal. */
+  conflictMeasured: boolean;
 }
 
 export interface StopDecision {
@@ -25,17 +28,21 @@ export function stopDecision(args: StopDecisionArgs): StopDecision {
   if (!previous) {
     return { decision: "continue", reason: `${current.openWordingFindings} open wording findings; iteration ${iterationIndex} of ${maxIterations}; no previous iteration to compare` };
   }
+  if (!args.conflictMeasured) {
+    return { decision: "continue", reason: `${current.openWordingFindings} open wording findings; conflict rate is unmeasured, so acceptance uses the finding-level gate` };
+  }
   if (current.noiseBand === null) {
     return { decision: "continue", reason: `${current.openWordingFindings} open wording findings; iteration ${iterationIndex} of ${maxIterations}; noise band is not yet measured` };
   }
   const improvement = previous.conflictRate - current.conflictRate;
-  if (improvement < -current.noiseBand - Number.EPSILON) {
-    return { decision: "stop", reason: `conflict rate rose ${previous.conflictRate.toFixed(2)} → ${current.conflictRate.toFixed(2)}, beyond the noise band ${current.noiseBand.toFixed(2)}; keeping the previous version` };
+  const band = effectiveBand(current.noiseBand);
+  if (improvement < -band - Number.EPSILON) {
+    return { decision: "stop", reason: `conflict rate rose ${previous.conflictRate.toFixed(2)} → ${current.conflictRate.toFixed(2)}, beyond the noise band ${band.toFixed(2)}; keeping the previous version` };
   }
   const comparison = `conflict rate ${previous.conflictRate.toFixed(2)} → ${current.conflictRate.toFixed(2)} (Δ ${improvement.toFixed(2)})`;
   // Rates are ratios; tolerate only floating-point roundoff at an equal boundary.
-  if (improvement <= current.noiseBand + Number.EPSILON) {
-    return { decision: "stop", reason: `${comparison} is within the noise band ${current.noiseBand.toFixed(2)}` };
+  if (improvement <= band + Number.EPSILON) {
+    return { decision: "stop", reason: `${comparison} is within the noise band ${band.toFixed(2)}` };
   }
-  return { decision: "continue", reason: `${comparison} exceeds the noise band ${current.noiseBand.toFixed(2)}; ${current.openWordingFindings} open wording findings remain` };
+  return { decision: "continue", reason: `${comparison} exceeds the noise band ${band.toFixed(2)}; ${current.openWordingFindings} open wording findings remain` };
 }

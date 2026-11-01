@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { Copy } from "lucide-react";
+import { currentHumanResults, humanRespondentKey } from "@shared/human";
 import { api } from "../api";
 import type { RunContext } from "../pages/RunPage";
 import { Empty, Kpis, Panel, Pill, TitleRow, errorText } from "../ui";
@@ -10,16 +11,16 @@ export function HumanCheck(props: { ctx: RunContext }): ReactNode {
   const [copied, setCopied] = useState(false);
   const url = `${window.location.origin}/#/check/${encodeURIComponent(model.runId)}`;
   const titles = new Map(model.findings.map((f) => [f.id, f.title]));
-  const mapped = new Map(model.mappings.map((m) => [m.answerId, m]));
-  const respondents = new Set(model.answers.map((a) => a.respondent)).size;
-  const unmapped = model.answers.filter((a) => !mapped.has(a.id)).length;
-  const matched = model.mappings.filter((m) => m.findingId !== null).length;
+  const { answers: latest, mappingsByAnswerId: mapped } = currentHumanResults(model.answers, model.mappings);
+  const respondents = new Set(latest.map(humanRespondentKey)).size;
+  const unmapped = latest.filter((a) => !mapped.has(a.id)).length;
+  const matched = [...mapped.values()].filter((m) => m.findingId !== null).length;
 
   return (
     <>
       <TitleRow
         title="Ask real people"
-        sub={model.answers.length === 0 ? "Send the link to people nearby. They read the original on their phone and answer three questions." : <>{matched} of {model.mappings.length} coded answers match a simulated misreading.</>}
+        sub={latest.length === 0 ? "Send the link to people nearby. They read the original on their phone and answer three questions." : <>{matched} of {mapped.size} coded answers match a simulated misreading.</>}
         actions={unmapped > 0 ? (
           <button
             className="btn primary"
@@ -34,13 +35,14 @@ export function HumanCheck(props: { ctx: RunContext }): ReactNode {
         ) : undefined}
       />
       {typeof coding === "object" && <div className="notice bad">{coding.error}</div>}
+      {latest.some((answer) => answer.respondentId === null) && <div className="notice">Older answers used names as identity. Their people count may combine participants with the same name.</div>}
       {coding === "sent" && unmapped > 0 && <div className="notice">Coding on the frozen codebook; results appear below as they land.</div>}
       {model.questions.length === 0 ? <Empty>Questions are written after the findings.</Empty> : (
         <>
           <Kpis items={[
             { label: "People", value: respondents },
-            { label: "Answers", value: model.answers.length, delta: unmapped ? `${unmapped} not coded yet` : model.answers.length ? "all coded" : undefined },
-            { label: "Match a simulated misreading", value: matched, delta: model.mappings.length ? `of ${model.mappings.length} coded` : undefined },
+            { label: "Answers", value: latest.length, delta: unmapped ? `${unmapped} not coded yet` : latest.length ? "all coded" : undefined },
+            { label: "Match a simulated misreading", value: matched, delta: mapped.size ? `of ${mapped.size} coded` : undefined },
           ]} />
           <div className="grid">
             <div className="c5">
@@ -55,7 +57,7 @@ export function HumanCheck(props: { ctx: RunContext }): ReactNode {
             </div>
             <div className="c7 stack">
               {model.questions.map((q, i) => {
-                const answers = model.answers.filter((a) => a.questionId === q.id);
+                const answers = latest.filter((a) => a.questionId === q.id);
                 return (
                   <Panel key={q.id} title={<span lang="vi">{i + 1}. {q.questionVi}</span>} meta={`${answers.length} ${answers.length === 1 ? "answer" : "answers"}`}>
                     <p className="small muted">Probes: {q.findingIds.map((id) => titles.get(id) ?? id).join("; ")}</p>

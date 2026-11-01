@@ -116,7 +116,7 @@ noiseBand(a: { readings: Reading[]; grades: Grade[] }, b: { readings: Reading[];
 
 // stop.ts: pure
 stopDecision(args: { history: Iteration[]; current: Omit<Iteration, "decision" | "reason">; iterationIndex: number;
-  maxIterations: number; fidelityFailures: number }): { decision: "continue" | "stop"; reason: string }
+  maxIterations: number; fidelityFailures: number; conflictMeasured: boolean }): { decision: "continue" | "stop"; reason: string }
 ```
 
 ## src/eval (P3)
